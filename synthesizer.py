@@ -13,6 +13,34 @@ from typing import Literal
 WaveformType = Literal['sine', 'square', 'saw', 'triangle']
 
 
+def sanitize_audio(audio: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
+    """Replace NaN and Inf values with a safe value (default: silence)
+
+    NaN values can occur from:
+    - Filter instabilities (feedback loops, high resonance)
+    - Division by zero in DSP calculations
+    - Overflow in delay/reverb feedback paths
+
+    NaN is particularly problematic because:
+    - np.clip(NaN, -1, 1) returns NaN (clipping doesn't help)
+    - NaN * volume = NaN (volume control doesn't work)
+    - NaN propagates through all subsequent calculations
+    - DACs may interpret NaN as extreme values, causing "warbled" sounds
+
+    Args:
+        audio: Input audio array
+        fill_value: Value to replace NaN/Inf with (default 0.0 = silence)
+
+    Returns:
+        Sanitized audio array with NaN/Inf replaced
+    """
+    # np.isfinite returns False for NaN, Inf, and -Inf
+    mask = ~np.isfinite(audio)
+    if np.any(mask):
+        audio = np.where(mask, fill_value, audio)
+    return audio
+
+
 class Oscillator:
     """Audio oscillator with multiple waveform types"""
 
@@ -663,6 +691,9 @@ class DubSiren:
         self.airhorn_freq = 150.0  # Hz
         self.siren_freq = 800.0    # Hz
 
+        # NaN protection monitoring
+        self._nan_events = 0  # Count of NaN occurrences for debugging
+
     def trigger_airhorn(self):
         """Trigger airhorn sound"""
         self.oscillator.set_frequency(self.airhorn_freq)
@@ -682,7 +713,13 @@ class DubSiren:
         self.envelope.release_trigger()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer"""
+        """Generate audio buffer with NaN protection
+
+        NaN values can propagate from filter instabilities, feedback loops,
+        or DSP edge cases. They bypass volume control and clipping, causing
+        "warbled" sounds that don't respond to controls. This method sanitizes
+        audio after each effect stage to prevent NaN propagation.
+        """
         # Generate oscillator output
         audio = self.oscillator.generate(num_samples)
 
@@ -695,17 +732,26 @@ class DubSiren:
         env = self.envelope.generate(num_samples)
         audio = audio * env
 
-        # Apply filter
+        # Apply filter (can produce NaN from high resonance/instability)
         audio = self.filter.process(audio)
+        audio = sanitize_audio(audio)
 
-        # Apply delay
+        # Apply delay (feedback loops can produce NaN/Inf)
         audio = self.delay.process(audio)
+        audio = sanitize_audio(audio)
 
-        # Apply reverb
+        # Apply reverb (multiple feedback paths can accumulate errors)
         audio = self.reverb.process(audio)
+        audio = sanitize_audio(audio)
 
         # Apply volume
         audio = audio * self.volume
+
+        # Final safety check: sanitize and clip
+        # Check for NaN before clipping (for monitoring)
+        if not np.all(np.isfinite(audio)):
+            self._nan_events += 1
+            audio = sanitize_audio(audio)
 
         # Ensure output is within range
         audio = np.clip(audio, -1.0, 1.0)
@@ -783,6 +829,18 @@ class DubSiren:
         index = waveform_index % len(waveforms)
         self.lfo.set_waveform(waveforms[index])
 
+    def get_nan_events(self) -> int:
+        """Get count of NaN events detected during audio generation
+
+        Useful for debugging audio issues. A high count may indicate
+        filter instability or problematic parameter settings.
+        """
+        return self._nan_events
+
+    def reset_nan_events(self):
+        """Reset the NaN event counter"""
+        self._nan_events = 0
+
 
 if __name__ == "__main__":
     # Test the synthesizer
@@ -795,6 +853,8 @@ if __name__ == "__main__":
     # Generate a few buffers
     for i in range(10):
         audio = synth.generate_audio(256)
-        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, mean={audio.mean():.3f}")
+        has_nan = not np.all(np.isfinite(audio))
+        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, mean={audio.mean():.3f}, NaN={has_nan}")
 
+    print(f"\nNaN events detected: {synth.get_nan_events()}")
     print("Test complete!")

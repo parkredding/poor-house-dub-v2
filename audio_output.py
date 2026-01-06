@@ -40,9 +40,16 @@ class AudioOutput:
         # Performance monitoring
         self.buffer_underruns = 0
         self.total_buffers = 0
+        self.nan_buffers = 0  # Count of buffers containing NaN values
 
     def _audio_callback(self, outdata, frames, time_info, status):
-        """Audio callback function called by sounddevice"""
+        """Audio callback function called by sounddevice
+
+        Includes final NaN protection as a safeguard. NaN values in audio
+        can bypass volume control and clipping, causing "warbled" sounds.
+        This callback sanitizes any remaining NaN values before sending
+        to the DAC.
+        """
         if status:
             print(f"Audio status: {status}")
             if status.output_underflow:
@@ -51,6 +58,13 @@ class AudioOutput:
         try:
             # Generate audio from synthesizer
             audio = self.synth.generate_audio(frames)
+
+            # Final NaN protection: sanitize any NaN/Inf values before DAC
+            # This is a last line of defense - the synth should handle most cases
+            if not np.all(np.isfinite(audio)):
+                self.nan_buffers += 1
+                # Replace NaN/Inf with silence to prevent warbled output
+                audio = np.where(np.isfinite(audio), audio, 0.0)
 
             # Convert mono to stereo if needed
             if self.channels == 2:
@@ -122,9 +136,13 @@ class AudioOutput:
         # Print performance stats
         if self.total_buffers > 0:
             underrun_rate = (self.buffer_underruns / self.total_buffers) * 100
+            nan_rate = (self.nan_buffers / self.total_buffers) * 100
             print(f"\nAudio performance:")
             print(f"  Total buffers: {self.total_buffers}")
             print(f"  Buffer underruns: {self.buffer_underruns} ({underrun_rate:.2f}%)")
+            print(f"  NaN buffers sanitized: {self.nan_buffers} ({nan_rate:.2f}%)")
+            if hasattr(self.synth, 'get_nan_events'):
+                print(f"  Synth NaN events: {self.synth.get_nan_events()}")
 
         print("Audio output stopped")
 
@@ -134,14 +152,19 @@ class AudioOutput:
 
     def get_stats(self) -> dict:
         """Get audio output statistics"""
-        return {
+        stats = {
             'running': self.running,
             'sample_rate': self.sample_rate,
             'buffer_size': self.buffer_size,
             'channels': self.channels,
             'total_buffers': self.total_buffers,
             'buffer_underruns': self.buffer_underruns,
+            'nan_buffers': self.nan_buffers,
         }
+        # Include synth NaN events if available
+        if hasattr(self.synth, 'get_nan_events'):
+            stats['synth_nan_events'] = self.synth.get_nan_events()
+        return stats
 
 
 class SimulatedAudioOutput:
