@@ -1,0 +1,12 @@
+# Dub Siren V2 Requirements
+# Python packages for Raspberry Pi Zero 2 dub siren
+
+# Audio processing
+numpy>=1.21.0
+sounddevice>=0.4.5
+
+# GPIO control (Raspberry Pi specific)
+RPi.GPIO>=0.7.1
+
+# Optional: for better performance
+# scipy>=1.7.0  # Advanced DSP if needed
