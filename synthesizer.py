@@ -26,6 +26,32 @@ def _clamp_sample(value: float) -> float:
     return value
 
 
+def _polyblep(t: float, dt: float) -> float:
+    """Calculate PolyBLEP (Polynomial Band-Limited Step) residual
+
+    PolyBLEP reduces aliasing in discontinuous waveforms (square, sawtooth)
+    by applying a polynomial correction near discontinuities.
+
+    Args:
+        t: Current phase position (0.0 to 1.0)
+        dt: Phase increment per sample (frequency / sample_rate)
+
+    Returns:
+        The PolyBLEP residual to subtract from the naive waveform
+    """
+    # Check if we're within one sample of a discontinuity
+    if t < dt:
+        # Just after the discontinuity (phase recently wrapped)
+        t_norm = t / dt  # Normalize to 0-1 range
+        return t_norm + t_norm - t_norm * t_norm - 1.0
+    elif t > 1.0 - dt:
+        # Just before the discontinuity (phase about to wrap)
+        t_norm = (t - 1.0) / dt  # Normalize to -1 to 0 range
+        return t_norm * t_norm + t_norm + t_norm + 1.0
+    else:
+        return 0.0
+
+
 def sanitize_audio(audio: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
     """Replace NaN and Inf values with a safe value (default: silence)
 
@@ -55,32 +81,134 @@ def sanitize_audio(audio: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
 
 
 class Oscillator:
-    """Audio oscillator with multiple waveform types"""
+    """Audio oscillator with multiple waveform types and PolyBLEP anti-aliasing
+
+    PolyBLEP (Polynomial Band-Limited Step) is applied to square and sawtooth
+    waveforms to reduce aliasing artifacts. This is especially important at
+    higher frequencies where harmonics would otherwise fold back into the
+    audible range.
+    """
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
         self.frequency = 440.0
-        self.phase = 0.0
+        self.phase = 0.0  # Phase accumulator (0.0 to 1.0)
         self.waveform: WaveformType = 'sine'
 
     def generate(self, num_samples: int) -> np.ndarray:
-        """Generate audio samples for the current waveform"""
-        t = (np.arange(num_samples) + self.phase) / self.sample_rate
+        """Generate audio samples for the current waveform
 
+        Square and sawtooth waveforms use PolyBLEP anti-aliasing for cleaner
+        sound at high frequencies. Sine and triangle are naturally band-limited.
+        """
         if self.waveform == 'sine':
-            output = np.sin(2 * np.pi * self.frequency * t)
+            return self._generate_sine(num_samples)
         elif self.waveform == 'square':
-            output = np.sign(np.sin(2 * np.pi * self.frequency * t))
+            return self._generate_square_polyblep(num_samples)
         elif self.waveform == 'saw':
-            output = 2 * (t * self.frequency - np.floor(0.5 + t * self.frequency))
+            return self._generate_saw_polyblep(num_samples)
         elif self.waveform == 'triangle':
-            output = 2 * np.abs(2 * (t * self.frequency - np.floor(0.5 + t * self.frequency))) - 1
+            return self._generate_triangle(num_samples)
         else:
-            output = np.zeros(num_samples)
+            return np.zeros(num_samples)
 
-        # Update phase for continuity
-        self.phase += num_samples
-        self.phase = self.phase % self.sample_rate
+    def _generate_sine(self, num_samples: int) -> np.ndarray:
+        """Generate sine wave (naturally band-limited, no anti-aliasing needed)"""
+        output = np.zeros(num_samples)
+        dt = self.frequency / self.sample_rate
+
+        for i in range(num_samples):
+            output[i] = np.sin(2.0 * np.pi * self.phase)
+            self.phase += dt
+            if self.phase >= 1.0:
+                self.phase -= 1.0
+
+        return output
+
+    def _generate_square_polyblep(self, num_samples: int) -> np.ndarray:
+        """Generate square wave with PolyBLEP anti-aliasing
+
+        PolyBLEP is applied at both transitions (0->1 at phase=0, 1->0 at phase=0.5)
+        to smooth the discontinuities and reduce aliasing.
+        """
+        output = np.zeros(num_samples)
+        dt = self.frequency / self.sample_rate
+
+        for i in range(num_samples):
+            # Naive square wave: +1 for first half, -1 for second half
+            if self.phase < 0.5:
+                value = 1.0
+            else:
+                value = -1.0
+
+            # Apply PolyBLEP correction at the rising edge (phase = 0)
+            # Rising edge: add polyblep to smooth the upward step
+            value += 2.0 * _polyblep(self.phase, dt)
+
+            # Apply PolyBLEP correction at the falling edge (phase = 0.5)
+            # Falling edge: subtract polyblep to smooth the downward step
+            phase_shifted = self.phase + 0.5
+            if phase_shifted >= 1.0:
+                phase_shifted -= 1.0
+            value -= 2.0 * _polyblep(phase_shifted, dt)
+
+            output[i] = value
+
+            # Advance phase
+            self.phase += dt
+            if self.phase >= 1.0:
+                self.phase -= 1.0
+
+        return output
+
+    def _generate_saw_polyblep(self, num_samples: int) -> np.ndarray:
+        """Generate sawtooth wave with PolyBLEP anti-aliasing
+
+        PolyBLEP is applied at the phase reset (when saw jumps from +1 to -1)
+        to smooth the discontinuity and reduce aliasing.
+        """
+        output = np.zeros(num_samples)
+        dt = self.frequency / self.sample_rate
+
+        for i in range(num_samples):
+            # Naive sawtooth: ramps from -1 to +1 over one cycle
+            value = 2.0 * self.phase - 1.0
+
+            # Apply PolyBLEP correction at the discontinuity (phase = 0)
+            # The discontinuity magnitude is 2.0 (from +1 to -1)
+            value -= 2.0 * _polyblep(self.phase, dt)
+
+            output[i] = value
+
+            # Advance phase
+            self.phase += dt
+            if self.phase >= 1.0:
+                self.phase -= 1.0
+
+        return output
+
+    def _generate_triangle(self, num_samples: int) -> np.ndarray:
+        """Generate triangle wave (continuous, no anti-aliasing needed)
+
+        Triangle waves have no discontinuities - they're continuous with
+        continuous first derivative at peaks. This makes them naturally
+        band-limited with harmonics that fall off as 1/n².
+        """
+        output = np.zeros(num_samples)
+        dt = self.frequency / self.sample_rate
+
+        for i in range(num_samples):
+            # Triangle from phase: rises 0->0.5, falls 0.5->1
+            if self.phase < 0.5:
+                value = 4.0 * self.phase - 1.0  # -1 to +1
+            else:
+                value = 3.0 - 4.0 * self.phase  # +1 to -1
+
+            output[i] = value
+
+            self.phase += dt
+            if self.phase >= 1.0:
+                self.phase -= 1.0
 
         return output
 
