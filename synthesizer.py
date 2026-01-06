@@ -208,13 +208,15 @@ class LowPassFilter:
 
 
 class DelayEffect:
-    """Ableton Live-style Delay/Echo effect
+    """Analog-style Delay/Echo effect with BBD/tape-like behavior
 
     Features:
     - Dry/Wet mix control
     - High-pass and low-pass filters in feedback path (prevents mud and harsh highs)
     - Soft saturation for analog warmth
-    - Time modulation for tape-like character
+    - Time modulation for tape-like wobble
+    - Analog repitch behavior: changing delay time causes pitch-shifting of repeats
+      (like real BBD or tape delays where the audio "smears" when you change time)
     """
 
     def __init__(self, sample_rate: int = 48000, max_delay: float = 2.0):
@@ -224,9 +226,16 @@ class DelayEffect:
         self.write_pos = 0
 
         # Core delay parameters
-        self.delay_time = 0.5  # seconds
+        self.delay_time = 0.5  # seconds (target delay time)
         self.feedback = 0.5    # 0.0 to 1.0
         self.dry_wet = 0.5     # 0.0 = dry, 1.0 = wet
+
+        # Analog repitch behavior - smoothly slide to new delay time
+        # This creates pitch shifting when delay time changes (like BBD/tape)
+        self._current_delay_samples = self.delay_time * sample_rate  # actual read offset
+        self.repitch_rate = 0.5  # 0.0 = instant (digital), 1.0 = very slow/dramatic pitch shift
+        # Internal: samples to move per sample (derived from repitch_rate)
+        self._slew_rate = self._calculate_slew_rate()
 
         # Feedback filter parameters (Ableton-style)
         self.filter_hp_freq = 80.0     # High-pass cutoff Hz (removes mud)
@@ -243,6 +252,25 @@ class DelayEffect:
         self.mod_depth = 0.002    # modulation depth in seconds
         self.mod_rate = 0.5       # modulation rate in Hz
         self._mod_phase = 0.0
+
+    def _calculate_slew_rate(self) -> float:
+        """Calculate slew rate from repitch_rate parameter
+
+        repitch_rate of 0.0 = instant jump (digital behavior)
+        repitch_rate of 1.0 = very slow slew (dramatic pitch effects)
+
+        Returns samples to move toward target per sample processed.
+        """
+        if self.repitch_rate <= 0.0:
+            return float('inf')  # Instant - no slewing
+        # Map repitch_rate to a reasonable slew time
+        # At 0.5, we want to traverse ~1 second of delay in ~0.5 seconds
+        # This gives noticeable but not extreme pitch shifts
+        max_slew_time = 2.0 * self.repitch_rate  # seconds to traverse max delay
+        samples_per_second = self.sample_rate
+        max_delay_samples = self.max_delay_samples
+        # How many samples to move per sample to traverse max_delay in max_slew_time
+        return max_delay_samples / (max_slew_time * samples_per_second)
 
     def _soft_clip(self, x: float, amount: float) -> float:
         """Soft saturation for warmth (tanh-style)"""
@@ -275,31 +303,74 @@ class DelayEffect:
 
         return self._lp_state
 
+    def _lerp_read(self, delay_samples: float) -> float:
+        """Read from delay buffer with linear interpolation for sub-sample accuracy
+
+        This is essential for smooth pitch-shifting during analog-style time changes.
+        """
+        # Calculate read position (floating point for interpolation)
+        read_pos = self.write_pos - delay_samples
+        if read_pos < 0:
+            read_pos += self.max_delay_samples
+
+        # Integer and fractional parts for linear interpolation
+        read_pos_int = int(read_pos)
+        frac = read_pos - read_pos_int
+
+        # Get two adjacent samples
+        idx0 = read_pos_int % self.max_delay_samples
+        idx1 = (read_pos_int + 1) % self.max_delay_samples
+
+        # Linear interpolation between samples
+        return self.buffer[idx0] * (1.0 - frac) + self.buffer[idx1] * frac
+
     def process(self, input_signal: np.ndarray) -> np.ndarray:
-        """Process audio through the delay"""
+        """Process audio through the delay with analog-style time behavior
+
+        When delay_time changes, the read position smoothly slides toward the
+        new target, causing pitch-shifting of the audio in the buffer - just
+        like real analog BBD delays or tape delays.
+        """
         output = np.zeros_like(input_signal)
         wet = np.zeros_like(input_signal)
 
-        base_delay_samples = self.delay_time * self.sample_rate
+        # Target delay in samples (where we want to be)
+        target_delay_samples = self.delay_time * self.sample_rate
 
         for i in range(len(input_signal)):
-            # Calculate modulated delay time (tape wobble effect)
+            # Analog behavior: smoothly slew toward target delay time
+            # This creates pitch shifting when delay time changes
+            if self._slew_rate == float('inf'):
+                # Digital mode: instant jump
+                self._current_delay_samples = target_delay_samples
+            else:
+                # Analog mode: smooth slew toward target
+                diff = target_delay_samples - self._current_delay_samples
+                if abs(diff) > self._slew_rate:
+                    # Move toward target by slew_rate
+                    if diff > 0:
+                        self._current_delay_samples += self._slew_rate
+                    else:
+                        self._current_delay_samples -= self._slew_rate
+                else:
+                    # Close enough, snap to target
+                    self._current_delay_samples = target_delay_samples
+
+            # Add tape wobble modulation on top of current delay
             mod = np.sin(2.0 * np.pi * self.mod_rate * self._mod_phase / self.sample_rate)
             mod_samples = self.mod_depth * self.sample_rate * mod
-            delay_samples = base_delay_samples + mod_samples
-            delay_samples = max(1, min(int(delay_samples), self.max_delay_samples - 1))
+            delay_samples = self._current_delay_samples + mod_samples
+
+            # Clamp to valid range (keep as float for interpolation)
+            delay_samples = max(1.0, min(delay_samples, self.max_delay_samples - 2.0))
 
             self._mod_phase += 1
             if self._mod_phase >= self.sample_rate:
                 self._mod_phase = 0
 
-            # Read from delay buffer with linear interpolation for smooth modulation
-            read_pos = self.write_pos - delay_samples
-            if read_pos < 0:
-                read_pos += self.max_delay_samples
-
-            # Get delayed sample
-            delayed = self.buffer[read_pos]
+            # Read from delay buffer with linear interpolation
+            # This is crucial for smooth pitch-shifting
+            delayed = self._lerp_read(delay_samples)
 
             # Process feedback through filters and saturation
             feedback_signal = self._process_feedback_filters(delayed)
@@ -320,8 +391,26 @@ class DelayEffect:
         return output
 
     def set_delay_time(self, time: float):
-        """Set delay time in seconds"""
+        """Set delay time in seconds
+
+        In analog mode (repitch_rate > 0), changing this will cause pitch-shifting
+        as the delay smoothly slides to the new time.
+        """
         self.delay_time = max(0.001, min(time, 2.0))
+
+    def set_repitch_rate(self, rate: float):
+        """Set analog repitch rate (0.0 to 1.0)
+
+        Controls how the delay behaves when time is changed:
+        - 0.0 = Digital mode: instant time changes (no pitch shifting)
+        - 0.5 = Moderate: noticeable pitch wobble when changing time
+        - 1.0 = Maximum: dramatic pitch sweeps, slow response
+
+        Higher values = slower slew = more dramatic pitch effects when
+        turning the delay time knob.
+        """
+        self.repitch_rate = max(0.0, min(rate, 1.0))
+        self._slew_rate = self._calculate_slew_rate()
 
     def set_feedback(self, feedback: float):
         """Set delay feedback (0.0 to 1.0)"""
@@ -513,6 +602,16 @@ class DubSiren:
     def set_delay_saturation(self, amount: float):
         """Set delay saturation/warmth amount"""
         self.delay.set_saturation(amount)
+
+    def set_delay_repitch_rate(self, rate: float):
+        """Set delay analog repitch rate (0.0 to 1.0)
+
+        Controls how the delay responds to time changes:
+        - 0.0 = Digital: instant time changes
+        - 0.5 = Moderate analog behavior with pitch wobble
+        - 1.0 = Maximum: dramatic pitch sweeps like tape/BBD delays
+        """
+        self.delay.set_repitch_rate(rate)
 
     def set_reverb_size(self, size: float):
         """Set reverb size"""
