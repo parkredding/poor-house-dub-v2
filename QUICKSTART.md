@@ -2,6 +2,29 @@
 
 This guide will get your Dub Siren up and running in 15 minutes.
 
+## Super Quick Install (One Command)
+
+If you just want to get started immediately:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/install.sh | bash
+```
+
+This single command will:
+- Install all dependencies
+- Configure I2S for PCM5102 DAC
+- Setup auto-start service
+- Enable boot-on-startup
+- Prompt you to reboot
+
+After reboot, your dub siren will start automatically!
+
+---
+
+## Step-by-Step Install
+
+For those who want to understand each step:
+
 ## Step 1: Hardware Assembly (5 minutes)
 
 ### Minimal Setup (PCM5102 only)

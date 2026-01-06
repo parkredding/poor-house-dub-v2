@@ -41,6 +41,23 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 
 ### Installation
 
+#### One-Line Install (Recommended)
+
+Install everything with auto-start on boot:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/install.sh | bash
+```
+
+This will:
+- Install all dependencies
+- Configure I2S audio for PCM5102
+- Setup systemd service
+- Enable auto-start on boot
+- Prompt to reboot
+
+#### Manual Installation
+
 1. **Flash Raspberry Pi OS**
    ```bash
    # Use Raspberry Pi Imager to flash Raspberry Pi OS Lite (64-bit)
@@ -48,7 +65,7 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 
 2. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/poor-house-dub-v2.git
+   git clone https://github.com/parkredding/poor-house-dub-v2.git
    cd poor-house-dub-v2
    ```
 
@@ -58,7 +75,12 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
    ./setup.sh
    ```
 
-4. **Reboot**
+4. **Enable service** (optional)
+   ```bash
+   sudo systemctl enable dubsiren.service
+   ```
+
+5. **Reboot**
    ```bash
    sudo reboot
    ```
