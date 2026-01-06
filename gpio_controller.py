@@ -111,7 +111,7 @@ class ControlSurface:
     Layout (4x3 matrix):
     Row 1: Volume, Filter Freq, Delay Time, Reverb Size
     Row 2: Release Time, Filter Res, Delay FB, Reverb Mix
-    Row 3: Osc Wave, LFO Wave, Trigger 1 (Airhorn), Trigger 2 (Siren)
+    Row 3: Osc Wave, LFO Wave, Pitch Env (cycle), Trigger
     """
 
     # GPIO pin assignments (BCM numbering)
@@ -129,8 +129,8 @@ class ControlSurface:
     }
 
     SWITCH_PINS = {
-        'airhorn': 10,                # Trigger 1
-        'siren': 4,                   # Trigger 2
+        'pitch_env': 10,              # Pitch envelope cycle (was airhorn)
+        'trigger': 4,                 # Main trigger (was siren)
     }
 
     def __init__(self, synth):
@@ -166,17 +166,24 @@ class ControlSurface:
             self.encoders[name] = RotaryEncoder(clk, dt, callback)
 
         # Setup switches
-        self.switches['airhorn'] = MomentarySwitch(
-            self.SWITCH_PINS['airhorn'],
-            press_callback=self.synth.trigger_airhorn,
-            release_callback=self.synth.release_airhorn
+        # Pitch envelope button: cycles through none -> up -> down on press
+        self.switches['pitch_env'] = MomentarySwitch(
+            self.SWITCH_PINS['pitch_env'],
+            press_callback=self._cycle_pitch_envelope,
+            release_callback=None  # No action on release
         )
 
-        self.switches['siren'] = MomentarySwitch(
-            self.SWITCH_PINS['siren'],
-            press_callback=self.synth.trigger_siren,
-            release_callback=self.synth.release_siren
+        # Main trigger button
+        self.switches['trigger'] = MomentarySwitch(
+            self.SWITCH_PINS['trigger'],
+            press_callback=self.synth.trigger,
+            release_callback=self.synth.release
         )
+
+    def _cycle_pitch_envelope(self):
+        """Cycle through pitch envelope modes and log the change"""
+        new_mode = self.synth.cycle_pitch_envelope()
+        print(f"Pitch envelope: {new_mode}")
 
     def _handle_encoder(self, name: str, direction: int):
         """Handle encoder rotation"""
