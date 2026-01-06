@@ -265,6 +265,7 @@
     <div class="start-overlay" id="startOverlay">
         <button class="start-btn" id="startBtn">TAP TO START</button>
         <p>iOS requires user interaction to enable audio.<br>Tap the button above to initialize the synthesizer.</p>
+        <p style="color: #ff6b35; margin-top: 15px;"><strong>iPhone users:</strong> Make sure your silent switch is OFF<br>(orange = silent, no orange = sound on)</p>
     </div>
 
     <h1>DUB SIREN V2</h1>
@@ -439,13 +440,17 @@
             }
 
             async init() {
-                // Create audio context
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // Create audio context with options that help iOS speaker output
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                this.audioContext = new AudioContextClass();
 
                 // Resume if suspended (iOS requirement)
                 if (this.audioContext.state === 'suspended') {
                     await this.audioContext.resume();
                 }
+
+                // Unlock audio for iPhone speaker (critical for iOS Safari)
+                await this.unlockAudioForSpeaker();
 
                 // Create master output chain
                 this.masterGain = this.audioContext.createGain();
@@ -519,6 +524,54 @@
                 }
 
                 this.convolver.buffer = impulse;
+            }
+
+            async unlockAudioForSpeaker() {
+                // iOS Safari requires special handling to play through the built-in speaker
+                // This method uses multiple techniques to ensure speaker output works
+
+                // Technique 1: Play a silent buffer through Web Audio API
+                const silentBuffer = this.audioContext.createBuffer(1, 1, this.audioContext.sampleRate);
+                const silentSource = this.audioContext.createBufferSource();
+                silentSource.buffer = silentBuffer;
+                silentSource.connect(this.audioContext.destination);
+                silentSource.start(0);
+
+                // Technique 2: Use an HTML Audio element to unlock speaker routing
+                // This is crucial for iPhone speaker (not just headphones)
+                try {
+                    // Create a short silent audio as a data URI (44 bytes WAV)
+                    const silentWav = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+                    const audio = new Audio(silentWav);
+                    audio.volume = 0.01; // Very quiet but not silent (iOS may ignore 0)
+                    audio.playsInline = true;
+                    audio.setAttribute('playsinline', '');
+                    audio.setAttribute('webkit-playsinline', '');
+
+                    // Play and immediately pause to unlock audio routing
+                    await audio.play();
+                    audio.pause();
+                    audio.remove();
+                } catch (e) {
+                    console.log('Audio unlock via HTML Audio failed:', e);
+                }
+
+                // Technique 3: Create and play an oscillator briefly
+                // This ensures the audio graph is fully activated for speaker output
+                const unlockOsc = this.audioContext.createOscillator();
+                const unlockGain = this.audioContext.createGain();
+                unlockGain.gain.value = 0.001; // Nearly silent
+                unlockOsc.connect(unlockGain);
+                unlockGain.connect(this.audioContext.destination);
+                unlockOsc.start(0);
+                unlockOsc.stop(this.audioContext.currentTime + 0.1);
+
+                // Resume audio context again after unlock attempts
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                }
+
+                console.log('Audio unlocked for speaker, context state:', this.audioContext.state);
             }
 
             trigger() {
