@@ -357,6 +357,7 @@
 
     <script>
         // Dub Siren Synthesizer - Web Audio Implementation
+        // Simplified architecture for iOS compatibility
         class DubSiren {
             constructor() {
                 this.audioContext = null;
@@ -386,99 +387,118 @@
                     volume: 0.7
                 };
 
-                // Nodes
+                // Persistent nodes (created once in init)
+                this.inputGain = null;      // Entry point for oscillators
+                this.filter = null;
+                this.delay = null;
+                this.delayFeedback = null;
+                this.delayMix = null;
+                this.convolver = null;
+                this.reverbMix = null;
+                this.masterGain = null;
+                this.analyser = null;
+
+                // Per-note nodes (created/destroyed per trigger)
                 this.oscillator = null;
                 this.lfo = null;
                 this.lfoGain = null;
                 this.envelope = null;
-                this.filter = null;
-                this.delay = null;
-                this.delayFeedbackGain = null;
-                this.delayDry = null;
-                this.delayWet = null;
-                this.convolver = null;
-                this.reverbDry = null;
-                this.reverbWet = null;
-                this.masterGain = null;
-                this.analyser = null;
             }
 
             async init() {
-                // Create audio context
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                try {
+                    // Create audio context
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-                // Resume if suspended (iOS requirement)
-                if (this.audioContext.state === 'suspended') {
-                    await this.audioContext.resume();
+                    // Resume if suspended (iOS requirement)
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume();
+                    }
+
+                    // === BUILD FIXED SIGNAL CHAIN ===
+                    // inputGain -> filter -> [dry + delay] -> [dry + reverb] -> master -> analyser -> output
+
+                    // Input gain - oscillators connect here
+                    this.inputGain = this.audioContext.createGain();
+                    this.inputGain.gain.value = 1;
+
+                    // Filter
+                    this.filter = this.audioContext.createBiquadFilter();
+                    this.filter.type = 'lowpass';
+                    this.filter.frequency.value = this.params.filterFreq;
+                    this.filter.Q.value = this.params.filterRes;
+
+                    // Delay with feedback
+                    this.delay = this.audioContext.createDelay(2.0);
+                    this.delay.delayTime.value = this.params.delayTime;
+
+                    this.delayFeedback = this.audioContext.createGain();
+                    this.delayFeedback.gain.value = this.params.delayFeedback;
+
+                    // Delay mix (0 = dry only, 1 = wet only)
+                    this.delayMix = this.audioContext.createGain();
+                    this.delayMix.gain.value = this.params.delayMix;
+
+                    // Reverb
+                    this.convolver = this.audioContext.createConvolver();
+                    await this.createReverbIR();
+
+                    this.reverbMix = this.audioContext.createGain();
+                    this.reverbMix.gain.value = this.params.reverbMix;
+
+                    // Master output
+                    this.masterGain = this.audioContext.createGain();
+                    this.masterGain.gain.value = this.params.volume;
+
+                    // Analyser for visualization
+                    this.analyser = this.audioContext.createAnalyser();
+                    this.analyser.fftSize = 2048;
+
+                    // === CONNECT THE CHAIN ===
+
+                    // Input -> Filter
+                    this.inputGain.connect(this.filter);
+
+                    // Filter -> Master (dry path)
+                    this.filter.connect(this.masterGain);
+
+                    // Filter -> Delay -> DelayMix -> Master (delay wet path)
+                    this.filter.connect(this.delay);
+                    this.delay.connect(this.delayMix);
+                    this.delayMix.connect(this.masterGain);
+
+                    // Delay feedback loop
+                    this.delay.connect(this.delayFeedback);
+                    this.delayFeedback.connect(this.delay);
+
+                    // Filter -> Convolver -> ReverbMix -> Master (reverb wet path)
+                    this.filter.connect(this.convolver);
+                    this.convolver.connect(this.reverbMix);
+                    this.reverbMix.connect(this.masterGain);
+
+                    // Master -> Analyser -> Output
+                    this.masterGain.connect(this.analyser);
+                    this.analyser.connect(this.audioContext.destination);
+
+                    console.log('Audio initialized successfully');
+                    return true;
+                } catch (e) {
+                    console.error('Audio init failed:', e);
+                    this.updateStatus('Audio init failed: ' + e.message);
+                    return false;
                 }
-
-                // Create master output chain
-                this.masterGain = this.audioContext.createGain();
-                this.masterGain.gain.value = this.params.volume;
-
-                // Create analyser for visualization
-                this.analyser = this.audioContext.createAnalyser();
-                this.analyser.fftSize = 2048;
-
-                // Create filter
-                this.filter = this.audioContext.createBiquadFilter();
-                this.filter.type = 'lowpass';
-                this.filter.frequency.value = this.params.filterFreq;
-                this.filter.Q.value = this.params.filterRes;
-
-                // Create delay
-                this.delay = this.audioContext.createDelay(2.0);
-                this.delay.delayTime.value = this.params.delayTime;
-
-                this.delayFeedbackGain = this.audioContext.createGain();
-                this.delayFeedbackGain.gain.value = this.params.delayFeedback;
-
-                // Delay feedback loop with filter to prevent buildup
-                this.delayFilter = this.audioContext.createBiquadFilter();
-                this.delayFilter.type = 'lowpass';
-                this.delayFilter.frequency.value = 4000;
-
-                this.delay.connect(this.delayFilter);
-                this.delayFilter.connect(this.delayFeedbackGain);
-                this.delayFeedbackGain.connect(this.delay);
-
-                // Delay mix
-                this.delayDry = this.audioContext.createGain();
-                this.delayWet = this.audioContext.createGain();
-                this.delayDry.gain.value = 1;
-                this.delayWet.gain.value = this.params.delayMix;
-
-                // Create reverb using convolver
-                this.convolver = this.audioContext.createConvolver();
-                await this.createReverbIR();
-
-                // Reverb mix
-                this.reverbDry = this.audioContext.createGain();
-                this.reverbWet = this.audioContext.createGain();
-                this.reverbDry.gain.value = 1;
-                this.reverbWet.gain.value = this.params.reverbMix;
-
-                // Connect reverb chain
-                // Input splits to dry and convolver
-                // Both merge before master
-
-                this.masterGain.connect(this.analyser);
-                this.analyser.connect(this.audioContext.destination);
-
-                return true;
             }
 
             async createReverbIR() {
                 // Create impulse response for reverb
                 const sampleRate = this.audioContext.sampleRate;
-                const length = sampleRate * this.params.reverbSize * 3; // Up to 3 seconds
+                const length = Math.max(sampleRate * this.params.reverbSize * 2, sampleRate * 0.5);
                 const impulse = this.audioContext.createBuffer(2, length, sampleRate);
 
                 for (let channel = 0; channel < 2; channel++) {
                     const channelData = impulse.getChannelData(channel);
                     for (let i = 0; i < length; i++) {
-                        // Exponential decay with some diffusion
-                        const decay = Math.exp(-3 * i / length);
+                        const decay = Math.exp(-4 * i / length);
                         channelData[i] = (Math.random() * 2 - 1) * decay;
                     }
                 }
@@ -487,10 +507,18 @@
             }
 
             trigger(frequency, type = 'custom') {
-                if (!this.audioContext) return;
+                if (!this.audioContext) {
+                    console.error('No audio context');
+                    return;
+                }
 
-                // Stop any existing note
-                this.release();
+                // Resume context if needed (iOS can suspend it)
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+
+                // Stop any existing note cleanly
+                this.stopOscillators();
 
                 const now = this.audioContext.currentTime;
 
@@ -505,46 +533,22 @@
                 this.lfo.frequency.value = this.params.lfoRate;
 
                 this.lfoGain = this.audioContext.createGain();
-                // LFO depth as percentage of base frequency
                 this.lfoGain.gain.value = frequency * (this.params.lfoDepth / 100);
 
+                // Connect LFO to oscillator frequency
                 this.lfo.connect(this.lfoGain);
                 this.lfoGain.connect(this.oscillator.frequency);
 
                 // Create envelope
                 this.envelope = this.audioContext.createGain();
-                this.envelope.gain.value = 0;
-                this.envelope.gain.setValueAtTime(0, now);
-                this.envelope.gain.linearRampToValueAtTime(1, now + this.params.attack);
+                this.envelope.gain.setValueAtTime(0.0001, now);
+                this.envelope.gain.exponentialRampToValueAtTime(1, now + Math.max(this.params.attack, 0.001));
 
-                // Connect signal chain
+                // Connect: oscillator -> envelope -> inputGain (which feeds the fixed chain)
                 this.oscillator.connect(this.envelope);
-                this.envelope.connect(this.filter);
+                this.envelope.connect(this.inputGain);
 
-                // Filter to delay (wet) and direct (dry)
-                this.filter.connect(this.delayDry);
-                this.filter.connect(this.delay);
-                this.delay.connect(this.delayWet);
-
-                // Create merger for delay
-                const delayMerge = this.audioContext.createGain();
-                this.delayDry.connect(delayMerge);
-                this.delayWet.connect(delayMerge);
-
-                // Delay merge to reverb (wet) and direct (dry)
-                delayMerge.connect(this.reverbDry);
-                delayMerge.connect(this.convolver);
-                this.convolver.connect(this.reverbWet);
-
-                // Create merger for reverb
-                const reverbMerge = this.audioContext.createGain();
-                this.reverbDry.connect(reverbMerge);
-                this.reverbWet.connect(reverbMerge);
-
-                // Final output
-                reverbMerge.connect(this.masterGain);
-
-                // Start
+                // Start oscillators
                 this.oscillator.start(now);
                 this.lfo.start(now);
 
@@ -552,41 +556,73 @@
                 this.currentNote = { type, frequency };
 
                 this.updateStatus(`Playing: ${type} @ ${frequency}Hz`);
+                console.log(`Triggered ${type} at ${frequency}Hz`);
             }
 
-            release() {
-                if (!this.oscillator || !this.audioContext) return;
-
-                const now = this.audioContext.currentTime;
-
-                // Smooth release
-                if (this.envelope) {
-                    this.envelope.gain.cancelScheduledValues(now);
-                    this.envelope.gain.setValueAtTime(this.envelope.gain.value, now);
-                    this.envelope.gain.linearRampToValueAtTime(0, now + this.params.release);
-                }
-
-                // Schedule stop after release
-                const stopTime = now + this.params.release + 0.1;
+            stopOscillators() {
+                const now = this.audioContext ? this.audioContext.currentTime : 0;
 
                 if (this.oscillator) {
-                    this.oscillator.stop(stopTime);
+                    try {
+                        this.oscillator.stop(now);
+                        this.oscillator.disconnect();
+                    } catch (e) { /* already stopped */ }
                     this.oscillator = null;
                 }
 
                 if (this.lfo) {
-                    this.lfo.stop(stopTime);
+                    try {
+                        this.lfo.stop(now);
+                        this.lfo.disconnect();
+                    } catch (e) { /* already stopped */ }
                     this.lfo = null;
+                }
+
+                if (this.lfoGain) {
+                    try { this.lfoGain.disconnect(); } catch (e) {}
+                    this.lfoGain = null;
+                }
+
+                if (this.envelope) {
+                    try { this.envelope.disconnect(); } catch (e) {}
+                    this.envelope = null;
+                }
+            }
+
+            release() {
+                if (!this.audioContext || !this.envelope) return;
+
+                const now = this.audioContext.currentTime;
+                const releaseTime = Math.max(this.params.release, 0.01);
+
+                // Smooth release envelope
+                this.envelope.gain.cancelScheduledValues(now);
+                this.envelope.gain.setValueAtTime(this.envelope.gain.value, now);
+                this.envelope.gain.exponentialRampToValueAtTime(0.0001, now + releaseTime);
+
+                // Schedule stop after release completes
+                const stopTime = now + releaseTime + 0.05;
+
+                if (this.oscillator) {
+                    this.oscillator.stop(stopTime);
+                }
+                if (this.lfo) {
+                    this.lfo.stop(stopTime);
                 }
 
                 this.isPlaying = false;
                 this.currentNote = null;
 
+                // Clean up references after stop
                 setTimeout(() => {
+                    this.oscillator = null;
+                    this.lfo = null;
+                    this.lfoGain = null;
+                    this.envelope = null;
                     if (!this.isPlaying) {
                         this.updateStatus('Ready');
                     }
-                }, (this.params.release + 0.1) * 1000);
+                }, (releaseTime + 0.1) * 1000);
             }
 
             triggerAirhorn() {
@@ -612,13 +648,13 @@
                         if (this.delay) this.delay.delayTime.value = value;
                         break;
                     case 'delayFeedback':
-                        if (this.delayFeedbackGain) this.delayFeedbackGain.gain.value = value;
+                        if (this.delayFeedback) this.delayFeedback.gain.value = value;
                         break;
                     case 'delayMix':
-                        if (this.delayWet) this.delayWet.gain.value = value;
+                        if (this.delayMix) this.delayMix.gain.value = value;
                         break;
                     case 'reverbMix':
-                        if (this.reverbWet) this.reverbWet.gain.value = value;
+                        if (this.reverbMix) this.reverbMix.gain.value = value;
                         break;
                     case 'reverbSize':
                         this.createReverbIR();
