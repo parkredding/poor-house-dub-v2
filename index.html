@@ -777,15 +777,41 @@
         const siren = new DubSiren();
         let visualizerAnimationId = null;
 
-        // Start button handler
-        document.getElementById('startBtn').addEventListener('click', async () => {
-            const success = await siren.init();
-            if (success) {
-                document.getElementById('startOverlay').classList.add('hidden');
-                document.getElementById('status').textContent = 'Ready - Set frequency and tap TRIGGER';
-                startVisualizer();
-            }
-        });
+        // Start button handler with proper touch event handling
+        (function setupStartButton() {
+            const startBtn = document.getElementById('startBtn');
+            const startOverlay = document.getElementById('startOverlay');
+            let isInitializing = false;
+
+            const handleStart = async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (isInitializing) return;
+                isInitializing = true;
+
+                try {
+                    startBtn.textContent = 'INITIALIZING...';
+                    startBtn.style.opacity = '0.7';
+
+                    const success = await siren.init();
+                    if (success) {
+                        startOverlay.classList.add('hidden');
+                        document.getElementById('status').textContent = 'Ready - Set frequency and tap TRIGGER';
+                        startVisualizer();
+                    }
+                } catch (error) {
+                    console.error('Failed to initialize audio:', error);
+                    startBtn.textContent = 'TAP TO RETRY';
+                    startBtn.style.opacity = '1';
+                    isInitializing = false;
+                }
+            };
+
+            // Use both touch and click events for better mobile compatibility
+            startBtn.addEventListener('touchend', handleStart, { passive: false });
+            startBtn.addEventListener('click', handleStart);
+        })();
 
         // Trigger button
         const sirenBtn = document.getElementById('sirenBtn');
