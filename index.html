@@ -94,15 +94,46 @@
             transform: scale(0.95);
         }
 
-        .airhorn {
-            background: linear-gradient(145deg, #ff6b35, #f7931e);
-            color: white;
-            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.4);
+        .pitch-envelope-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .airhorn:active, .airhorn.active {
-            background: linear-gradient(145deg, #ff8c5a, #ffaa4a);
-            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.6);
+        .pitch-envelope-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 0.75em;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .pitch-envelope-options {
+            display: flex;
+            gap: 8px;
+        }
+
+        .pitch-env-btn {
+            padding: 10px 12px;
+            font-size: 0.7em;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #aaa;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .pitch-env-btn.active {
+            background: rgba(255, 107, 53, 0.3);
+            border-color: #ff6b35;
+            color: #ff6b35;
         }
 
         .siren {
@@ -241,8 +272,15 @@
     <canvas class="visualizer" id="visualizer"></canvas>
 
     <div class="triggers">
-        <button class="trigger-btn airhorn" id="airhornBtn">AIRHORN</button>
-        <button class="trigger-btn siren" id="sirenBtn">SIREN</button>
+        <div class="pitch-envelope-section">
+            <h3>Pitch Envelope</h3>
+            <div class="pitch-envelope-options" id="pitchEnvelope">
+                <button class="pitch-env-btn active" data-env="none">None</button>
+                <button class="pitch-env-btn" data-env="up">Up</button>
+                <button class="pitch-env-btn" data-env="down">Down</button>
+            </div>
+        </div>
+        <button class="trigger-btn siren" id="sirenBtn">TRIGGER</button>
     </div>
 
     <div class="section">
@@ -363,14 +401,11 @@
                 this.isPlaying = false;
                 this.currentNote = null;
 
-                // Preset frequencies
-                this.AIRHORN_FREQ = 150;
-                this.SIREN_FREQ = 800;
-
                 // Parameters
                 this.params = {
                     oscWaveform: 'sine',
                     frequency: 440,
+                    pitchEnvelope: 'none', // 'none', 'up', 'down'
                     lfoRate: 5,
                     lfoDepth: 0,
                     lfoWaveform: 'sine',
@@ -486,13 +521,14 @@
                 this.convolver.buffer = impulse;
             }
 
-            trigger(frequency, type = 'custom') {
+            trigger() {
                 if (!this.audioContext) return;
 
                 // Stop any existing note
                 this.release();
 
                 const now = this.audioContext.currentTime;
+                const frequency = this.params.frequency;
 
                 // Create oscillator
                 this.oscillator = this.audioContext.createOscillator();
@@ -549,25 +585,45 @@
                 this.lfo.start(now);
 
                 this.isPlaying = true;
-                this.currentNote = { type, frequency };
+                this.currentNote = { frequency };
 
-                this.updateStatus(`Playing: ${type} @ ${frequency}Hz`);
+                this.updateStatus(`Playing @ ${frequency}Hz`);
             }
 
             release() {
                 if (!this.oscillator || !this.audioContext) return;
 
                 const now = this.audioContext.currentTime;
+                const releaseTime = this.params.release;
+                const currentFreq = this.currentNote ? this.currentNote.frequency : this.params.frequency;
 
-                // Smooth release
+                // Apply pitch envelope during release
+                if (this.oscillator && this.params.pitchEnvelope !== 'none') {
+                    this.oscillator.frequency.cancelScheduledValues(now);
+                    this.oscillator.frequency.setValueAtTime(currentFreq, now);
+
+                    if (this.params.pitchEnvelope === 'up') {
+                        // Pitch sweeps up during release (2 octaves up)
+                        this.oscillator.frequency.exponentialRampToValueAtTime(
+                            currentFreq * 4, now + releaseTime
+                        );
+                    } else if (this.params.pitchEnvelope === 'down') {
+                        // Pitch sweeps down during release (2 octaves down, min 20Hz)
+                        this.oscillator.frequency.exponentialRampToValueAtTime(
+                            Math.max(20, currentFreq / 4), now + releaseTime
+                        );
+                    }
+                }
+
+                // Smooth gain release
                 if (this.envelope) {
                     this.envelope.gain.cancelScheduledValues(now);
                     this.envelope.gain.setValueAtTime(this.envelope.gain.value, now);
-                    this.envelope.gain.linearRampToValueAtTime(0, now + this.params.release);
+                    this.envelope.gain.linearRampToValueAtTime(0, now + releaseTime);
                 }
 
                 // Schedule stop after release
-                const stopTime = now + this.params.release + 0.1;
+                const stopTime = now + releaseTime + 0.1;
 
                 if (this.oscillator) {
                     this.oscillator.stop(stopTime);
@@ -586,15 +642,7 @@
                     if (!this.isPlaying) {
                         this.updateStatus('Ready');
                     }
-                }, (this.params.release + 0.1) * 1000);
-            }
-
-            triggerAirhorn() {
-                this.trigger(this.AIRHORN_FREQ, 'Airhorn');
-            }
-
-            triggerSiren() {
-                this.trigger(this.SIREN_FREQ, 'Siren');
+                }, (releaseTime + 0.1) * 1000);
             }
 
             setParam(name, value) {
@@ -640,6 +688,19 @@
                     case 'lfoWaveform':
                         if (this.lfo) this.lfo.type = value;
                         break;
+                    case 'frequency':
+                        // Update live oscillator if playing
+                        if (this.oscillator && this.isPlaying) {
+                            this.oscillator.frequency.value = value;
+                            // Also update LFO depth based on new frequency
+                            if (this.lfoGain) {
+                                this.lfoGain.gain.value = value * (this.params.lfoDepth / 100);
+                            }
+                            if (this.currentNote) {
+                                this.currentNote.frequency = value;
+                            }
+                        }
+                        break;
                 }
             }
 
@@ -668,17 +729,16 @@
             const success = await siren.init();
             if (success) {
                 document.getElementById('startOverlay').classList.add('hidden');
-                document.getElementById('status').textContent = 'Ready - Tap AIRHORN or SIREN';
+                document.getElementById('status').textContent = 'Ready - Set frequency and tap TRIGGER';
                 startVisualizer();
             }
         });
 
-        // Trigger buttons
-        const airhornBtn = document.getElementById('airhornBtn');
+        // Trigger button
         const sirenBtn = document.getElementById('sirenBtn');
 
-        // Touch and mouse events for triggers
-        function addTriggerEvents(btn, triggerFn) {
+        // Touch and mouse events for trigger
+        (function setupTriggerButton(btn) {
             let isDown = false;
 
             const start = (e) => {
@@ -686,7 +746,7 @@
                 if (!isDown) {
                     isDown = true;
                     btn.classList.add('active');
-                    triggerFn();
+                    siren.trigger();
                 }
             };
 
@@ -705,26 +765,25 @@
             btn.addEventListener('mousedown', start);
             btn.addEventListener('mouseup', end);
             btn.addEventListener('mouseleave', end);
-        }
+        })(sirenBtn);
 
-        addTriggerEvents(airhornBtn, () => siren.triggerAirhorn());
-        addTriggerEvents(sirenBtn, () => siren.triggerSiren());
-
-        // Manual frequency trigger
+        // Frequency control - updates live and sets next trigger frequency
         const freqSlider = document.getElementById('frequency');
         freqSlider.addEventListener('input', (e) => {
-            document.getElementById('freqValue').textContent = e.target.value;
+            const freq = parseInt(e.target.value);
+            document.getElementById('freqValue').textContent = freq;
+            siren.setParam('frequency', freq);
         });
 
-        // Double tap frequency slider to trigger at that frequency
-        let lastFreqTap = 0;
-        freqSlider.addEventListener('touchend', (e) => {
-            const now = Date.now();
-            if (now - lastFreqTap < 300) {
-                siren.trigger(parseInt(freqSlider.value), 'Manual');
-                setTimeout(() => siren.release(), 500);
-            }
-            lastFreqTap = now;
+        // Pitch envelope selector
+        const pitchEnvContainer = document.getElementById('pitchEnvelope');
+        const pitchEnvButtons = pitchEnvContainer.querySelectorAll('.pitch-env-btn');
+        pitchEnvButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                pitchEnvButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                siren.setParam('pitchEnvelope', btn.dataset.env);
+            });
         });
 
         // Slider controls

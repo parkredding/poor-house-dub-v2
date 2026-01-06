@@ -845,30 +845,60 @@ class DubSiren:
         self.volume = 0.5
         self.is_running = False
 
-        # Preset frequencies for triggers
-        self.airhorn_freq = 150.0  # Hz
-        self.siren_freq = 800.0    # Hz
+        # Frequency control
+        self.base_frequency = 440.0  # Current trigger frequency
+
+        # Pitch envelope: 'none', 'up', 'down'
+        self.pitch_envelope = 'none'
+        self._pitch_env_modes = ['none', 'up', 'down']
 
         # NaN protection monitoring
         self._nan_events = 0  # Count of NaN occurrences for debugging
 
-    def trigger_airhorn(self):
-        """Trigger airhorn sound"""
-        self.oscillator.set_frequency(self.airhorn_freq)
+    def trigger(self):
+        """Trigger sound at current base_frequency"""
+        self.oscillator.set_frequency(self.base_frequency)
         self.envelope.trigger()
+
+    def release(self):
+        """Release sound (pitch envelope will be applied during generate_audio)"""
+        self.envelope.release_trigger()
+
+    def cycle_pitch_envelope(self):
+        """Cycle through pitch envelope modes: none -> up -> down -> none"""
+        current_index = self._pitch_env_modes.index(self.pitch_envelope)
+        next_index = (current_index + 1) % len(self._pitch_env_modes)
+        self.pitch_envelope = self._pitch_env_modes[next_index]
+        return self.pitch_envelope
+
+    def set_pitch_envelope(self, mode: str):
+        """Set pitch envelope mode ('none', 'up', 'down')"""
+        if mode in self._pitch_env_modes:
+            self.pitch_envelope = mode
+
+    def set_frequency(self, freq: float):
+        """Set base frequency for triggering"""
+        self.base_frequency = max(20.0, min(freq, 20000.0))
+        # Also update live oscillator if currently playing
+        if self.envelope.is_active and not self.envelope.is_releasing:
+            self.oscillator.set_frequency(self.base_frequency)
+
+    # Legacy methods for backwards compatibility with gpio_controller
+    def trigger_airhorn(self):
+        """Legacy: Trigger at base frequency"""
+        self.trigger()
 
     def release_airhorn(self):
-        """Release airhorn sound"""
-        self.envelope.release_trigger()
+        """Legacy: Release sound"""
+        self.release()
 
     def trigger_siren(self):
-        """Trigger siren sound"""
-        self.oscillator.set_frequency(self.siren_freq)
-        self.envelope.trigger()
+        """Legacy: Trigger at base frequency"""
+        self.trigger()
 
     def release_siren(self):
-        """Release siren sound"""
-        self.envelope.release_trigger()
+        """Legacy: Release sound"""
+        self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
         """Generate audio buffer with NaN prevention
@@ -877,6 +907,21 @@ class DubSiren:
         clamping to prevent values from growing unbounded. This makes NaN impossible
         under normal operation, ensuring audio always respects volume control.
         """
+        # Apply pitch envelope during release phase
+        if self.envelope.is_releasing and self.pitch_envelope != 'none':
+            release_samples = int(self.envelope.release * self.sample_rate)
+            if release_samples > 0:
+                progress = min(1.0, self.envelope.current_sample / release_samples)
+                if self.pitch_envelope == 'up':
+                    # Sweep up 2 octaves (multiply by 4)
+                    freq_mult = 1.0 + (3.0 * progress)  # 1.0 to 4.0
+                elif self.pitch_envelope == 'down':
+                    # Sweep down 2 octaves (divide by 4)
+                    freq_mult = 1.0 - (0.75 * progress)  # 1.0 to 0.25
+                else:
+                    freq_mult = 1.0
+                self.oscillator.set_frequency(self.base_frequency * freq_mult)
+
         # Generate oscillator output
         audio = self.oscillator.generate(num_samples)
 
@@ -1002,13 +1047,24 @@ if __name__ == "__main__":
     print("Testing audio generation...")
 
     synth = DubSiren()
-    synth.trigger_airhorn()
+    synth.set_frequency(440.0)
+    synth.set_pitch_envelope('down')
+    synth.trigger()
 
-    # Generate a few buffers
+    # Generate a few buffers during sustain
+    print("\nSustain phase:")
+    for i in range(5):
+        audio = synth.generate_audio(256)
+        has_nan = not np.all(np.isfinite(audio))
+        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, freq={synth.oscillator.frequency:.1f}Hz")
+
+    # Release and generate during release (pitch envelope active)
+    synth.release()
+    print("\nRelease phase (pitch envelope: down):")
     for i in range(10):
         audio = synth.generate_audio(256)
         has_nan = not np.all(np.isfinite(audio))
-        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, mean={audio.mean():.3f}, NaN={has_nan}")
+        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, freq={synth.oscillator.frequency:.1f}Hz")
 
     print(f"\nNaN events detected: {synth.get_nan_events()}")
     print("Test complete!")
