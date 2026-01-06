@@ -12,6 +12,47 @@ from typing import Literal
 
 WaveformType = Literal['sine', 'square', 'saw', 'triangle']
 
+# Maximum safe amplitude for internal processing (prevents overflow to Inf/NaN)
+# This is well above the final clipping level of 1.0 but safely below float overflow
+_MAX_SAFE_AMPLITUDE = 10.0
+
+
+def _clamp_sample(value: float) -> float:
+    """Clamp a single sample to safe range, preventing overflow to Inf/NaN"""
+    if value > _MAX_SAFE_AMPLITUDE:
+        return _MAX_SAFE_AMPLITUDE
+    elif value < -_MAX_SAFE_AMPLITUDE:
+        return -_MAX_SAFE_AMPLITUDE
+    return value
+
+
+def sanitize_audio(audio: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
+    """Replace NaN and Inf values with a safe value (default: silence)
+
+    NaN values can occur from:
+    - Filter instabilities (feedback loops, high resonance)
+    - Division by zero in DSP calculations
+    - Overflow in delay/reverb feedback paths
+
+    NaN is particularly problematic because:
+    - np.clip(NaN, -1, 1) returns NaN (clipping doesn't help)
+    - NaN * volume = NaN (volume control doesn't work)
+    - NaN propagates through all subsequent calculations
+    - DACs may interpret NaN as extreme values, causing "warbled" sounds
+
+    Args:
+        audio: Input audio array
+        fill_value: Value to replace NaN/Inf with (default 0.0 = silence)
+
+    Returns:
+        Sanitized audio array with NaN/Inf replaced
+    """
+    # np.isfinite returns False for NaN, Inf, and -Inf
+    mask = ~np.isfinite(audio)
+    if np.any(mask):
+        audio = np.where(mask, fill_value, audio)
+    return audio
+
 
 class Oscillator:
     """Audio oscillator with multiple waveform types"""
@@ -180,7 +221,7 @@ class LowPassFilter:
         self.prev_output = 0.0
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
-        """Process audio through the filter"""
+        """Process audio through the filter with state clamping to prevent NaN"""
         # Calculate filter coefficient
         rc = 1.0 / (2.0 * np.pi * self.cutoff)
         dt = 1.0 / self.sample_rate
@@ -194,7 +235,8 @@ class LowPassFilter:
 
         for i in range(len(input_signal)):
             output[i] = self.prev_output + alpha * (input_signal[i] - self.prev_output)
-            self.prev_output = output[i]
+            # Clamp state to prevent runaway values that lead to NaN
+            self.prev_output = _clamp_sample(output[i])
 
         return output
 
@@ -282,24 +324,27 @@ class DelayEffect:
         return x * (1.0 - amount) + saturated * amount
 
     def _process_feedback_filters(self, sample: float) -> float:
-        """Apply HP and LP filters to feedback path (prevents buildup)"""
+        """Apply HP and LP filters to feedback path (prevents buildup)
+
+        Filter states are clamped to prevent runaway values that lead to NaN.
+        """
         # High-pass filter (removes mud/low-end buildup)
         hp_rc = 1.0 / (2.0 * np.pi * self.filter_hp_freq)
         hp_alpha = hp_rc / (hp_rc + 1.0 / self.sample_rate)
         hp_out = hp_alpha * (self._hp_state + sample - self._hp_state)
-        self._hp_state = sample
+        self._hp_state = _clamp_sample(sample)
         filtered = sample - (sample - hp_out)
 
         # Simplified HP: subtract LP of low frequencies
         hp_cutoff_norm = self.filter_hp_freq / self.sample_rate
         hp_coeff = 1.0 - np.exp(-2.0 * np.pi * hp_cutoff_norm)
-        self._hp_state = self._hp_state + hp_coeff * (sample - self._hp_state)
+        self._hp_state = _clamp_sample(self._hp_state + hp_coeff * (sample - self._hp_state))
         filtered = sample - self._hp_state
 
         # Low-pass filter (tames harsh highs)
         lp_cutoff_norm = self.filter_lp_freq / self.sample_rate
         lp_coeff = 1.0 - np.exp(-2.0 * np.pi * lp_cutoff_norm)
-        self._lp_state = self._lp_state + lp_coeff * (filtered - self._lp_state)
+        self._lp_state = _clamp_sample(self._lp_state + lp_coeff * (filtered - self._lp_state))
 
         return self._lp_state
 
@@ -377,7 +422,8 @@ class DelayEffect:
             feedback_signal = self._soft_clip(feedback_signal, self.saturation)
 
             # Write to buffer: input + filtered/saturated feedback
-            self.buffer[self.write_pos] = input_signal[i] + feedback_signal * self.feedback
+            # Clamp buffer write to prevent runaway values that lead to NaN
+            self.buffer[self.write_pos] = _clamp_sample(input_signal[i] + feedback_signal * self.feedback)
 
             # Advance write position
             self.write_pos = (self.write_pos + 1) % self.max_delay_samples
@@ -454,7 +500,10 @@ class AllpassFilter:
         self.feedback = 0.5  # Diffusion amount
 
     def process(self, input_val: float) -> float:
-        """Process one sample through the allpass filter"""
+        """Process one sample through the allpass filter
+
+        Buffer writes are clamped to prevent runaway values that lead to NaN.
+        """
         # Read from delay buffer
         read_pos = (self.write_pos - self.delay_samples + len(self.buffer)) % len(self.buffer)
         delayed = self.buffer[read_pos]
@@ -463,8 +512,8 @@ class AllpassFilter:
         # where g is feedback coefficient, d is delayed signal
         output = -input_val + delayed + self.feedback * (input_val - delayed)
 
-        # Write to buffer
-        self.buffer[self.write_pos] = input_val + self.feedback * delayed
+        # Write to buffer with clamping to prevent NaN
+        self.buffer[self.write_pos] = _clamp_sample(input_val + self.feedback * delayed)
         self.write_pos = (self.write_pos + 1) % len(self.buffer)
 
         return output
@@ -492,7 +541,10 @@ class DampedCombFilter:
         self._mod_phase = np.random.rand() * 2 * np.pi  # Random starting phase
 
     def process(self, input_val: float) -> float:
-        """Process one sample through the damped comb filter"""
+        """Process one sample through the damped comb filter
+
+        State and buffer writes are clamped to prevent runaway values that lead to NaN.
+        """
         # Calculate modulated read position
         mod_offset = self.mod_depth_samples * np.sin(self._mod_phase)
         self._mod_phase += 2 * np.pi * self.mod_rate / self.sample_rate
@@ -510,11 +562,13 @@ class DampedCombFilter:
         # Apply damping (one-pole lowpass filter in feedback path)
         # This simulates high-frequency absorption in the room
         damping_coeff = 1.0 - self.damping * 0.5  # Convert to filter coefficient
-        self._damper_state = damping_coeff * delayed + (1.0 - damping_coeff) * self._damper_state
+        # Clamp damper state to prevent runaway values
+        self._damper_state = _clamp_sample(damping_coeff * delayed + (1.0 - damping_coeff) * self._damper_state)
 
         # Comb filter formula with damped feedback
         output = delayed
-        self.buffer[self.write_pos] = input_val + self._damper_state * self.feedback
+        # Clamp buffer write to prevent NaN
+        self.buffer[self.write_pos] = _clamp_sample(input_val + self._damper_state * self.feedback)
         self.write_pos = (self.write_pos + 1) % len(self.buffer)
 
         return output
@@ -580,7 +634,10 @@ class ReverbEffect:
             comb.damping = self.damping
 
     def _process_early_reflections(self, input_signal: np.ndarray) -> np.ndarray:
-        """Process early reflections - simulates initial bounces off chamber walls"""
+        """Process early reflections - simulates initial bounces off chamber walls
+
+        Buffer writes are clamped to prevent runaway values that lead to NaN.
+        """
         output = np.zeros_like(input_signal)
 
         for i in range(len(input_signal)):
@@ -591,8 +648,9 @@ class ReverbEffect:
                 early_sum += buf[read_pos]
 
                 # Write input with slight attenuation and variation
+                # Clamp buffer write to prevent NaN
                 attenuation = 0.7 - buf_idx * 0.05  # Earlier reflections are stronger
-                buf[read_pos] = input_signal[i] * attenuation
+                buf[read_pos] = _clamp_sample(input_signal[i] * attenuation)
 
                 # Advance write position
                 self.early_write_pos[buf_idx] = (read_pos + 1) % len(buf)
@@ -663,6 +721,9 @@ class DubSiren:
         self.airhorn_freq = 150.0  # Hz
         self.siren_freq = 800.0    # Hz
 
+        # NaN protection monitoring
+        self._nan_events = 0  # Count of NaN occurrences for debugging
+
     def trigger_airhorn(self):
         """Trigger airhorn sound"""
         self.oscillator.set_frequency(self.airhorn_freq)
@@ -682,7 +743,12 @@ class DubSiren:
         self.envelope.release_trigger()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer"""
+        """Generate audio buffer with NaN prevention
+
+        All DSP components (filters, delay, reverb) use internal state and buffer
+        clamping to prevent values from growing unbounded. This makes NaN impossible
+        under normal operation, ensuring audio always respects volume control.
+        """
         # Generate oscillator output
         audio = self.oscillator.generate(num_samples)
 
@@ -695,17 +761,23 @@ class DubSiren:
         env = self.envelope.generate(num_samples)
         audio = audio * env
 
-        # Apply filter
+        # Apply filter (state clamping prevents instability)
         audio = self.filter.process(audio)
 
-        # Apply delay
+        # Apply delay (buffer/state clamping prevents runaway feedback)
         audio = self.delay.process(audio)
 
-        # Apply reverb
+        # Apply reverb (all internal filters have clamping)
         audio = self.reverb.process(audio)
 
         # Apply volume
         audio = audio * self.volume
+
+        # Final safety check for monitoring (should never trigger with prevention in place)
+        if not np.all(np.isfinite(audio)):
+            self._nan_events += 1
+            # Fallback sanitization only if somehow NaN still occurred
+            audio = sanitize_audio(audio)
 
         # Ensure output is within range
         audio = np.clip(audio, -1.0, 1.0)
@@ -783,6 +855,18 @@ class DubSiren:
         index = waveform_index % len(waveforms)
         self.lfo.set_waveform(waveforms[index])
 
+    def get_nan_events(self) -> int:
+        """Get count of NaN events detected during audio generation
+
+        Useful for debugging audio issues. A high count may indicate
+        filter instability or problematic parameter settings.
+        """
+        return self._nan_events
+
+    def reset_nan_events(self):
+        """Reset the NaN event counter"""
+        self._nan_events = 0
+
 
 if __name__ == "__main__":
     # Test the synthesizer
@@ -795,6 +879,8 @@ if __name__ == "__main__":
     # Generate a few buffers
     for i in range(10):
         audio = synth.generate_audio(256)
-        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, mean={audio.mean():.3f}")
+        has_nan = not np.all(np.isfinite(audio))
+        print(f"Buffer {i}: min={audio.min():.3f}, max={audio.max():.3f}, mean={audio.mean():.3f}, NaN={has_nan}")
 
+    print(f"\nNaN events detected: {synth.get_nan_events()}")
     print("Test complete!")
