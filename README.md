@@ -15,8 +15,8 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 
 - **Professional DSP Effects**
   - Low-pass filter with resonance control
-  - Delay/echo effect with feedback
-  - Reverb effect with size and dry/wet controls
+  - Analog-style delay/echo with pitch-shifting time modulation
+  - Hybrid chamber reverb (Ableton-inspired) with early reflections, diffusion, and warm damping
 
 - **Hardware Control Surface**
   - 10 rotary encoders (360° continuous)
@@ -281,8 +281,12 @@ Oscillator → Envelope → Filter → Delay → Reverb → Output
 ### DSP Algorithms
 
 - **Filter:** One-pole low-pass with resonance feedback
-- **Delay:** Circular buffer with feedback
-- **Reverb:** Schroeder reverb (4 parallel comb filters)
+- **Delay:** Circular buffer with feedback and analog-style pitch-shifting modulation
+- **Reverb:** Hybrid chamber reverb (early reflections + allpass diffusion + 6 damped comb filters)
+  - Early reflections simulate first bounces off chamber walls
+  - Allpass filters create density and smoothness
+  - Damped comb filters with frequency-dependent feedback for warmth
+  - Subtle modulation prevents metallic ringing
 - **Envelope:** ADSR with configurable release
 
 ### GPIO Interrupt Handling

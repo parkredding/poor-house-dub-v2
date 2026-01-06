@@ -441,53 +441,199 @@ class DelayEffect:
         self.mod_rate = max(0.1, min(rate, 5.0))
 
 
+class AllpassFilter:
+    """Allpass filter for reverb diffusion
+
+    Creates density and smoothness in reverb without coloring the frequency response.
+    """
+
+    def __init__(self, delay_samples: int):
+        self.delay_samples = delay_samples
+        self.buffer = np.zeros(delay_samples)
+        self.write_pos = 0
+        self.feedback = 0.5  # Diffusion amount
+
+    def process(self, input_val: float) -> float:
+        """Process one sample through the allpass filter"""
+        # Read from delay buffer
+        read_pos = (self.write_pos - self.delay_samples + len(self.buffer)) % len(self.buffer)
+        delayed = self.buffer[read_pos]
+
+        # Allpass formula: y = -x + d + g*(x - d)
+        # where g is feedback coefficient, d is delayed signal
+        output = -input_val + delayed + self.feedback * (input_val - delayed)
+
+        # Write to buffer
+        self.buffer[self.write_pos] = input_val + self.feedback * delayed
+        self.write_pos = (self.write_pos + 1) % len(self.buffer)
+
+        return output
+
+
+class DampedCombFilter:
+    """Comb filter with frequency-dependent damping for warm, chamber-like reverb
+
+    Features high-frequency damping to simulate air absorption and wall materials.
+    """
+
+    def __init__(self, sample_rate: int, delay_time: float):
+        self.sample_rate = sample_rate
+        self.delay_samples = int(delay_time * sample_rate)
+        self.buffer = np.zeros(self.delay_samples)
+        self.write_pos = 0
+
+        self.feedback = 0.7
+        self.damping = 0.5  # 0.0 = no damping (bright), 1.0 = heavy damping (dark/warm)
+        self._damper_state = 0.0  # One-pole lowpass filter state
+
+        # Modulation for natural sound (very subtle)
+        self.mod_depth_samples = 2.0  # Small modulation in samples
+        self.mod_rate = 0.3  # Hz
+        self._mod_phase = np.random.rand() * 2 * np.pi  # Random starting phase
+
+    def process(self, input_val: float) -> float:
+        """Process one sample through the damped comb filter"""
+        # Calculate modulated read position
+        mod_offset = self.mod_depth_samples * np.sin(self._mod_phase)
+        self._mod_phase += 2 * np.pi * self.mod_rate / self.sample_rate
+        if self._mod_phase > 2 * np.pi:
+            self._mod_phase -= 2 * np.pi
+
+        # Read from buffer with interpolation
+        read_pos_float = self.write_pos - self.delay_samples + mod_offset
+        read_pos_int = int(read_pos_float) % len(self.buffer)
+        read_pos_next = (read_pos_int + 1) % len(self.buffer)
+        frac = read_pos_float - int(read_pos_float)
+
+        delayed = self.buffer[read_pos_int] * (1 - frac) + self.buffer[read_pos_next] * frac
+
+        # Apply damping (one-pole lowpass filter in feedback path)
+        # This simulates high-frequency absorption in the room
+        damping_coeff = 1.0 - self.damping * 0.5  # Convert to filter coefficient
+        self._damper_state = damping_coeff * delayed + (1.0 - damping_coeff) * self._damper_state
+
+        # Comb filter formula with damped feedback
+        output = delayed
+        self.buffer[self.write_pos] = input_val + self._damper_state * self.feedback
+        self.write_pos = (self.write_pos + 1) % len(self.buffer)
+
+        return output
+
+
 class ReverbEffect:
-    """Simple reverb effect using multiple delays"""
+    """Hybrid chamber reverb effect inspired by Ableton Live
+
+    Combines:
+    - Early reflections for spatial character
+    - Allpass filters for diffusion and density
+    - Damped comb filters for warm, chamber-like tail
+    - Subtle modulation for natural, non-metallic sound
+
+    This creates a rich, smooth reverb suitable for dub music.
+    """
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        # Schroeder reverb with 4 comb filters
-        self.delays = [
-            DelayEffect(sample_rate, max_delay=0.1),
-            DelayEffect(sample_rate, max_delay=0.1),
-            DelayEffect(sample_rate, max_delay=0.1),
-            DelayEffect(sample_rate, max_delay=0.1),
+
+        # Early reflections - simulates first bounces off chamber walls
+        # Times chosen to suggest medium-large chamber (4-5 meters)
+        self.early_reflection_times = [0.013, 0.019, 0.023, 0.029, 0.037, 0.043, 0.051, 0.059]
+        self.early_buffers = [np.zeros(int(t * sample_rate)) for t in self.early_reflection_times]
+        self.early_write_pos = [0] * len(self.early_reflection_times)
+        self.early_level = 0.15  # Mix level of early reflections
+
+        # Allpass filters for diffusion (creates density and smoothness)
+        # Prime-number delays to avoid resonances
+        self.input_diffusion = [
+            AllpassFilter(int(0.005 * sample_rate)),   # 5ms
+            AllpassFilter(int(0.0089 * sample_rate)),  # 8.9ms
         ]
-        self.delays[0].delay_time = 0.0297
-        self.delays[1].delay_time = 0.0371
-        self.delays[2].delay_time = 0.0411
-        self.delays[3].delay_time = 0.0437
 
-        # Set internal delays to 100% wet (reverb handles dry/wet mixing)
-        for delay in self.delays:
-            delay.dry_wet = 1.0
-            delay.saturation = 0.0  # No saturation for reverb internals
-            delay.mod_depth = 0.0   # No modulation for reverb internals
+        # Damped comb filters - these create the reverb tail
+        # Delay times chosen for chamber character (avoiding harsh resonances)
+        self.comb_filters = [
+            DampedCombFilter(sample_rate, 0.0297),
+            DampedCombFilter(sample_rate, 0.0371),
+            DampedCombFilter(sample_rate, 0.0411),
+            DampedCombFilter(sample_rate, 0.0437),
+            DampedCombFilter(sample_rate, 0.0503),  # Added two more for richer sound
+            DampedCombFilter(sample_rate, 0.0571),
+        ]
 
-        self.size = 0.5      # Room size (0.0 to 1.0)
-        self.dry_wet = 0.3   # Mix (0.0 = dry, 1.0 = wet)
-        self._update_delays()
+        # Output diffusion (smooths the sound)
+        self.output_diffusion = AllpassFilter(int(0.0067 * sample_rate))  # 6.7ms
 
-    def _update_delays(self):
-        """Update delay parameters based on size"""
-        base_feedback = 0.3 + self.size * 0.5
-        for delay in self.delays:
-            delay.feedback = base_feedback
+        # Control parameters
+        self.size = 0.5       # Room size / decay time (0.0 to 1.0)
+        self.dry_wet = 0.3    # Mix (0.0 = dry, 1.0 = wet)
+        self.damping = 0.5    # High-frequency damping / warmth (0.0 = bright, 1.0 = dark)
+
+        self._update_parameters()
+
+    def _update_parameters(self):
+        """Update filter parameters based on size and damping controls"""
+        # Size controls feedback (decay time)
+        base_feedback = 0.4 + self.size * 0.45  # Range: 0.4 to 0.85
+        for comb in self.comb_filters:
+            comb.feedback = base_feedback
+            # Damping simulates air absorption and chamber wall materials
+            comb.damping = self.damping
+
+    def _process_early_reflections(self, input_signal: np.ndarray) -> np.ndarray:
+        """Process early reflections - simulates initial bounces off chamber walls"""
+        output = np.zeros_like(input_signal)
+
+        for i in range(len(input_signal)):
+            early_sum = 0.0
+            for buf_idx, buf in enumerate(self.early_buffers):
+                # Read delayed sample
+                read_pos = self.early_write_pos[buf_idx]
+                early_sum += buf[read_pos]
+
+                # Write input with slight attenuation and variation
+                attenuation = 0.7 - buf_idx * 0.05  # Earlier reflections are stronger
+                buf[read_pos] = input_signal[i] * attenuation
+
+                # Advance write position
+                self.early_write_pos[buf_idx] = (read_pos + 1) % len(buf)
+
+            output[i] = early_sum / len(self.early_buffers)
+
+        return output
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
-        """Process audio through the reverb"""
-        # Sum all comb filter outputs
-        wet = np.zeros_like(input_signal)
-        for delay in self.delays:
-            wet += delay.process(input_signal) / len(self.delays)
+        """Process audio through the hybrid chamber reverb"""
+        # Early reflections
+        early = self._process_early_reflections(input_signal)
+
+        # Process through input diffusion (allpass filters)
+        diffused = input_signal.copy()
+        for i in range(len(diffused)):
+            for allpass in self.input_diffusion:
+                diffused[i] = allpass.process(diffused[i])
+
+        # Process through parallel comb filters (creates reverb tail)
+        comb_output = np.zeros_like(input_signal)
+        for i in range(len(input_signal)):
+            comb_sum = 0.0
+            for comb in self.comb_filters:
+                comb_sum += comb.process(diffused[i])
+            comb_output[i] = comb_sum / len(self.comb_filters)
+
+        # Output diffusion (final smoothing)
+        for i in range(len(comb_output)):
+            comb_output[i] = self.output_diffusion.process(comb_output[i])
+
+        # Combine early reflections and reverb tail
+        wet = early * self.early_level + comb_output
 
         # Mix dry and wet
         return input_signal * (1.0 - self.dry_wet) + wet * self.dry_wet
 
     def set_size(self, size: float):
-        """Set reverb size (0.0 to 1.0)"""
+        """Set reverb size / decay time (0.0 to 1.0)"""
         self.size = max(0.0, min(size, 1.0))
-        self._update_delays()
+        self._update_parameters()
 
     def set_dry_wet(self, dry_wet: float):
         """Set dry/wet mix (0.0 to 1.0)"""
