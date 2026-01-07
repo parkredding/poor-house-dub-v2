@@ -436,6 +436,10 @@
                 this.reverbWet = null;
                 this.masterGain = null;
                 this.analyser = null;
+
+                // Pitch envelope tracking for real-time frequency updates
+                this.releaseStartTime = null;
+                this.pitchEnvelopeUpdateInterval = null;
             }
 
             async init() {
@@ -590,29 +594,55 @@
                 this.updateStatus(`Playing @ ${frequency}Hz`);
             }
 
+            updatePitchEnvelope() {
+                if (!this.oscillator || !this.audioContext || !this.releaseStartTime) return;
+                if (this.params.pitchEnvelope === 'none') return;
+
+                const now = this.audioContext.currentTime;
+                const elapsed = now - this.releaseStartTime;
+                const progress = Math.min(1.0, elapsed / this.params.release);
+
+                // Calculate pitch envelope multiplier based on progress
+                let pitchMult = 1.0;
+                if (this.params.pitchEnvelope === 'up') {
+                    // Sweep up 2 octaves (multiply by 4)
+                    pitchMult = 1.0 + (3.0 * progress); // 1.0 to 4.0
+                } else if (this.params.pitchEnvelope === 'down') {
+                    // Sweep down 2 octaves (divide by 4)
+                    pitchMult = 1.0 - (0.75 * progress); // 1.0 to 0.25
+                }
+
+                // Apply pitch envelope to current manual frequency
+                const targetFreq = Math.max(20, this.params.frequency * pitchMult);
+                this.oscillator.frequency.setValueAtTime(targetFreq, now);
+            }
+
             release() {
                 if (!this.oscillator || !this.audioContext) return;
 
                 const now = this.audioContext.currentTime;
                 const releaseTime = this.params.release;
-                const currentFreq = this.currentNote ? this.currentNote.frequency : this.params.frequency;
 
-                // Apply pitch envelope during release
-                if (this.oscillator && this.params.pitchEnvelope !== 'none') {
-                    this.oscillator.frequency.cancelScheduledValues(now);
-                    this.oscillator.frequency.setValueAtTime(currentFreq, now);
+                // Store release start time for pitch envelope tracking
+                this.releaseStartTime = now;
 
-                    if (this.params.pitchEnvelope === 'up') {
-                        // Pitch sweeps up during release (2 octaves up)
-                        this.oscillator.frequency.exponentialRampToValueAtTime(
-                            currentFreq * 4, now + releaseTime
-                        );
-                    } else if (this.params.pitchEnvelope === 'down') {
-                        // Pitch sweeps down during release (2 octaves down, min 20Hz)
-                        this.oscillator.frequency.exponentialRampToValueAtTime(
-                            Math.max(20, currentFreq / 4), now + releaseTime
-                        );
+                // Start pitch envelope updates if needed
+                if (this.params.pitchEnvelope !== 'none') {
+                    // Clear any existing interval
+                    if (this.pitchEnvelopeUpdateInterval) {
+                        clearInterval(this.pitchEnvelopeUpdateInterval);
                     }
+                    // Update pitch envelope every 10ms for smooth tracking
+                    this.pitchEnvelopeUpdateInterval = setInterval(() => {
+                        this.updatePitchEnvelope();
+                    }, 10);
+                    // Clear interval after release completes
+                    setTimeout(() => {
+                        if (this.pitchEnvelopeUpdateInterval) {
+                            clearInterval(this.pitchEnvelopeUpdateInterval);
+                            this.pitchEnvelopeUpdateInterval = null;
+                        }
+                    }, releaseTime * 1000 + 100);
                 }
 
                 // Smooth gain release
@@ -642,6 +672,7 @@
                     if (!this.isPlaying) {
                         this.updateStatus('Ready');
                     }
+                    this.releaseStartTime = null;
                 }, (releaseTime + 0.1) * 1000);
             }
 
