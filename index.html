@@ -648,10 +648,15 @@
                 }
 
                 // Apply pitch envelope to current manual frequency
-                // Use cancelScheduledValues to clear any conflicting automation
+                // Use direct value assignment to match Python implementation behavior
                 const targetFreq = Math.max(20, this.params.frequency * pitchMult);
-                this.oscillator.frequency.cancelScheduledValues(now);
-                this.oscillator.frequency.setValueAtTime(targetFreq, now);
+                this.oscillator.frequency.value = targetFreq;
+
+                // Update LFO modulation depth to scale with frequency
+                // This ensures LFO modulation percentage stays consistent as pitch changes
+                if (this.lfoGain) {
+                    this.lfoGain.gain.value = targetFreq * (this.params.lfoDepth / 100);
+                }
             }
 
             release() {
