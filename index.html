@@ -505,25 +505,13 @@
                 this.dcBlocker.frequency.value = 10; // 10Hz high-pass
                 this.dcBlocker.Q.value = 0.7071; // Butterworth response
 
-                // Headroom gain - minimal reduction to preserve waveform character
-                this.headroomGain = this.audioContext.createGain();
-                this.headroomGain.gain.value = 0.95; // Minimal headroom reduction (was 0.7)
-
-                // Soft clipper using WaveShaper with extremely gentle tanh curve
-                // Almost transparent - only catches extreme peaks
-                this.softClipper = this.audioContext.createWaveShaper();
-                this.softClipper.curve = this.createTanhCurve(2048, 1.1); // Extremely gentle (was 1.5)
-                this.softClipper.oversample = '4x'; // High quality oversampling
-
                 // Connect reverb chain
                 // Input splits to dry and convolver
                 // Both merge before master
 
-                // Output chain: master -> DC blocker -> headroom -> soft clipper -> analyser -> destination
+                // Output chain: master -> DC blocker -> analyser -> destination
                 this.masterGain.connect(this.dcBlocker);
-                this.dcBlocker.connect(this.headroomGain);
-                this.headroomGain.connect(this.softClipper);
-                this.softClipper.connect(this.analyser);
+                this.dcBlocker.connect(this.analyser);
                 this.analyser.connect(this.audioContext.destination);
 
                 return true;
@@ -545,19 +533,6 @@
                 }
 
                 this.convolver.buffer = impulse;
-            }
-
-            createTanhCurve(samples, drive = 1.0) {
-                // Create tanh waveshaper curve for soft clipping
-                // This prevents harsh digital clipping artifacts
-                // Higher drive = more aggressive clipping (default 1.0)
-                // Lower drive = gentler clipping (e.g., 3.0 for subtle)
-                const curve = new Float32Array(samples);
-                for (let i = 0; i < samples; i++) {
-                    const x = (i / samples) * 2 - 1; // -1 to 1
-                    curve[i] = Math.tanh(x * drive) / Math.tanh(drive);
-                }
-                return curve;
             }
 
             trigger() {
@@ -699,18 +674,21 @@
 
                 if (this.oscillator) {
                     this.oscillator.stop(stopTime);
-                    this.oscillator = null;
+                    // Don't null oscillator yet - pitch envelope needs it during release
                 }
 
                 if (this.lfo) {
                     this.lfo.stop(stopTime);
-                    this.lfo = null;
+                    // Don't null lfo yet - pitch envelope modulation needs it during release
                 }
 
                 this.isPlaying = false;
                 this.currentNote = null;
 
                 setTimeout(() => {
+                    // Now null the oscillator and lfo after release completes
+                    this.oscillator = null;
+                    this.lfo = null;
                     if (!this.isPlaying) {
                         this.updateStatus('Ready');
                     }
