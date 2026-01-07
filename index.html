@@ -503,14 +503,14 @@
                 this.dcBlocker.frequency.value = 10; // 10Hz high-pass
                 this.dcBlocker.Q.value = 0.7071; // Butterworth response
 
-                // Headroom gain - leave MORE room before clipping
+                // Headroom gain - minimal reduction to preserve waveform character
                 this.headroomGain = this.audioContext.createGain();
-                this.headroomGain.gain.value = 0.7; // More headroom (was 1.0)
+                this.headroomGain.gain.value = 0.95; // Minimal headroom reduction (was 0.7)
 
-                // Soft clipper using WaveShaper with tanh curve
-                // Use a VERY gentle curve (1.5x drive) for transparent clipping
+                // Soft clipper using WaveShaper with extremely gentle tanh curve
+                // Almost transparent - only catches extreme peaks
                 this.softClipper = this.audioContext.createWaveShaper();
-                this.softClipper.curve = this.createTanhCurve(2048, 1.5); // Very gentle clipping (was 3.0)
+                this.softClipper.curve = this.createTanhCurve(2048, 1.1); // Extremely gentle (was 1.5)
                 this.softClipper.oversample = '4x'; // High quality oversampling
 
                 // Connect reverb chain
@@ -646,7 +646,9 @@
                 }
 
                 // Apply pitch envelope to current manual frequency
+                // Use cancelScheduledValues to clear any conflicting automation
                 const targetFreq = Math.max(20, this.params.frequency * pitchMult);
+                this.oscillator.frequency.cancelScheduledValues(now);
                 this.oscillator.frequency.setValueAtTime(targetFreq, now);
             }
 
