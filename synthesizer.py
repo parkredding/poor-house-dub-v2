@@ -425,7 +425,6 @@ class DelayEffect:
     Features:
     - Dry/Wet mix control
     - High-pass and low-pass filters in feedback path (prevents mud and harsh highs)
-    - Soft saturation for analog warmth
     - Time modulation for tape-like wobble
     - Analog repitch behavior: changing delay time causes pitch-shifting of repeats
       (like real BBD or tape delays where the audio "smears" when you change time)
@@ -457,9 +456,6 @@ class DelayEffect:
         self._hp_state = 0.0
         self._lp_state = 0.0
 
-        # Saturation/warmth
-        self.saturation = 0.2  # 0.0 = clean, 1.0 = saturated
-
         # Time modulation (for tape-like wobble)
         self.mod_depth = 0.002    # modulation depth in seconds
         self.mod_rate = 0.5       # modulation rate in Hz
@@ -483,15 +479,6 @@ class DelayEffect:
         max_delay_samples = self.max_delay_samples
         # How many samples to move per sample to traverse max_delay in max_slew_time
         return max_delay_samples / (max_slew_time * samples_per_second)
-
-    def _soft_clip(self, x: float, amount: float) -> float:
-        """Soft saturation for warmth (tanh-style)"""
-        if amount <= 0:
-            return x
-        # Mix between clean and saturated based on amount
-        drive = 1.0 + amount * 3.0
-        saturated = np.tanh(x * drive) / drive
-        return x * (1.0 - amount) + saturated * amount
 
     def _process_feedback_filters(self, sample: float) -> float:
         """Apply HP and LP filters to feedback path (prevents buildup)
@@ -587,9 +574,8 @@ class DelayEffect:
             # This is crucial for smooth pitch-shifting
             delayed = self._lerp_read(delay_samples)
 
-            # Process feedback through filters and saturation
+            # Process feedback through filters
             feedback_signal = self._process_feedback_filters(delayed)
-            feedback_signal = self._soft_clip(feedback_signal, self.saturation)
 
             # Write to buffer: input + filtered/saturated feedback
             # Clamp buffer write to prevent runaway values that lead to NaN
@@ -643,10 +629,6 @@ class DelayEffect:
     def set_filter_lp(self, freq: float):
         """Set feedback low-pass filter frequency"""
         self.filter_lp_freq = max(200.0, min(freq, 20000.0))
-
-    def set_saturation(self, amount: float):
-        """Set saturation/warmth amount (0.0 to 1.0)"""
-        self.saturation = max(0.0, min(amount, 1.0))
 
     def set_mod_depth(self, depth: float):
         """Set time modulation depth in seconds"""
@@ -1012,16 +994,7 @@ class DubSiren:
             # Fallback sanitization only if somehow NaN still occurred
             audio = sanitize_audio(audio)
 
-        # Output stage with minimal processing to preserve waveform character
-        # Step 1: Leave LOTS of headroom - barely any reduction
-        audio = audio * 0.95  # Minimal headroom reduction for transient safety
-
-        # Step 2: EXTREMELY gentle soft clipping - almost transparent
-        # Only engages on extreme peaks, preserves waveform differences
-        drive = 0.15  # Very minimal drive for transparent clipping
-        audio = np.tanh(audio * drive) / np.tanh(drive)
-
-        # Step 3: Hard clip as final safety net (should almost never engage)
+        # Hard clip as final safety net
         audio = np.clip(audio, -1.0, 1.0)
 
         return audio
@@ -1058,10 +1031,6 @@ class DubSiren:
     def set_delay_filter_lp(self, freq: float):
         """Set delay feedback low-pass filter frequency"""
         self.delay.set_filter_lp(freq)
-
-    def set_delay_saturation(self, amount: float):
-        """Set delay saturation/warmth amount"""
-        self.delay.set_saturation(amount)
 
     def set_delay_repitch_rate(self, rate: float):
         """Set delay analog repitch rate (0.0 to 1.0)
