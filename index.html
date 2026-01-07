@@ -497,11 +497,30 @@
                 this.reverbDry.gain.value = 1;
                 this.reverbWet.gain.value = this.params.reverbMix;
 
+                // DC blocker - removes DC offset to prevent headroom waste
+                this.dcBlocker = this.audioContext.createBiquadFilter();
+                this.dcBlocker.type = 'highpass';
+                this.dcBlocker.frequency.value = 10; // 10Hz high-pass
+                this.dcBlocker.Q.value = 0.7071; // Butterworth response
+
+                // Headroom gain - leave room before clipping
+                this.headroomGain = this.audioContext.createGain();
+                this.headroomGain.gain.value = 0.9; // -0.9dB headroom
+
+                // Soft clipper using WaveShaper with tanh curve
+                this.softClipper = this.audioContext.createWaveShaper();
+                this.softClipper.curve = this.createTanhCurve(2048);
+                this.softClipper.oversample = '4x'; // High quality oversampling
+
                 // Connect reverb chain
                 // Input splits to dry and convolver
                 // Both merge before master
 
-                this.masterGain.connect(this.analyser);
+                // Output chain: master -> DC blocker -> headroom -> soft clipper -> analyser -> destination
+                this.masterGain.connect(this.dcBlocker);
+                this.dcBlocker.connect(this.headroomGain);
+                this.headroomGain.connect(this.softClipper);
+                this.softClipper.connect(this.analyser);
                 this.analyser.connect(this.audioContext.destination);
 
                 return true;
@@ -523,6 +542,17 @@
                 }
 
                 this.convolver.buffer = impulse;
+            }
+
+            createTanhCurve(samples) {
+                // Create tanh waveshaper curve for soft clipping
+                // This prevents harsh digital clipping artifacts
+                const curve = new Float32Array(samples);
+                for (let i = 0; i < samples; i++) {
+                    const x = (i / samples) * 2 - 1; // -1 to 1
+                    curve[i] = Math.tanh(x);
+                }
+                return curve;
             }
 
             trigger() {
@@ -682,10 +712,18 @@
                 // Update live nodes
                 switch (name) {
                     case 'filterFreq':
-                        if (this.filter) this.filter.frequency.value = value;
+                        if (this.filter && this.audioContext) {
+                            // Smooth parameter change to prevent zipper noise
+                            const now = this.audioContext.currentTime;
+                            this.filter.frequency.setTargetAtTime(value, now, 0.001); // ~1ms smoothing
+                        }
                         break;
                     case 'filterRes':
-                        if (this.filter) this.filter.Q.value = value;
+                        if (this.filter && this.audioContext) {
+                            // Smooth parameter change to prevent zipper noise
+                            const now = this.audioContext.currentTime;
+                            this.filter.Q.setTargetAtTime(value, now, 0.001); // ~1ms smoothing
+                        }
                         break;
                     case 'delayTime':
                         if (this.delay) this.delay.delayTime.value = value;
