@@ -1013,12 +1013,13 @@ class DubSiren:
             audio = sanitize_audio(audio)
 
         # Output stage with headroom and soft clipping to prevent pops/clicks
-        # Step 1: Leave headroom to prevent clipping on transients
-        audio = audio * 0.9  # -0.9dB headroom
+        # Step 1: Leave MORE headroom to prevent clipping on transients
+        audio = audio * 0.7  # More headroom (was 0.9)
 
-        # Step 2: Soft clipping using tanh (smooth saturation, no harsh edges)
-        # tanh provides gentle compression as signal approaches ±1.0
-        audio = np.tanh(audio)
+        # Step 2: VERY gentle soft clipping using reduced-drive tanh
+        # Lower drive factor makes clipping much gentler and more transparent
+        drive = 0.5  # Gentle drive (was 1.0 implicit)
+        audio = np.tanh(audio * drive) / np.tanh(drive)
 
         # Step 3: Hard clip as final safety net (should rarely engage after tanh)
         audio = np.clip(audio, -1.0, 1.0)
