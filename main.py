@@ -49,7 +49,7 @@ class DubSirenApp:
         if simulate or not GPIO_AVAILABLE:
             self.controller = SimulatedControlSurface(self.synth)
         else:
-            self.controller = ControlSurface(self.synth)
+            self.controller = ControlSurface(self.synth, shutdown_callback=self.stop)
 
     def start(self):
         """Start the dub siren"""
@@ -58,7 +58,7 @@ class DubSirenApp:
             return
 
         print("\n" + "=" * 60)
-        print("  DUB SIREN V2")
+        print("  Poor House Dub v2")
         print("  Raspberry Pi Zero 2 + PCM5102 DAC")
         print("=" * 60)
         print()
@@ -102,10 +102,14 @@ class DubSirenApp:
         print("  [Release] [Filter Res]   [Delay FB]    [Reverb Mix]")
         print()
         print("Row 3:")
-        print("  [Osc Wave] [LFO Wave]  [AIRHORN]  [SIREN]")
+        print("  [Osc Wave] [LFO Wave]  [Pitch Env]  [Trigger]")
+        print()
+        print("Special:")
+        print("  [Shutdown Button] - GPIO 3 - Safely shutdown the system")
         print("-" * 60)
         print()
         print("Waveforms: 0=Sine, 1=Square, 2=Saw, 3=Triangle")
+        print("Pitch Envelope: Cycles through None -> Up -> Down")
         print()
 
     def print_status(self):
@@ -198,7 +202,7 @@ class DubSirenApp:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Dub Siren V2 - Raspberry Pi Zero 2 + PCM5102 DAC"
+        description="Poor House Dub v2 - Raspberry Pi Zero 2 + PCM5102 DAC"
     )
     parser.add_argument(
         '--sample-rate',

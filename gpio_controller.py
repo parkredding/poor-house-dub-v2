@@ -6,6 +6,8 @@ Handles 10 rotary encoders and 2 momentary switches
 
 import threading
 import time
+import os
+import subprocess
 from typing import Callable, Optional
 
 try:
@@ -131,10 +133,12 @@ class ControlSurface:
     SWITCH_PINS = {
         'pitch_env': 10,              # Pitch envelope cycle (was airhorn)
         'trigger': 4,                 # Main trigger (was siren)
+        'shutdown': 3,                # Shutdown/power button (latching switch)
     }
 
-    def __init__(self, synth):
+    def __init__(self, synth, shutdown_callback=None):
         self.synth = synth
+        self.shutdown_callback = shutdown_callback
         self.encoders = {}
         self.switches = {}
         self.running = False
@@ -180,10 +184,40 @@ class ControlSurface:
             release_callback=self.synth.release
         )
 
+        # Shutdown button (latching switch)
+        self.switches['shutdown'] = MomentarySwitch(
+            self.SWITCH_PINS['shutdown'],
+            press_callback=self._handle_shutdown,
+            release_callback=None  # No action on release for shutdown
+        )
+
     def _cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes and log the change"""
         new_mode = self.synth.cycle_pitch_envelope()
         print(f"Pitch envelope: {new_mode}")
+
+    def _handle_shutdown(self):
+        """Handle shutdown button press - safely shutdown the system"""
+        print("\n" + "=" * 60)
+        print("  SHUTDOWN BUTTON PRESSED")
+        print("  Safely shutting down the system...")
+        print("=" * 60)
+
+        # Call the shutdown callback to stop the application gracefully
+        if self.shutdown_callback:
+            self.shutdown_callback()
+
+        # Give the app a moment to clean up
+        time.sleep(1)
+
+        # Issue system shutdown command
+        try:
+            print("Executing system shutdown...")
+            subprocess.run(['sudo', 'shutdown', '-h', 'now'], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Failed to shutdown system: {e}")
+        except FileNotFoundError:
+            print("WARNING: shutdown command not found (running in development mode?)")
 
     def _handle_encoder(self, name: str, direction: int):
         """Handle encoder rotation"""
