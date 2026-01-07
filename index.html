@@ -354,7 +354,7 @@
     </div>
 
     <div class="section">
-        <h2>Delay</h2>
+        <h2>Delay (Tape Style)</h2>
         <div class="control-row">
             <div class="control">
                 <label>Time <span id="delayTimeValue">0.3</span>s</label>
@@ -365,9 +365,25 @@
                 <input type="range" id="delayFeedback" min="0" max="90" value="30" step="1">
             </div>
         </div>
-        <div class="control">
-            <label>Mix <span id="delayMixValue">0</span>%</label>
-            <input type="range" id="delayMix" min="0" max="100" value="0" step="1">
+        <div class="control-row">
+            <div class="control">
+                <label>Mix <span id="delayMixValue">0</span>%</label>
+                <input type="range" id="delayMix" min="0" max="100" value="0" step="1">
+            </div>
+            <div class="control">
+                <label>Tape Saturation <span id="tapeSaturationValue">30</span>%</label>
+                <input type="range" id="tapeSaturation" min="0" max="100" value="30" step="1">
+            </div>
+        </div>
+        <div class="control-row">
+            <div class="control">
+                <label>Wobble <span id="wobbleDepthValue">3.0</span>ms</label>
+                <input type="range" id="wobbleDepth" min="0" max="100" value="30" step="1">
+            </div>
+            <div class="control">
+                <label>Flutter <span id="flutterDepthValue">1.0</span>ms</label>
+                <input type="range" id="flutterDepth" min="0" max="100" value="10" step="1">
+            </div>
         </div>
     </div>
 
@@ -418,6 +434,11 @@
                     delayTime: 0.3,
                     delayFeedback: 0.3,
                     delayMix: 0,
+                    tapeSaturation: 0.3,      // 0.0-1.0 tape saturation amount
+                    wobbleDepth: 0.003,       // wobble depth in seconds (0.003 = 0.3%)
+                    wobbleRate: 0.5,          // wobble rate in Hz
+                    flutterDepth: 0.001,      // flutter depth in seconds (0.001 = 0.1%)
+                    flutterRate: 3.5,         // flutter rate in Hz
                     reverbSize: 0.5,
                     reverbMix: 0,
                     volume: 0.7
@@ -433,6 +454,11 @@
                 this.delayFeedbackGain = null;
                 this.delayDry = null;
                 this.delayWet = null;
+                this.tapeSaturator = null;     // WaveShaper for tape saturation
+                this.wobbleLfo = null;          // LFO for tape wobble
+                this.wobbleGain = null;         // Gain for wobble modulation depth
+                this.flutterLfo = null;         // LFO for tape flutter
+                this.flutterGain = null;        // Gain for flutter modulation depth
                 this.convolver = null;
                 this.reverbDry = null;
                 this.reverbWet = null;
@@ -474,13 +500,21 @@
                 this.delayFeedbackGain = this.audioContext.createGain();
                 this.delayFeedbackGain.gain.value = this.params.delayFeedback;
 
-                // Delay feedback loop with filter to prevent buildup
+                // Delay feedback loop with tape-style processing
+                // 1. LP filter for high-frequency damping (5kHz)
                 this.delayFilter = this.audioContext.createBiquadFilter();
                 this.delayFilter.type = 'lowpass';
-                this.delayFilter.frequency.value = 4000;
+                this.delayFilter.frequency.value = 5000;
 
+                // 2. Tape saturation waveshaper
+                this.tapeSaturator = this.audioContext.createWaveShaper();
+                this.tapeSaturator.curve = this.createTapeSaturationCurve(this.params.tapeSaturation);
+                this.tapeSaturator.oversample = '2x';
+
+                // 3. Connect feedback path: delay -> filter -> saturator -> feedback gain -> delay
                 this.delay.connect(this.delayFilter);
-                this.delayFilter.connect(this.delayFeedbackGain);
+                this.delayFilter.connect(this.tapeSaturator);
+                this.tapeSaturator.connect(this.delayFeedbackGain);
                 this.delayFeedbackGain.connect(this.delay);
 
                 // Delay mix
@@ -488,6 +522,32 @@
                 this.delayWet = this.audioContext.createGain();
                 this.delayDry.gain.value = 1;
                 this.delayWet.gain.value = this.params.delayMix;
+
+                // Tape wobble modulation (slow, 0.5Hz)
+                this.wobbleLfo = this.audioContext.createOscillator();
+                this.wobbleLfo.type = 'sine';
+                this.wobbleLfo.frequency.value = this.params.wobbleRate;
+
+                this.wobbleGain = this.audioContext.createGain();
+                this.wobbleGain.gain.value = this.params.wobbleDepth;
+
+                this.wobbleLfo.connect(this.wobbleGain);
+                this.wobbleGain.connect(this.delay.delayTime);
+
+                // Tape flutter modulation (fast, 3.5Hz)
+                this.flutterLfo = this.audioContext.createOscillator();
+                this.flutterLfo.type = 'sine';
+                this.flutterLfo.frequency.value = this.params.flutterRate;
+
+                this.flutterGain = this.audioContext.createGain();
+                this.flutterGain.gain.value = this.params.flutterDepth;
+
+                this.flutterLfo.connect(this.flutterGain);
+                this.flutterGain.connect(this.delay.delayTime);
+
+                // Start the tape modulation LFOs
+                this.wobbleLfo.start();
+                this.flutterLfo.start();
 
                 // Create reverb using convolver
                 this.convolver = this.audioContext.createConvolver();
@@ -533,6 +593,24 @@
                 }
 
                 this.convolver.buffer = impulse;
+            }
+
+            createTapeSaturationCurve(amount) {
+                // Create a waveshaper curve for tape saturation
+                // amount: 0.0 = clean, 1.0 = heavy saturation
+                const samples = 1024;
+                const curve = new Float32Array(samples);
+
+                for (let i = 0; i < samples; i++) {
+                    const x = (i * 2) / samples - 1; // -1 to 1
+
+                    // Blend between clean and tanh saturation
+                    const drive = 1.0 + amount * 2.0;
+                    const saturated = Math.tanh(x * drive);
+                    curve[i] = x * (1.0 - amount) + saturated * amount;
+                }
+
+                return curve;
             }
 
             trigger() {
@@ -724,6 +802,17 @@
                     case 'delayMix':
                         if (this.delayWet) this.delayWet.gain.value = value;
                         break;
+                    case 'tapeSaturation':
+                        if (this.tapeSaturator) {
+                            this.tapeSaturator.curve = this.createTapeSaturationCurve(value);
+                        }
+                        break;
+                    case 'wobbleDepth':
+                        if (this.wobbleGain) this.wobbleGain.gain.value = value;
+                        break;
+                    case 'flutterDepth':
+                        if (this.flutterGain) this.flutterGain.gain.value = value;
+                        break;
                     case 'reverbMix':
                         if (this.reverbWet) this.reverbWet.gain.value = value;
                         break;
@@ -856,6 +945,9 @@
             { id: 'delayTime', param: 'delayTime', display: 'delayTimeValue', format: v => v.toFixed(2) },
             { id: 'delayFeedback', param: 'delayFeedback', display: 'delayFeedbackValue', format: v => Math.round(v), scale: 0.01 },
             { id: 'delayMix', param: 'delayMix', display: 'delayMixValue', format: v => Math.round(v * 100), scale: 0.01 },
+            { id: 'tapeSaturation', param: 'tapeSaturation', display: 'tapeSaturationValue', format: v => Math.round(v * 100), scale: 0.01 },
+            { id: 'wobbleDepth', param: 'wobbleDepth', display: 'wobbleDepthValue', format: v => (v * 1000).toFixed(1), scale: 0.0001 },
+            { id: 'flutterDepth', param: 'flutterDepth', display: 'flutterDepthValue', format: v => (v * 1000).toFixed(1), scale: 0.0001 },
             { id: 'reverbSize', param: 'reverbSize', display: 'reverbSizeValue', format: v => v.toFixed(2) },
             { id: 'reverbMix', param: 'reverbMix', display: 'reverbMixValue', format: v => Math.round(v * 100), scale: 0.01 },
             { id: 'volume', param: 'volume', display: 'volumeValue', format: v => Math.round(v * 100), scale: 0.01 },
