@@ -24,7 +24,7 @@ class AudioOutput:
         self,
         synth,
         sample_rate: int = 48000,
-        buffer_size: int = 256,
+        buffer_size: int = 512,
         channels: int = 2,
         device: str = None
     ):
@@ -178,10 +178,10 @@ class SimulatedAudioOutput:
 
     def _simulation_thread(self):
         """Simulate audio callback at regular intervals"""
-        buffer_duration = 256 / 48000.0  # ~5.3ms
+        buffer_duration = 512 / 48000.0  # ~10.7ms
         while self.running:
             # Generate audio (but don't output it)
-            self.synth.generate_audio(256)
+            self.synth.generate_audio(512)
             time.sleep(buffer_duration)
 
     def start(self):

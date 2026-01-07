@@ -340,28 +340,41 @@ class Envelope:
 
 
 class LowPassFilter:
-    """Simple one-pole low-pass filter"""
+    """Simple one-pole low-pass filter with parameter smoothing
+
+    Parameter smoothing prevents "zipper noise" and clicks when filter
+    parameters change rapidly (e.g., from rotary encoder adjustments).
+    """
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.cutoff = 1000.0  # Hz
-        self.resonance = 0.1  # 0.0 to 1.0
+        self.cutoff = 1000.0  # Hz (target value)
+        self.cutoff_current = 1000.0  # Current smoothed value
+        self.resonance = 0.1  # 0.0 to 1.0 (target value)
+        self.resonance_current = 0.1  # Current smoothed value
         self.prev_output = 0.0
+        # Smoothing coefficient: larger = smoother but slower response
+        # 0.001 = smooth over ~1ms, good balance for real-time control
+        self.smoothing = 0.001
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
         """Process audio through the filter with state clamping to prevent NaN"""
-        # Calculate filter coefficient
-        rc = 1.0 / (2.0 * np.pi * self.cutoff)
-        dt = 1.0 / self.sample_rate
-        alpha = dt / (rc + dt)
-
-        # Add resonance (feedback)
-        alpha = alpha * (1.0 + self.resonance * 2.0)
-        alpha = min(alpha, 0.99)
-
         output = np.zeros_like(input_signal)
 
         for i in range(len(input_signal)):
+            # Smooth parameter changes to prevent zipper noise
+            self.cutoff_current += (self.cutoff - self.cutoff_current) * self.smoothing
+            self.resonance_current += (self.resonance - self.resonance_current) * self.smoothing
+
+            # Calculate filter coefficient with smoothed cutoff
+            rc = 1.0 / (2.0 * np.pi * self.cutoff_current)
+            dt = 1.0 / self.sample_rate
+            alpha = dt / (rc + dt)
+
+            # Add resonance (feedback) with smoothed resonance
+            alpha = alpha * (1.0 + self.resonance_current * 2.0)
+            alpha = min(alpha, 0.99)
+
             output[i] = self.prev_output + alpha * (input_signal[i] - self.prev_output)
             # Clamp state to prevent runaway values that lead to NaN
             self.prev_output = _clamp_sample(output[i])
@@ -375,6 +388,35 @@ class LowPassFilter:
     def set_resonance(self, res: float):
         """Set filter resonance (0.0 to 1.0)"""
         self.resonance = max(0.0, min(res, 0.95))
+
+
+class DCBlocker:
+    """DC blocking filter to remove DC offset without affecting low frequencies
+
+    DC offset can accumulate in feedback loops (filters, delay, reverb) and waste
+    headroom, leading to asymmetric clipping and pops. This first-order high-pass
+    filter at ~10Hz removes DC while preserving bass frequencies.
+    """
+
+    def __init__(self):
+        self.x_prev = 0.0
+        self.y_prev = 0.0
+        self.coeff = 0.995  # High-pass at ~10Hz @ 48kHz
+
+    def process(self, audio: np.ndarray) -> np.ndarray:
+        """Remove DC offset from audio signal"""
+        output = np.zeros_like(audio)
+        for i in range(len(audio)):
+            # First-order high-pass filter: y[n] = x[n] - x[n-1] + coeff * y[n-1]
+            output[i] = audio[i] - self.x_prev + self.coeff * self.y_prev
+            self.x_prev = audio[i]
+            self.y_prev = output[i]
+        return output
+
+    def reset(self):
+        """Reset filter state"""
+        self.x_prev = 0.0
+        self.y_prev = 0.0
 
 
 class DelayEffect:
@@ -829,7 +871,7 @@ class ReverbEffect:
 class DubSiren:
     """Main Dub Siren Synthesizer"""
 
-    def __init__(self, sample_rate: int = 48000, buffer_size: int = 256):
+    def __init__(self, sample_rate: int = 48000, buffer_size: int = 512):
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
 
@@ -840,6 +882,7 @@ class DubSiren:
         self.filter = LowPassFilter(sample_rate)
         self.delay = DelayEffect(sample_rate)
         self.reverb = ReverbEffect(sample_rate)
+        self.dc_blocker = DCBlocker()  # Removes DC offset before output
 
         # Control parameters
         self.volume = 0.5
@@ -957,6 +1000,9 @@ class DubSiren:
         # Apply reverb (all internal filters have clamping)
         audio = self.reverb.process(audio)
 
+        # Remove DC offset to prevent headroom waste and asymmetric clipping
+        audio = self.dc_blocker.process(audio)
+
         # Apply volume
         audio = audio * self.volume
 
@@ -966,7 +1012,15 @@ class DubSiren:
             # Fallback sanitization only if somehow NaN still occurred
             audio = sanitize_audio(audio)
 
-        # Ensure output is within range
+        # Output stage with headroom and soft clipping to prevent pops/clicks
+        # Step 1: Leave headroom to prevent clipping on transients
+        audio = audio * 0.9  # -0.9dB headroom
+
+        # Step 2: Soft clipping using tanh (smooth saturation, no harsh edges)
+        # tanh provides gentle compression as signal approaches ±1.0
+        audio = np.tanh(audio)
+
+        # Step 3: Hard clip as final safety net (should rarely engage after tanh)
         audio = np.clip(audio, -1.0, 1.0)
 
         return audio
