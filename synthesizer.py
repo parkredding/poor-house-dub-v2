@@ -227,10 +227,10 @@ class LFO:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.frequency = 2.0  # Hz
+        self.frequency = 5.0  # Hz (matches browser test default)
         self.phase = 0.0
         self.waveform: WaveformType = 'sine'
-        self.depth = 0.5  # 0.0 to 1.0
+        self.depth = 0.0  # 0.0 to 1.0 (matches browser test default)
 
     def generate(self, num_samples: int) -> np.ndarray:
         """Generate LFO modulation signal"""
@@ -263,10 +263,10 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.attack = 0.01   # seconds
+        self.attack = 0.01   # seconds (matches browser test default)
         self.decay = 0.1     # seconds
         self.sustain = 0.7   # level (0.0 to 1.0)
-        self.release = 0.5   # seconds
+        self.release = 0.3   # seconds (matches browser test default)
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -348,10 +348,10 @@ class LowPassFilter:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.cutoff = 1000.0  # Hz (target value)
-        self.cutoff_current = 1000.0  # Current smoothed value
-        self.resonance = 0.1  # 0.0 to 1.0 (target value)
-        self.resonance_current = 0.1  # Current smoothed value
+        self.cutoff = 2000.0  # Hz (target value - matches browser test default)
+        self.cutoff_current = 2000.0  # Current smoothed value
+        self.resonance = 1.0  # Q value (matches browser test default)
+        self.resonance_current = 1.0  # Current smoothed value
         self.prev_output = 0.0
         # Smoothing coefficient: larger = smoother but slower response
         # 0.001 = smooth over ~1ms, good balance for real-time control
@@ -372,7 +372,10 @@ class LowPassFilter:
             alpha = dt / (rc + dt)
 
             # Add resonance (feedback) with smoothed resonance
-            alpha = alpha * (1.0 + self.resonance_current * 2.0)
+            # Scale Q value (0.1-20) to reasonable feedback range
+            # Q=1 (no resonance) -> no extra feedback, Q=20 -> significant peaking
+            resonance_factor = (self.resonance_current - 0.1) / 19.9  # Normalize to 0.0-1.0
+            alpha = alpha * (1.0 + resonance_factor * 2.0)
             alpha = min(alpha, 0.99)
 
             output[i] = self.prev_output + alpha * (input_signal[i] - self.prev_output)
@@ -386,8 +389,8 @@ class LowPassFilter:
         self.cutoff = max(20.0, min(freq, 20000.0))
 
     def set_resonance(self, res: float):
-        """Set filter resonance (0.0 to 1.0)"""
-        self.resonance = max(0.0, min(res, 0.95))
+        """Set filter resonance / Q value (0.1 to 20, matches browser test range)"""
+        self.resonance = max(0.1, min(res, 20.0))
 
 
 class DCBlocker:
@@ -438,10 +441,10 @@ class DelayEffect:
         self.buffer = np.zeros(self.max_delay_samples)
         self.write_pos = 0
 
-        # Core delay parameters
-        self.delay_time = 0.5  # seconds (target delay time)
-        self.feedback = 0.5    # 0.0 to 1.0
-        self.dry_wet = 0.5     # 0.0 = dry, 1.0 = wet
+        # Core delay parameters (match browser test defaults)
+        self.delay_time = 0.3  # seconds (target delay time - matches browser test)
+        self.feedback = 0.3    # 0.0 to 1.0 (matches browser test)
+        self.dry_wet = 0.0     # 0.0 = dry, 1.0 = wet (matches browser test)
 
         # Analog repitch behavior - smoothly slide to new delay time
         # This creates pitch shifting when delay time changes (like BBD/tape)
@@ -805,9 +808,9 @@ class ReverbEffect:
         # Output diffusion (smooths the sound)
         self.output_diffusion = AllpassFilter(int(0.0067 * sample_rate))  # 6.7ms
 
-        # Control parameters
-        self.size = 0.5       # Room size / decay time (0.0 to 1.0)
-        self.dry_wet = 0.3    # Mix (0.0 = dry, 1.0 = wet)
+        # Control parameters (match browser test defaults)
+        self.size = 0.5       # Room size / decay time (0.0 to 1.0 - matches browser test)
+        self.dry_wet = 0.0    # Mix (0.0 = dry, 1.0 = wet - matches browser test)
         self.damping = 0.5    # High-frequency damping / warmth (0.0 = bright, 1.0 = dark)
 
         self._update_parameters()
@@ -902,8 +905,8 @@ class DubSiren:
         self.reverb = ReverbEffect(sample_rate)
         self.dc_blocker = DCBlocker()  # Removes DC offset before output
 
-        # Control parameters
-        self.volume = 0.5
+        # Control parameters (match browser test defaults)
+        self.volume = 0.7  # Matches browser test default
         self.is_running = False
 
         # Frequency control
