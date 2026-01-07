@@ -420,14 +420,16 @@ class DCBlocker:
 
 
 class DelayEffect:
-    """Analog-style Delay/Echo effect with BBD/tape-like behavior
+    """Tape-style Delay/Echo effect with authentic analog behavior
 
     Features:
     - Dry/Wet mix control
-    - High-pass and low-pass filters in feedback path (prevents mud and harsh highs)
-    - Time modulation for tape-like wobble
+    - Tape-style high-frequency damping (5kHz LP) for natural degradation of repeats
+    - High-pass filter in feedback path (removes mud buildup)
+    - Tape saturation for warmth and harmonic richness
+    - Dual time modulation: slow wobble + fast flutter for authentic tape character
     - Analog repitch behavior: changing delay time causes pitch-shifting of repeats
-      (like real BBD or tape delays where the audio "smears" when you change time)
+      (like real tape delays where the audio "smears" when you change time)
     """
 
     def __init__(self, sample_rate: int = 48000, max_delay: float = 2.0):
@@ -448,18 +450,26 @@ class DelayEffect:
         # Internal: samples to move per sample (derived from repitch_rate)
         self._slew_rate = self._calculate_slew_rate()
 
-        # Feedback filter parameters (Ableton-style)
+        # Feedback filter parameters (tape-style)
         self.filter_hp_freq = 80.0     # High-pass cutoff Hz (removes mud)
-        self.filter_lp_freq = 8000.0   # Low-pass cutoff Hz (tames highs)
+        self.filter_lp_freq = 5000.0   # Low-pass cutoff Hz (tape-like high-frequency loss)
 
         # Filter states for feedback path
         self._hp_state = 0.0
         self._lp_state = 0.0
 
-        # Time modulation (for tape-like wobble)
-        self.mod_depth = 0.002    # modulation depth in seconds
-        self.mod_rate = 0.5       # modulation rate in Hz
+        # Time modulation (for tape-like wobble and flutter)
+        self.mod_depth = 0.003    # primary wobble depth in seconds (increased for tape feel)
+        self.mod_rate = 0.5       # primary wobble rate in Hz
         self._mod_phase = 0.0
+
+        # Flutter modulation (faster, secondary modulation for tape character)
+        self.flutter_depth = 0.001  # flutter depth in seconds
+        self.flutter_rate = 3.5     # flutter rate in Hz (faster than main wobble)
+        self._flutter_phase = 0.0
+
+        # Tape saturation
+        self.tape_saturation = 0.3  # 0.0 = clean, 1.0 = heavy saturation
 
     def _calculate_slew_rate(self) -> float:
         """Calculate slew rate from repitch_rate parameter
@@ -481,9 +491,10 @@ class DelayEffect:
         return max_delay_samples / (max_slew_time * samples_per_second)
 
     def _process_feedback_filters(self, sample: float) -> float:
-        """Apply HP and LP filters to feedback path (prevents buildup)
+        """Apply HP and LP filters to feedback path, plus tape-style saturation
 
         Filter states are clamped to prevent runaway values that lead to NaN.
+        Adds gentle saturation for tape warmth and character.
         """
         # High-pass filter (removes mud/low-end buildup)
         hp_rc = 1.0 / (2.0 * np.pi * self.filter_hp_freq)
@@ -498,12 +509,17 @@ class DelayEffect:
         self._hp_state = _clamp_sample(self._hp_state + hp_coeff * (sample - self._hp_state))
         filtered = sample - self._hp_state
 
-        # Low-pass filter (tames harsh highs)
+        # Low-pass filter (tape-like high-frequency loss)
         lp_cutoff_norm = self.filter_lp_freq / self.sample_rate
         lp_coeff = 1.0 - np.exp(-2.0 * np.pi * lp_cutoff_norm)
         self._lp_state = _clamp_sample(self._lp_state + lp_coeff * (filtered - self._lp_state))
 
-        return self._lp_state
+        # Tape-style saturation (gentle warmth)
+        # Blend between clean and saturated signal based on tape_saturation amount
+        saturated = np.tanh(self._lp_state * (1.0 + self.tape_saturation * 2.0))
+        result = self._lp_state * (1.0 - self.tape_saturation) + saturated * self.tape_saturation
+
+        return result
 
     def _lerp_read(self, delay_samples: float) -> float:
         """Read from delay buffer with linear interpolation for sub-sample accuracy
@@ -558,10 +574,14 @@ class DelayEffect:
                     # Close enough, snap to target
                     self._current_delay_samples = target_delay_samples
 
-            # Add tape wobble modulation on top of current delay
+            # Add tape wobble modulation (slow) and flutter (fast) on top of current delay
             mod = np.sin(2.0 * np.pi * self.mod_rate * self._mod_phase / self.sample_rate)
             mod_samples = self.mod_depth * self.sample_rate * mod
-            delay_samples = self._current_delay_samples + mod_samples
+
+            flutter = np.sin(2.0 * np.pi * self.flutter_rate * self._flutter_phase / self.sample_rate)
+            flutter_samples = self.flutter_depth * self.sample_rate * flutter
+
+            delay_samples = self._current_delay_samples + mod_samples + flutter_samples
 
             # Clamp to valid range (keep as float for interpolation)
             delay_samples = max(1.0, min(delay_samples, self.max_delay_samples - 2.0))
@@ -569,6 +589,10 @@ class DelayEffect:
             self._mod_phase += 1
             if self._mod_phase >= self.sample_rate:
                 self._mod_phase = 0
+
+            self._flutter_phase += 1
+            if self._flutter_phase >= self.sample_rate:
+                self._flutter_phase = 0
 
             # Read from delay buffer with linear interpolation
             # This is crucial for smooth pitch-shifting
@@ -637,6 +661,18 @@ class DelayEffect:
     def set_mod_rate(self, rate: float):
         """Set time modulation rate in Hz"""
         self.mod_rate = max(0.1, min(rate, 5.0))
+
+    def set_flutter_depth(self, depth: float):
+        """Set flutter modulation depth in seconds (fast tape variations)"""
+        self.flutter_depth = max(0.0, min(depth, 0.005))
+
+    def set_flutter_rate(self, rate: float):
+        """Set flutter modulation rate in Hz (typically faster than main wobble)"""
+        self.flutter_rate = max(0.5, min(rate, 10.0))
+
+    def set_tape_saturation(self, amount: float):
+        """Set tape saturation amount (0.0 = clean, 1.0 = heavy saturation)"""
+        self.tape_saturation = max(0.0, min(amount, 1.0))
 
 
 class AllpassFilter:
