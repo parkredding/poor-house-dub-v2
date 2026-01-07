@@ -505,11 +505,12 @@
 
                 // Headroom gain - leave room before clipping
                 this.headroomGain = this.audioContext.createGain();
-                this.headroomGain.gain.value = 0.9; // -0.9dB headroom
+                this.headroomGain.gain.value = 1.0; // Unity gain
 
                 // Soft clipper using WaveShaper with tanh curve
+                // Use a gentler curve (3x drive) so it only clips signals above ~0.9
                 this.softClipper = this.audioContext.createWaveShaper();
-                this.softClipper.curve = this.createTanhCurve(2048);
+                this.softClipper.curve = this.createTanhCurve(2048, 3.0); // Gentle clipping
                 this.softClipper.oversample = '4x'; // High quality oversampling
 
                 // Connect reverb chain
@@ -544,13 +545,15 @@
                 this.convolver.buffer = impulse;
             }
 
-            createTanhCurve(samples) {
+            createTanhCurve(samples, drive = 1.0) {
                 // Create tanh waveshaper curve for soft clipping
                 // This prevents harsh digital clipping artifacts
+                // Higher drive = more aggressive clipping (default 1.0)
+                // Lower drive = gentler clipping (e.g., 3.0 for subtle)
                 const curve = new Float32Array(samples);
                 for (let i = 0; i < samples; i++) {
                     const x = (i / samples) * 2 - 1; // -1 to 1
-                    curve[i] = Math.tanh(x);
+                    curve[i] = Math.tanh(x * drive) / Math.tanh(drive);
                 }
                 return curve;
             }
