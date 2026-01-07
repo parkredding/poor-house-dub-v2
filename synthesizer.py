@@ -877,11 +877,23 @@ class DubSiren:
             self.pitch_envelope = mode
 
     def set_frequency(self, freq: float):
-        """Set base frequency for triggering"""
+        """Set base frequency for triggering and during playback/release
+
+        This allows real-time frequency control even during the decay/release phase.
+        The pitch envelope (if active) will be applied as a multiplier on top of this.
+        """
         self.base_frequency = max(20.0, min(freq, 20000.0))
-        # Also update live oscillator if currently playing
-        if self.envelope.is_active and not self.envelope.is_releasing:
-            self.oscillator.set_frequency(self.base_frequency)
+        # Update live oscillator frequency if currently playing (including during release)
+        # The pitch envelope will be applied on top of this in generate_audio()
+        if self.envelope.is_active:
+            if self.envelope.is_releasing and self.pitch_envelope != 'none':
+                # During release with pitch envelope, apply the envelope multiplier
+                # This is handled in generate_audio(), so we don't update here
+                # to avoid fighting with the envelope calculation
+                pass
+            else:
+                # During sustain or release without envelope, update directly
+                self.oscillator.set_frequency(self.base_frequency)
 
     # Legacy methods for backwards compatibility with gpio_controller
     def trigger_airhorn(self):
@@ -908,6 +920,7 @@ class DubSiren:
         under normal operation, ensuring audio always respects volume control.
         """
         # Apply pitch envelope during release phase
+        # Uses current base_frequency so manual frequency changes affect pitch in real-time
         if self.envelope.is_releasing and self.pitch_envelope != 'none':
             release_samples = int(self.envelope.release * self.sample_rate)
             if release_samples > 0:
@@ -920,6 +933,7 @@ class DubSiren:
                     freq_mult = 1.0 - (0.75 * progress)  # 1.0 to 0.25
                 else:
                     freq_mult = 1.0
+                # Apply envelope as multiplier on current base_frequency for real-time control
                 self.oscillator.set_frequency(self.base_frequency * freq_mult)
 
         # Generate oscillator output
