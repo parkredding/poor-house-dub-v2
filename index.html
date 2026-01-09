@@ -465,6 +465,10 @@
                 this.masterGain = null;
                 this.analyser = null;
 
+                // Temporary nodes created during trigger (need cleanup)
+                this.delayMerge = null;
+                this.reverbMerge = null;
+
                 // Pitch envelope tracking for real-time frequency updates
                 this.releaseStartTime = null;
                 this.pitchEnvelopeUpdateInterval = null;
@@ -655,22 +659,22 @@
                 this.delay.connect(this.delayWet);
 
                 // Create merger for delay
-                const delayMerge = this.audioContext.createGain();
-                this.delayDry.connect(delayMerge);
-                this.delayWet.connect(delayMerge);
+                this.delayMerge = this.audioContext.createGain();
+                this.delayDry.connect(this.delayMerge);
+                this.delayWet.connect(this.delayMerge);
 
                 // Delay merge to reverb (wet) and direct (dry)
-                delayMerge.connect(this.reverbDry);
-                delayMerge.connect(this.convolver);
+                this.delayMerge.connect(this.reverbDry);
+                this.delayMerge.connect(this.convolver);
                 this.convolver.connect(this.reverbWet);
 
                 // Create merger for reverb
-                const reverbMerge = this.audioContext.createGain();
-                this.reverbDry.connect(reverbMerge);
-                this.reverbWet.connect(reverbMerge);
+                this.reverbMerge = this.audioContext.createGain();
+                this.reverbDry.connect(this.reverbMerge);
+                this.reverbWet.connect(this.reverbMerge);
 
                 // Final output
-                reverbMerge.connect(this.masterGain);
+                this.reverbMerge.connect(this.masterGain);
 
                 // Start
                 this.oscillator.start(now);
@@ -764,6 +768,16 @@
                 this.currentNote = null;
 
                 setTimeout(() => {
+                    // Disconnect and null all temporary nodes to prevent accumulation
+                    if (this.delayMerge) {
+                        this.delayMerge.disconnect();
+                        this.delayMerge = null;
+                    }
+                    if (this.reverbMerge) {
+                        this.reverbMerge.disconnect();
+                        this.reverbMerge = null;
+                    }
+
                     // Now null the oscillator and lfo after release completes
                     this.oscillator = null;
                     this.lfo = null;
