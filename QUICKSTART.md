@@ -57,10 +57,10 @@ sudo reboot
 cd ~/poor-house-dub-v2
 
 # List audio devices
-python3 main.py --list-devices
+~/poor-house-dub-v2-venv/bin/python3 main.py --list-devices
 
 # Test audio output
-python3 audio_output.py
+~/poor-house-dub-v2-venv/bin/python3 audio_output.py
 ```
 
 You should hear a test tone for 5 seconds.
@@ -83,7 +83,7 @@ speaker-test -t wav -c 2 -D hw:0,0
 Run in simulation mode to test the synthesizer:
 
 ```bash
-python3 main.py --simulate --interactive
+~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive
 ```
 
 Commands in interactive mode:
@@ -100,7 +100,7 @@ If you have the rotary encoders and switches wired up:
 ### Test GPIO:
 
 ```bash
-python3 gpio_controller.py
+~/poor-house-dub-v2-venv/bin/python3 gpio_controller.py
 ```
 
 Rotate encoders and press buttons to see output.
@@ -108,7 +108,7 @@ Rotate encoders and press buttons to see output.
 ### Run full system:
 
 ```bash
-python3 main.py
+~/poor-house-dub-v2-venv/bin/python3 main.py
 ```
 
 ## Step 6: Run at Startup (Optional)
@@ -156,8 +156,8 @@ sudo usermod -a -G gpio,audio $USER
 ### Import errors?
 
 ```bash
-# Reinstall dependencies
-pip3 install -r requirements.txt
+# Reinstall dependencies using the virtual environment
+~/poor-house-dub-v2-venv/bin/pip install -r requirements.txt
 ```
 
 ## Basic Usage
@@ -166,19 +166,19 @@ pip3 install -r requirements.txt
 
 ```bash
 # Default mode (hardware)
-python3 main.py
+~/poor-house-dub-v2-venv/bin/python3 main.py
 
 # Simulation mode (no hardware)
-python3 main.py --simulate --interactive
+~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive
 
 # Custom sample rate
-python3 main.py --sample-rate 44100
+~/poor-house-dub-v2-venv/bin/python3 main.py --sample-rate 44100
 
 # Larger buffer for stability
-python3 main.py --buffer-size 512
+~/poor-house-dub-v2-venv/bin/python3 main.py --buffer-size 512
 
 # List available audio devices
-python3 main.py --list-devices
+~/poor-house-dub-v2-venv/bin/python3 main.py --list-devices
 ```
 
 ## What's Next?

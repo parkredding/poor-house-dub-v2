@@ -26,14 +26,25 @@ sudo apt-get install -y \
     python3 \
     python3-pip \
     python3-dev \
+    python3-venv \
     python3-numpy \
     libasound2-dev \
     libportaudio2 \
     git
 
-# Install Python packages
+# Create virtual environment
+echo "Creating Python virtual environment..."
+VENV_DIR="$HOME/poor-house-dub-v2-venv"
+if [ -d "$VENV_DIR" ]; then
+    echo "Virtual environment already exists, removing..."
+    rm -rf "$VENV_DIR"
+fi
+python3 -m venv "$VENV_DIR"
+
+# Install Python packages in virtual environment
 echo "Installing Python packages..."
-pip3 install -r requirements.txt
+"$VENV_DIR/bin/pip" install --upgrade pip
+"$VENV_DIR/bin/pip" install -r requirements.txt
 
 # Configure I2S for PCM5102
 echo "Configuring I2S audio interface for PCM5102..."
@@ -85,7 +96,7 @@ chmod +x audio_output.py
 
 # Create systemd service
 echo "Creating systemd service..."
-cat > /tmp/dubsiren.service << 'EOF'
+cat > /tmp/dubsiren.service << EOF
 [Unit]
 Description=Dub Siren V2 Synthesizer
 After=sound.target
@@ -94,7 +105,7 @@ After=sound.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/poor-house-dub-v2
-ExecStart=/usr/bin/python3 /home/pi/poor-house-dub-v2/main.py
+ExecStart=$HOME/poor-house-dub-v2-venv/bin/python3 /home/pi/poor-house-dub-v2/main.py
 Restart=on-failure
 RestartSec=5
 
@@ -130,10 +141,13 @@ echo "Next Steps:"
 echo "1. Wire up the PCM5102 DAC according to the guide above"
 echo "2. Wire up the 10 rotary encoders and 2 switches"
 echo "3. Reboot: sudo reboot"
-echo "4. Test audio: python3 audio_output.py"
-echo "5. Test controls: python3 gpio_controller.py"
-echo "6. Run the siren: python3 main.py --simulate  (for testing)"
-echo "7. Run the siren: python3 main.py  (on hardware)"
+echo "4. Test audio: ~/poor-house-dub-v2-venv/bin/python3 audio_output.py"
+echo "5. Test controls: ~/poor-house-dub-v2-venv/bin/python3 gpio_controller.py"
+echo "6. Run the siren: ~/poor-house-dub-v2-venv/bin/python3 main.py --simulate  (for testing)"
+echo "7. Run the siren: ~/poor-house-dub-v2-venv/bin/python3 main.py  (on hardware)"
 echo "8. Enable service: sudo systemctl enable dubsiren.service"
 echo "9. Start service: sudo systemctl start dubsiren.service"
+echo ""
+echo "Note: Python packages are installed in a virtual environment at:"
+echo "      $HOME/poor-house-dub-v2-venv"
 echo ""
