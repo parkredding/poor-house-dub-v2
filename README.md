@@ -64,6 +64,27 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
    sudo reboot
    ```
 
+### Quick Test Installation (GPIO/I2C Test)
+
+For quick testing of GPIO and I2S audio on your Raspberry Pi, use this one-line installer:
+
+```bash
+export GITHUB_PAT=your_github_token_here && curl -H "Authorization: token $GITHUB_PAT" -L https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/claude/gpio-i2c-installer-SAiHA/install.sh | bash
+```
+
+This will:
+- Install all required dependencies
+- Download the test suite
+- Set up audio and GPIO for testing
+
+**Run tests:**
+```bash
+python3 pi_audio_test.py              # Full test suite
+python3 pi_audio_test.py --quick      # Quick test (shorter duration)
+python3 pi_audio_test.py --gpio       # Interactive GPIO control mode
+python3 pi_audio_test.py --list-devices  # List available audio devices
+```
+
 ### Hardware Setup
 
 See [HARDWARE.md](HARDWARE.md) for detailed wiring instructions.
