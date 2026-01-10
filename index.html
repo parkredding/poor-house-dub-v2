@@ -643,18 +643,24 @@
                 this.lfo.connect(this.lfoGain);
                 this.lfoGain.connect(this.oscillator.frequency);
 
-                // Create envelope
+                // Create envelope for dry signal only (not for delay/reverb sends)
                 this.envelope = this.audioContext.createGain();
                 this.envelope.gain.value = 0;
                 this.envelope.gain.setValueAtTime(0, now);
                 this.envelope.gain.linearRampToValueAtTime(1, now + this.params.attack);
 
-                // Connect signal chain
-                this.oscillator.connect(this.envelope);
-                this.envelope.connect(this.filter);
-
-                // Filter to delay (wet) and direct (dry)
-                this.filter.connect(this.delayDry);
+                // Connect signal chain:
+                // Oscillator -> Filter -> [split into dry and wet paths]
+                // - Dry path: Filter -> Envelope -> DelayDry (enveloped)
+                // - Wet path: Filter -> Delay/Reverb (NOT enveloped, continues at full volume until osc stops)
+                this.oscillator.connect(this.filter);
+                
+                // Dry path: envelope controls dry signal level
+                this.filter.connect(this.envelope);
+                this.envelope.connect(this.delayDry);
+                
+                // Wet path: delay gets full volume signal (not affected by envelope)
+                // This allows delay to continue receiving input during release until oscillator stops
                 this.filter.connect(this.delay);
                 this.delay.connect(this.delayWet);
 
