@@ -1,6 +1,6 @@
 #!/bin/bash
 # One-line installer for Poor House Dub GPIO/I2C Test
-# Usage: curl -H "Authorization: token YOUR_PAT" -L https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/claude/gpio-i2c-installer-SAiHA/install.sh | bash
+# Usage: curl -H "Authorization: token YOUR_PAT" -L https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/install.sh | bash
 
 set -e
 
@@ -48,12 +48,12 @@ if [ -n "$GITHUB_TOKEN" ] || [ -n "$GITHUB_PAT" ]; then
     TOKEN="${GITHUB_TOKEN:-$GITHUB_PAT}"
     curl -H "Authorization: token $TOKEN" \
          -H 'Accept: application/vnd.github.v3.raw' \
-         -sL "https://api.github.com/repos/parkredding/poor-house-dub-v2/contents/pi_audio_test.py?ref=claude/gpio-i2c-installer-SAiHA" \
+         -sL "https://api.github.com/repos/parkredding/poor-house-dub-v2/contents/pi_audio_test.py?ref=main" \
          -o pi_audio_test.py
 
     curl -H "Authorization: token $TOKEN" \
          -H 'Accept: application/vnd.github.v3.raw' \
-         -sL "https://api.github.com/repos/parkredding/poor-house-dub-v2/contents/pi_test_gpio.py?ref=claude/gpio-i2c-installer-SAiHA" \
+         -sL "https://api.github.com/repos/parkredding/poor-house-dub-v2/contents/pi_test_gpio.py?ref=main" \
          -o pi_test_gpio.py 2>/dev/null || echo "  (GPIO controller optional)"
 else
     echo "❌ Error: No GitHub token found"
@@ -71,7 +71,7 @@ for module in audio_output.py synthesizer.py effects.py; do
     if [ -n "$TOKEN" ]; then
         curl -H "Authorization: token $TOKEN" \
              -H 'Accept: application/vnd.github.v3.raw' \
-             -sL "https://api.github.com/repos/parkredding/poor-house-dub-v2/contents/$module?ref=claude/gpio-i2c-installer-SAiHA" \
+             -sL "https://api.github.com/repos/parkredding/poor-house-dub-v2/contents/$module?ref=main" \
              -o "$module" 2>/dev/null || echo "  ($module optional)"
     fi
 done
