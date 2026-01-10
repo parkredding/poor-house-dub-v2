@@ -5,6 +5,7 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20Zero%202-red)
 ![Python](https://img.shields.io/badge/python-3.7%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Test Suite](https://github.com/parkredding/poor-house-dub-v2/actions/workflows/test.yml/badge.svg)](https://github.com/parkredding/poor-house-dub-v2/actions/workflows/test.yml)
 
 ## Features
 
