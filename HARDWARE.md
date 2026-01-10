@@ -236,9 +236,9 @@ SWITCH_PINS = {
 
 For a cleaner design without GPIO conflicts, use an MCP23017 I2C GPIO expander:
 
-```python
-# Install library
-pip3 install adafruit-circuitpython-mcp230xx
+```bash
+# Install library using the virtual environment
+~/poor-house-dub-v2-venv/bin/pip install adafruit-circuitpython-mcp230xx
 
 # Connect MCP23017 to I2C (GPIO 2 & 3)
 # Use expander pins for all controls
