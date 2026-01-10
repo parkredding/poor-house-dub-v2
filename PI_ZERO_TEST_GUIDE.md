@@ -58,34 +58,60 @@ card 0: sndrpihifiberry [snd_rpi_hifiberry_dac]
 
 ### 5. Run Audio Test
 
+**Automated Test Mode:**
 ```bash
 cd ~/poor-house-dub-v2
 python3 pi_audio_test.py
 ```
 
-Or for a quick test:
+**Quick Test:**
 ```bash
 python3 pi_audio_test.py --quick
 ```
 
+**GPIO Control Mode (with encoders and switch):**
+```bash
+python3 pi_audio_test.py --gpio
+```
+See [GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md) for wiring instructions.
+
 ## Test Description
+
+### Automated Test Mode
 
 The test runs three verification steps:
 
-### Test 1: Volume Sweep (0% → 100%)
+**Test 1: Volume Sweep (0% → 100%)**
 - Tests volume control from silent to full
 - Verifies audio is reaching the PCM5102
 - **Expected:** Tone should get progressively louder
 
-### Test 2: Delay Wet/Dry Mix (0% → 100%)
+**Test 2: Delay Wet/Dry Mix (0% → 100%)**
 - Tests delay effect from dry to fully wet
 - Verifies signal path through delay
 - **Expected:** Echo/delay effect should increase
 
-### Test 3: Continuous Tone with Delay
+**Test 3: Continuous Tone with Delay**
 - Plays a 5-second tone with delay and slight reverb
 - Final verification of full audio path
 - **Expected:** Clean tone with echo effect
+
+### GPIO Control Mode
+
+Interactive mode with hardware controls:
+
+**Controls:**
+- **Encoder 1:** Volume (0-100%)
+- **Encoder 2:** Delay Wet/Dry Mix (0-100%)
+- **Momentary Switch:** Trigger (press to play, release to stop)
+
+**Features:**
+- Real-time parameter adjustment
+- Live visual feedback on terminal
+- Hands-on testing of audio output
+- Verifies GPIO and audio simultaneously
+
+See [GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md) for complete wiring instructions.
 
 ## Troubleshooting
 

@@ -119,6 +119,56 @@ def test_continuous_tone(synth, duration=5.0):
     print(" Done!\n")
     print("✓ Continuous tone test complete!\n")
 
+def run_gpio_mode(synth, audio_output):
+    """Run interactive GPIO control mode"""
+    print("\n" + "="*60)
+    print("  GPIO Interactive Mode")
+    print("="*60 + "\n")
+
+    try:
+        from pi_test_gpio import TestGPIOController
+    except ImportError as e:
+        print(f"✗ Failed to import GPIO controller: {e}")
+        print("Make sure RPi.GPIO is installed: pip3 install RPi.GPIO\n")
+        return 1
+
+    # Initialize GPIO controller
+    try:
+        gpio = TestGPIOController(synth)
+    except Exception as e:
+        print(f"✗ Failed to initialize GPIO: {e}")
+        print("\nCheck wiring and GPIO availability\n")
+        return 1
+
+    # Configure synth for good defaults
+    synth.set_filter_cutoff(1500.0)
+    synth.set_filter_resonance(3.0)
+    synth.set_delay_time(0.35)
+    synth.set_delay_feedback(0.5)
+    synth.set_reverb_dry_wet(0.15)
+
+    print("\nGPIO Controls Ready!")
+    print("-" * 60)
+    print("  Encoder 1:     Volume (0-100%)")
+    print("  Encoder 2:     Delay Wet/Dry (0-100%)")
+    print("  Trigger Switch: Press to trigger, release to stop")
+    print("-" * 60)
+    print("\nPress Ctrl+C to exit\n")
+
+    # Show initial values
+    print(f"  Volume: {int(synth.volume * 100):3d}%  |  Delay: {int(synth.delay_dry_wet * 100):3d}%  ", flush=True)
+
+    try:
+        # Keep running
+        while True:
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("\n\nShutting down...")
+    finally:
+        gpio.cleanup()
+
+    return 0
+
 def main():
     parser = argparse.ArgumentParser(description='Pi Zero 2W Audio Test for PCM5102')
     parser.add_argument('--device', type=int, default=None,
@@ -127,6 +177,8 @@ def main():
                        help='List available audio devices and exit')
     parser.add_argument('--quick', action='store_true',
                        help='Run quick tests (shorter duration)')
+    parser.add_argument('--gpio', action='store_true',
+                       help='Enable GPIO control mode (2 encoders + 1 switch)')
 
     args = parser.parse_args()
 
@@ -183,42 +235,49 @@ def main():
     time.sleep(0.5)
 
     try:
-        # Adjust test duration based on quick flag
-        volume_duration = 1.0 if args.quick else 2.0
-        delay_duration = 2.0 if args.quick else 3.0
-        tone_duration = 3.0 if args.quick else 5.0
+        # Check if GPIO mode requested
+        if args.gpio:
+            result = run_gpio_mode(synth, audio_output)
+        else:
+            # Adjust test duration based on quick flag
+            volume_duration = 1.0 if args.quick else 2.0
+            delay_duration = 2.0 if args.quick else 3.0
+            tone_duration = 3.0 if args.quick else 5.0
 
-        # Run tests
-        test_volume_sweep(synth, duration=volume_duration)
-        test_delay_wetdry(synth, duration=delay_duration)
-        test_continuous_tone(synth, duration=tone_duration)
+            # Run tests
+            test_volume_sweep(synth, duration=volume_duration)
+            test_delay_wetdry(synth, duration=delay_duration)
+            test_continuous_tone(synth, duration=tone_duration)
 
-        # Test summary
-        print("="*60)
-        print("  Test Summary")
-        print("="*60)
-        print("\n✓ All tests completed successfully!\n")
-        print("Verification checklist:")
-        print("  [ ] Did you hear the volume sweep from quiet to loud?")
-        print("  [ ] Did you hear the delay effect increase from dry to wet?")
-        print("  [ ] Did the continuous tone sound clean with echo?")
-        print("\nIf you answered YES to all questions:")
-        print("  → PCM5102 DAC is working correctly!")
-        print("\nIf you heard nothing or distorted audio:")
-        print("  → Check wiring connections and I2S configuration")
-        print("  → Run: sudo aplay -l")
-        print("  → Check /boot/config.txt for dtparam=i2s=on")
-        print("\n" + "="*60 + "\n")
+            # Test summary
+            print("="*60)
+            print("  Test Summary")
+            print("="*60)
+            print("\n✓ All tests completed successfully!\n")
+            print("Verification checklist:")
+            print("  [ ] Did you hear the volume sweep from quiet to loud?")
+            print("  [ ] Did you hear the delay effect increase from dry to wet?")
+            print("  [ ] Did the continuous tone sound clean with echo?")
+            print("\nIf you answered YES to all questions:")
+            print("  → PCM5102 DAC is working correctly!")
+            print("\nIf you heard nothing or distorted audio:")
+            print("  → Check wiring connections and I2S configuration")
+            print("  → Run: sudo aplay -l")
+            print("  → Check /boot/config.txt for dtparam=i2s=on")
+            print("\n" + "="*60 + "\n")
+
+            result = 0
 
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
+        result = 0
     finally:
         print("Stopping audio stream...")
         audio_output.stop()
         print("✓ Audio stream stopped\n")
         print("Test complete!\n")
 
-    return 0
+    return result
 
 if __name__ == "__main__":
     exit(main())
