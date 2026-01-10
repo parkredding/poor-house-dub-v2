@@ -27,19 +27,13 @@ if [ ! -f /proc/cpuinfo ] || ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null;
     fi
 fi
 
-# Check if directory already exists
+# Check if directory already exists and remove for fresh install
 if [ -d "$INSTALL_DIR" ]; then
     echo "⚠️  Directory $INSTALL_DIR already exists!"
+    echo "🗑️  Removing for fresh installation..."
+    rm -rf "$INSTALL_DIR"
+    echo "✓ Old installation removed"
     echo ""
-    read -p "Remove and reinstall? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Removing existing installation..."
-        rm -rf "$INSTALL_DIR"
-    else
-        echo "Installation cancelled."
-        exit 1
-    fi
 fi
 
 # Update system
