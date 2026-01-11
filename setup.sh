@@ -49,43 +49,103 @@ echo "Installing Python packages..."
 # Configure I2S for PCM5102
 echo "Configuring I2S audio interface for PCM5102..."
 
+# Detect correct config.txt location (newer OS uses /boot/firmware/config.txt)
+if [ -f /boot/firmware/config.txt ]; then
+    CONFIG_FILE="/boot/firmware/config.txt"
+else
+    CONFIG_FILE="/boot/config.txt"
+fi
+
+echo "Using config file: $CONFIG_FILE"
+
 # Backup config if it exists
-if [ -f /boot/config.txt ]; then
-    sudo cp /boot/config.txt /boot/config.txt.backup
+if [ -f "$CONFIG_FILE" ]; then
+    sudo cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
 fi
 
 # Add dtoverlay for I2S if not already present
-if ! grep -q "dtoverlay=hifiberry-dac" /boot/config.txt; then
-    echo "Adding I2S configuration to /boot/config.txt..."
-    echo "" | sudo tee -a /boot/config.txt
-    echo "# I2S Audio for PCM5102 DAC" | sudo tee -a /boot/config.txt
-    echo "dtparam=i2s=on" | sudo tee -a /boot/config.txt
-    echo "dtoverlay=hifiberry-dac" | sudo tee -a /boot/config.txt
+if ! grep -q "dtoverlay=hifiberry-dac" "$CONFIG_FILE"; then
+    echo "Adding I2S configuration to $CONFIG_FILE..."
+    echo "" | sudo tee -a "$CONFIG_FILE"
+    echo "# I2S Audio for PCM5102 DAC" | sudo tee -a "$CONFIG_FILE"
+    echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_FILE"
+    echo "dtoverlay=hifiberry-dac" | sudo tee -a "$CONFIG_FILE"
 else
     echo "I2S configuration already present"
 fi
 
 # Disable onboard audio
-if ! grep -q "dtparam=audio=off" /boot/config.txt; then
+if ! grep -q "dtparam=audio=off" "$CONFIG_FILE"; then
     echo "Disabling onboard audio..."
-    sudo sed -i 's/dtparam=audio=on/dtparam=audio=off/' /boot/config.txt
+    sudo sed -i 's/dtparam=audio=on/dtparam=audio=off/' "$CONFIG_FILE"
 fi
 
 # Configure ALSA for I2S DAC
-echo "Configuring ALSA..."
-cat > /tmp/asound.conf << 'EOF'
+echo ""
+echo "========================================"
+echo "  Audio Device Selection"
+echo "========================================"
+echo ""
+echo "Available audio devices:"
+echo ""
+
+# List audio devices and create an array
+CARD_NUM=0
+declare -a DEVICES
+declare -a CARD_NUMBERS
+INDEX=1
+
+# Parse aplay -l output to get device info
+while IFS= read -r line; do
+    if [[ $line =~ ^card\ ([0-9]+):\ (.+)\[(.+)\] ]]; then
+        CARD_NUM="${BASH_REMATCH[1]}"
+        CARD_NAME="${BASH_REMATCH[2]}"
+        DEVICE_NAME="${BASH_REMATCH[3]}"
+        DEVICES[$INDEX]="$CARD_NAME[$DEVICE_NAME]"
+        CARD_NUMBERS[$INDEX]=$CARD_NUM
+        echo "  $INDEX) Card $CARD_NUM: $CARD_NAME[$DEVICE_NAME]"
+        ((INDEX++))
+    fi
+done < <(aplay -l 2>/dev/null)
+
+if [ ${#DEVICES[@]} -eq 0 ]; then
+    echo "⚠️  No audio devices detected!"
+    echo "   Using default card 0 (this may not work)"
+    SELECTED_CARD=0
+else
+    echo ""
+    echo "Which audio device would you like to use?"
+    echo "(For PCM5102 DAC, select the hifiberry-dac or snd_rpi_hifiberry_dac device)"
+    read -p "Enter number [1]: " DEVICE_CHOICE </dev/tty
+
+    # Default to 1 if empty
+    DEVICE_CHOICE=${DEVICE_CHOICE:-1}
+
+    if [ $DEVICE_CHOICE -ge 1 ] && [ $DEVICE_CHOICE -lt $INDEX ]; then
+        SELECTED_CARD=${CARD_NUMBERS[$DEVICE_CHOICE]}
+        echo "✓ Selected: ${DEVICES[$DEVICE_CHOICE]}"
+    else
+        echo "⚠️  Invalid selection, using default card 0"
+        SELECTED_CARD=0
+    fi
+fi
+
+echo ""
+echo "Configuring ALSA for card $SELECTED_CARD..."
+cat > /tmp/asound.conf << EOF
 pcm.!default {
     type hw
-    card 0
+    card $SELECTED_CARD
 }
 
 ctl.!default {
     type hw
-    card 0
+    card $SELECTED_CARD
 }
 EOF
 
 sudo mv /tmp/asound.conf /etc/asound.conf
+echo "✓ ALSA configured"
 
 # Make Python scripts executable
 echo "Making scripts executable..."
@@ -116,6 +176,30 @@ EOF
 sudo mv /tmp/dubsiren.service /etc/systemd/system/dubsiren.service
 sudo systemctl daemon-reload
 
+# Ask user if they want to enable auto-start on boot
+echo ""
+echo "========================================"
+echo "  Auto-Start Configuration"
+echo "========================================"
+echo ""
+echo "Would you like the Dub Siren to start automatically on boot?"
+read -p "Enable auto-start? (y/N): " -n 1 -r </dev/tty
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Enabling auto-start service..."
+    sudo systemctl enable dubsiren.service
+    echo "✓ Auto-start enabled - Dub Siren will start on boot"
+    echo ""
+    echo "Note: You can disable auto-start later with:"
+    echo "      sudo systemctl disable dubsiren.service"
+else
+    echo "Auto-start not enabled."
+    echo ""
+    echo "You can enable it later with:"
+    echo "      sudo systemctl enable dubsiren.service"
+fi
+
 echo ""
 echo "========================================"
 echo "  Setup Complete!"
@@ -141,12 +225,13 @@ echo "Next Steps:"
 echo "1. Wire up the PCM5102 DAC according to the guide above"
 echo "2. Wire up the 10 rotary encoders and 2 switches"
 echo "3. Reboot: sudo reboot"
-echo "4. Test audio: ~/poor-house-dub-v2-venv/bin/python3 audio_output.py"
-echo "5. Test controls: ~/poor-house-dub-v2-venv/bin/python3 gpio_controller.py"
-echo "6. Run the siren: ~/poor-house-dub-v2-venv/bin/python3 main.py --simulate  (for testing)"
-echo "7. Run the siren: ~/poor-house-dub-v2-venv/bin/python3 main.py  (on hardware)"
-echo "8. Enable service: sudo systemctl enable dubsiren.service"
-echo "9. Start service: sudo systemctl start dubsiren.service"
+echo "4. Test in simulation mode: ~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive"
+echo "5. Run on hardware: ~/poor-house-dub-v2-venv/bin/python3 main.py"
+echo ""
+echo "To manage the service:"
+echo "  Start:   sudo systemctl start dubsiren.service"
+echo "  Stop:    sudo systemctl stop dubsiren.service"
+echo "  Status:  sudo systemctl status dubsiren.service"
 echo ""
 echo "Note: Python packages are installed in a virtual environment at:"
 echo "      $HOME/poor-house-dub-v2-venv"
