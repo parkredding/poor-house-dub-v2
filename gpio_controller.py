@@ -19,7 +19,7 @@ except (ImportError, RuntimeError):
 
 
 class RotaryEncoder:
-    """Rotary encoder handler with quadrature decoding"""
+    """Rotary encoder handler with quadrature decoding (supports polling fallback)"""
 
     def __init__(self, clk_pin: int, dt_pin: int, callback: Optional[Callable[[int], None]] = None):
         self.clk_pin = clk_pin
@@ -28,23 +28,45 @@ class RotaryEncoder:
         self.position = 0
         self.last_clk = 1
         self.last_dt = 1
+        self.use_polling = False
+        self.poll_thread = None
+        self.running = True
 
         if GPIO_AVAILABLE:
             GPIO.setup(clk_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             GPIO.setup(dt_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-            # Remove any existing edge detection before adding new ones
+            # Try edge detection first, fall back to polling if it fails
             try:
-                GPIO.remove_event_detect(clk_pin)
-            except:
-                pass  # Ignore if no edge detection was set up
-            try:
-                GPIO.remove_event_detect(dt_pin)
-            except:
-                pass  # Ignore if no edge detection was set up
+                # Remove any existing edge detection
+                try:
+                    GPIO.remove_event_detect(clk_pin)
+                    GPIO.remove_event_detect(dt_pin)
+                except:
+                    pass
 
-            GPIO.add_event_detect(clk_pin, GPIO.BOTH, callback=self._update)
-            GPIO.add_event_detect(dt_pin, GPIO.BOTH, callback=self._update)
+                GPIO.add_event_detect(clk_pin, GPIO.BOTH, callback=self._update)
+                GPIO.add_event_detect(dt_pin, GPIO.BOTH, callback=self._update)
+            except RuntimeError as e:
+                # Edge detection not supported, use polling instead
+                print(f"      Edge detection not available, using polling mode")
+                self.use_polling = True
+                self._start_polling()
+
+            # Initialize last states
+            self.last_clk = GPIO.input(clk_pin)
+            self.last_dt = GPIO.input(dt_pin)
+
+    def _start_polling(self):
+        """Start polling thread for reading encoder state"""
+        self.poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self.poll_thread.start()
+
+    def _poll_loop(self):
+        """Polling loop for encoder state (runs in separate thread)"""
+        while self.running:
+            self._update(None)
+            time.sleep(0.001)  # Poll every 1ms
 
     def _update(self, channel):
         """Update encoder position based on quadrature signals"""
@@ -76,7 +98,7 @@ class RotaryEncoder:
 
 
 class MomentarySwitch:
-    """Momentary switch handler with debouncing"""
+    """Momentary switch handler with debouncing (supports polling fallback)"""
 
     def __init__(
         self,
@@ -90,37 +112,72 @@ class MomentarySwitch:
         self.release_callback = release_callback
         self.debounce_ms = debounce_ms
         self.is_pressed = False
+        self.use_polling = False
+        self.poll_thread = None
+        self.running = True
+        self.last_event_time = 0
 
         if GPIO_AVAILABLE:
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-            # Remove any existing edge detection before adding new ones
+            # Try edge detection first, fall back to polling if it fails
             try:
-                GPIO.remove_event_detect(pin)
-            except:
-                pass  # Ignore if no edge detection was set up
+                # Remove any existing edge detection
+                try:
+                    GPIO.remove_event_detect(pin)
+                except:
+                    pass
 
-            # Use both edges to detect press and release
-            GPIO.add_event_detect(
-                pin,
-                GPIO.BOTH,
-                callback=self._handle_event,
-                bouncetime=debounce_ms
-            )
+                # Use both edges to detect press and release
+                GPIO.add_event_detect(
+                    pin,
+                    GPIO.BOTH,
+                    callback=self._handle_event,
+                    bouncetime=debounce_ms
+                )
+            except RuntimeError as e:
+                # Edge detection not supported, use polling instead
+                print(f"      Edge detection not available, using polling mode")
+                self.use_polling = True
+                self._start_polling()
+
+            # Initialize state
+            self.is_pressed = (GPIO.input(pin) == GPIO.LOW)
+
+    def _start_polling(self):
+        """Start polling thread for reading button state"""
+        self.poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self.poll_thread.start()
+
+    def _poll_loop(self):
+        """Polling loop for button state (runs in separate thread)"""
+        while self.running:
+            self._handle_event(None)
+            time.sleep(0.01)  # Poll every 10ms
 
     def _handle_event(self, channel):
-        """Handle button press/release events"""
+        """Handle button press/release events with software debouncing"""
+        # Software debouncing for polling mode
+        if self.use_polling:
+            current_time = time.time()
+            if current_time - self.last_event_time < (self.debounce_ms / 1000.0):
+                return
+
         state = GPIO.input(self.pin)
 
         # Button is active low (pressed when pin reads 0)
         if state == GPIO.LOW and not self.is_pressed:
             # Button pressed
             self.is_pressed = True
+            if self.use_polling:
+                self.last_event_time = time.time()
             if self.press_callback:
                 self.press_callback()
         elif state == GPIO.HIGH and self.is_pressed:
             # Button released
             self.is_pressed = False
+            if self.use_polling:
+                self.last_event_time = time.time()
             if self.release_callback:
                 self.release_callback()
 
