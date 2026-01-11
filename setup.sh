@@ -49,26 +49,35 @@ echo "Installing Python packages..."
 # Configure I2S for PCM5102
 echo "Configuring I2S audio interface for PCM5102..."
 
+# Detect correct config.txt location (newer OS uses /boot/firmware/config.txt)
+if [ -f /boot/firmware/config.txt ]; then
+    CONFIG_FILE="/boot/firmware/config.txt"
+else
+    CONFIG_FILE="/boot/config.txt"
+fi
+
+echo "Using config file: $CONFIG_FILE"
+
 # Backup config if it exists
-if [ -f /boot/config.txt ]; then
-    sudo cp /boot/config.txt /boot/config.txt.backup
+if [ -f "$CONFIG_FILE" ]; then
+    sudo cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
 fi
 
 # Add dtoverlay for I2S if not already present
-if ! grep -q "dtoverlay=hifiberry-dac" /boot/config.txt; then
-    echo "Adding I2S configuration to /boot/config.txt..."
-    echo "" | sudo tee -a /boot/config.txt
-    echo "# I2S Audio for PCM5102 DAC" | sudo tee -a /boot/config.txt
-    echo "dtparam=i2s=on" | sudo tee -a /boot/config.txt
-    echo "dtoverlay=hifiberry-dac" | sudo tee -a /boot/config.txt
+if ! grep -q "dtoverlay=hifiberry-dac" "$CONFIG_FILE"; then
+    echo "Adding I2S configuration to $CONFIG_FILE..."
+    echo "" | sudo tee -a "$CONFIG_FILE"
+    echo "# I2S Audio for PCM5102 DAC" | sudo tee -a "$CONFIG_FILE"
+    echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_FILE"
+    echo "dtoverlay=hifiberry-dac" | sudo tee -a "$CONFIG_FILE"
 else
     echo "I2S configuration already present"
 fi
 
 # Disable onboard audio
-if ! grep -q "dtparam=audio=off" /boot/config.txt; then
+if ! grep -q "dtparam=audio=off" "$CONFIG_FILE"; then
     echo "Disabling onboard audio..."
-    sudo sed -i 's/dtparam=audio=on/dtparam=audio=off/' /boot/config.txt
+    sudo sed -i 's/dtparam=audio=on/dtparam=audio=off/' "$CONFIG_FILE"
 fi
 
 # Configure ALSA for I2S DAC
