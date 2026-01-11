@@ -96,6 +96,12 @@ class RotaryEncoder:
         """Reset encoder position to zero"""
         self.position = 0
 
+    def stop(self):
+        """Stop the polling thread if running"""
+        self.running = False
+        if self.poll_thread and self.poll_thread.is_alive():
+            self.poll_thread.join(timeout=0.1)
+
 
 class MomentarySwitch:
     """Momentary switch handler with debouncing (supports polling fallback)"""
@@ -180,6 +186,12 @@ class MomentarySwitch:
                 self.last_event_time = time.time()
             if self.release_callback:
                 self.release_callback()
+
+    def stop(self):
+        """Stop the polling thread if running"""
+        self.running = False
+        if self.poll_thread and self.poll_thread.is_alive():
+            self.poll_thread.join(timeout=0.1)
 
 
 class ControlSurface:
@@ -473,10 +485,24 @@ class ControlSurface:
         print("Control surface started")
 
     def stop(self):
-        """Stop the control surface"""
+        """Stop the control surface and cleanup GPIO"""
         self.running = False
+
         if GPIO_AVAILABLE:
+            # Stop all encoder polling threads first
+            for encoder in self.encoders.values():
+                encoder.stop()
+
+            # Stop all switch polling threads
+            for switch in self.switches.values():
+                switch.stop()
+
+            # Give threads a moment to exit
+            time.sleep(0.05)
+
+            # Now it's safe to cleanup GPIO
             GPIO.cleanup()
+
         print("Control surface stopped")
 
     def get_status(self) -> dict:
