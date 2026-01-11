@@ -20,7 +20,7 @@ if [ ! -f /proc/cpuinfo ] || ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null;
     echo "   This installer is designed for Raspberry Pi Zero 2W"
     echo "   GPIO and I2S features may not work correctly"
     echo ""
-    read -p "Continue anyway? (y/N) " -n 1 -r
+    read -p "Continue anyway? (y/N) " -n 1 -r </dev/tty
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1

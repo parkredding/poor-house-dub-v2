@@ -107,7 +107,7 @@ else
     echo ""
     echo "Which audio device would you like to use?"
     echo "(For PCM5102 DAC, select the hifiberry-dac or snd_rpi_hifiberry_dac device)"
-    read -p "Enter number [1]: " DEVICE_CHOICE
+    read -p "Enter number [1]: " DEVICE_CHOICE </dev/tty
 
     # Default to 1 if empty
     DEVICE_CHOICE=${DEVICE_CHOICE:-1}
@@ -174,7 +174,7 @@ echo "  Auto-Start Configuration"
 echo "========================================"
 echo ""
 echo "Would you like the Dub Siren to start automatically on boot?"
-read -p "Enable auto-start? (y/N): " -n 1 -r
+read -p "Enable auto-start? (y/N): " -n 1 -r </dev/tty
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
