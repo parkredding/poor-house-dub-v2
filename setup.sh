@@ -153,6 +153,7 @@ chmod +x main.py
 chmod +x synthesizer.py
 chmod +x gpio_controller.py
 chmod +x audio_output.py
+chmod +x gpio_cleanup.sh
 
 # Create systemd service
 echo "Creating systemd service..."
@@ -174,6 +175,7 @@ After=sound.target
 Type=simple
 User=$INSTALL_USER
 WorkingDirectory=$USER_HOME/poor-house-dub-v2
+ExecStartPre=$USER_HOME/poor-house-dub-v2/gpio_cleanup.sh
 ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py
 Restart=on-failure
 RestartSec=5
