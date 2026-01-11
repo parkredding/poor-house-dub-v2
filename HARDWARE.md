@@ -5,8 +5,8 @@
 ### Main Components
 - **Raspberry Pi Zero 2 W** - Main controller
 - **PCM5102 I2S DAC Module** - High-quality audio output
-- **10x Rotary Encoders (360°)** - Continuous rotation encoders
-- **2x Momentary Push Buttons** - Trigger switches
+- **5x Rotary Encoders (360°)** - Continuous rotation encoders (KY-040 or similar)
+- **4x Momentary Push Buttons** - Trigger, Pitch Envelope, Shift, and Shutdown switches
 - **Power Supply** - 5V 2.5A recommended
 
 ### Optional Components
@@ -65,31 +65,30 @@ Raspberry Pi Zero 2 (Top View)
 
 ### GPIO Pin Assignments (BCM Numbering)
 
-All rotary encoders need 2 GPIO pins (CLK and DT). All switches need 1 GPIO pin.
+The design uses **5 rotary encoders** with **bank switching** to access 10 parameters. A shift button switches between Bank A (normal mode) and Bank B (shift held).
 
-#### Row 1 - Encoders
-| Control              | CLK Pin | DT Pin  | BCM GPIO |
-|----------------------|---------|---------|----------|
-| Volume               | 17      | 18      | GPIO 17, 18 (Note: GPIO 18 shared with I2S) |
-| Low Pass Filter Freq | 27      | 22      | GPIO 27, 22 |
-| Delay Effect Time    | 23      | 24      | GPIO 23, 24 |
-| Reverb Size          | 25      | 8       | GPIO 25, 8  |
+**Total GPIO pins used: 14** (10 encoder pins + 4 button pins)
 
-#### Row 2 - Encoders
-| Control              | CLK Pin | DT Pin  | BCM GPIO |
-|----------------------|---------|---------|----------|
-| Oscillator Release   | 7       | 12      | GPIO 7, 12 |
-| Filter Resonance     | 16      | 20      | GPIO 16, 20 |
-| Delay Feedback       | 21      | 26      | GPIO 21, 26 (Note: GPIO 21 shared with I2S) |
-| Reverb Dry/Wet       | 19      | 13      | GPIO 19, 13 (Note: GPIO 19 shared with I2S) |
+⚠️ **Critical:** This design avoids GPIO 18, 19, and 21 which are reserved for I2S audio (PCM5102 DAC).
 
-#### Row 3 - Encoders & Switches
-| Control              | CLK Pin | DT Pin  | BCM GPIO | Type |
-|----------------------|---------|---------|----------|------|
-| Oscillator Waveform  | 6       | 5       | GPIO 6, 5 | Encoder |
-| LFO Waveform         | 11      | 9       | GPIO 11, 9 | Encoder |
-| Airhorn Trigger      | 10      | -       | GPIO 10   | Switch |
-| Siren Trigger        | 4       | -       | GPIO 4    | Switch |
+#### Rotary Encoders (5 encoders × 2 pins each = 10 pins)
+
+| Encoder | CLK Pin | DT Pin | Bank A Parameter | Bank B Parameter (Shift Held) |
+|---------|---------|--------|------------------|-------------------------------|
+| **Encoder 1** | GPIO 17 | GPIO 2  | Volume           | Release Time |
+| **Encoder 2** | GPIO 27 | GPIO 22 | Filter Frequency | Delay Time |
+| **Encoder 3** | GPIO 23 | GPIO 24 | Filter Resonance | Reverb Size |
+| **Encoder 4** | GPIO 20 | GPIO 26 | Delay Feedback   | Oscillator Waveform |
+| **Encoder 5** | GPIO 14 | GPIO 13 | Reverb Mix       | LFO Waveform |
+
+#### Momentary Switches (4 buttons)
+
+| Button | GPIO Pin | Function |
+|--------|----------|----------|
+| **Trigger** | GPIO 4 | Main siren trigger (press/release) |
+| **Pitch Envelope** | GPIO 10 | Cycle pitch envelope mode (none/up/down) |
+| **Shift** | GPIO 15 | Hold to access Bank B parameters |
+| **Shutdown** | GPIO 3 | Safe system shutdown |
 
 ### Rotary Encoder Wiring
 
@@ -127,63 +126,59 @@ Switch Wiring:
 
 ## Control Surface Layout (Physical)
 
+### Suggested Layout
+
 ```
-┌────────────────────────────────────────────────┐
-│                 DUB SIREN V2                   │
-├────────────────────────────────────────────────┤
-│                                                │
-│  ┌───┐  ┌───┐  ┌───┐  ┌───┐                  │
-│  │ ↻ │  │ ↻ │  │ ↻ │  │ ↻ │     Row 1        │
-│  └───┘  └───┘  └───┘  └───┘                  │
-│  Vol   Filt   Delay   Rev                    │
-│                                                │
-│  ┌───┐  ┌───┐  ┌───┐  ┌───┐                  │
-│  │ ↻ │  │ ↻ │  │ ↻ │  │ ↻ │     Row 2        │
-│  └───┘  └───┘  └───┘  └───┘                  │
-│  Rel    Res     FB     Mix                    │
-│                                                │
-│  ┌───┐  ┌───┐  ┌───┐  ┌───┐                  │
-│  │ ↻ │  │ ↻ │  │ ⏺ │  │ ⏺ │     Row 3        │
-│  └───┘  └───┘  └───┘  └───┘                  │
-│  Osc    LFO   AIRHORN SIREN                  │
-│                                                │
-└────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│              DUB SIREN V2                        │
+│         (Bank Switching Design)                  │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│  ┌────┐  ┌────┐  ┌────┐  ┌────┐  ┌────┐       │
+│  │ ↻1 │  │ ↻2 │  │ ↻3 │  │ ↻4 │  │ ↻5 │       │
+│  └────┘  └────┘  └────┘  └────┘  └────┘       │
+│                                                  │
+│  Bank A:  Vol   Freq    Res     D.FB   R.Mix   │
+│  Bank B:  Rel   Delay  R.Size  Osc.W  LFO.W    │
+│                                                  │
+│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐              │
+│  │  ⏺  │ │  ⏺  │ │  ⏺  │ │  ⏺  │              │
+│  └─────┘ └─────┘ └─────┘ └─────┘              │
+│  TRIGGER PITCH  SHIFT  SHUTDOWN                │
+│           ENV                                    │
+│                                                  │
+└──────────────────────────────────────────────────┘
 ```
+
+**How it works:**
+- **Normal operation (Bank A):** Encoders control Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
+- **Hold SHIFT (Bank B):** Same encoders now control Release, Delay Time, Reverb Size, Osc Waveform, LFO Waveform
+- **TRIGGER:** Press to start siren, release to stop
+- **PITCH ENV:** Cycles through pitch envelope modes (none → up → down)
+- **SHUTDOWN:** Safely powers down the Raspberry Pi
 
 ## Important Notes
 
-### GPIO Conflicts
-⚠️ **Warning:** Some GPIO pins are shared between I2S and controls:
-- GPIO 18, 19, 21 are used by I2S
-- These are also assigned to some controls in the code
+### I2S Audio Pin Protection
 
-**Solution:** You have two options:
-1. **Modify the pin assignments** in `gpio_controller.py` to use different GPIO pins
-2. **Use an I2C GPIO expander** (like MCP23017) for the controls
+✅ **No GPIO conflicts:** This design carefully avoids GPIO 18, 19, and 21 which are used by the PCM5102 DAC for I2S audio:
+- **GPIO 18** - I2S LRCLK (Word Clock)
+- **GPIO 19** - I2S BCLK (Bit Clock)
+- **GPIO 21** - I2S DOUT (Data)
 
-### Recommended GPIO Pin Modification
+The 14 GPIO pins used by the control surface (GPIO 2, 3, 4, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27) are all safe to use alongside I2S.
 
-To avoid conflicts, modify `gpio_controller.py` and use these alternative pins:
+### Bank Switching Operation
 
-```python
-ENCODER_PINS = {
-    'volume': (2, 3),              # Row 1
-    'filter_freq': (14, 15),
-    'delay_time': (23, 24),
-    'reverb_size': (25, 8),
-    'release_time': (7, 12),       # Row 2
-    'filter_res': (16, 20),
-    'delay_feedback': (26, 6),
-    'reverb_mix': (13, 5),
-    'osc_waveform': (11, 9),       # Row 3
-    'lfo_waveform': (27, 22),
-}
+The shift button enables access to 10 parameters with only 5 encoders:
 
-SWITCH_PINS = {
-    'airhorn': 10,
-    'siren': 4,
-}
-```
+**Bank A (default):**
+- Immediate sound shaping: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
+
+**Bank B (shift held):**
+- Advanced parameters: Release Time, Delay Time, Reverb Size, Oscillator Waveform, LFO Waveform
+
+When you hold the shift button, all 5 encoders immediately control their Bank B parameters. Release shift to return to Bank A.
 
 ## Power Considerations
 
@@ -224,7 +219,8 @@ SWITCH_PINS = {
 - Check pull-up resistors are enabled (done in code)
 - Verify GPIO pin numbers (BCM vs physical numbering)
 - Test with multimeter or oscilloscope
-- Check for conflicts with I2S pins
+- Run GPIO cleanup before starting: `python3 gpio_cleanup.py`
+- Check encoder wiring (CLK and DT might be swapped)
 
 ### Crackling Audio
 - Increase buffer size in code
@@ -232,17 +228,9 @@ SWITCH_PINS = {
 - Reduce CPU load
 - Add ferrite beads on power lines
 
-## Advanced: Using I2C GPIO Expander
+## Additional Resources
 
-For a cleaner design without GPIO conflicts, use an MCP23017 I2C GPIO expander:
-
-```bash
-# Install library using the virtual environment
-~/poor-house-dub-v2-venv/bin/pip install adafruit-circuitpython-mcp230xx
-
-# Connect MCP23017 to I2C (GPIO 2 & 3)
-# Use expander pins for all controls
-# Leaves I2S pins free
-```
-
-This requires modifying `gpio_controller.py` to use the expander library.
+For complete wiring diagrams and pin-by-pin instructions, see:
+- **[GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md)** - Detailed step-by-step wiring guide with diagrams
+- **[README.md](README.md)** - Complete project documentation and feature overview
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick setup and installation guide

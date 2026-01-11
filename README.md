@@ -20,9 +20,10 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
   - Hybrid chamber reverb (Ableton-inspired) with early reflections, diffusion, and warm damping
 
 - **Hardware Control Surface**
-  - 10 rotary encoders (360° continuous)
-  - 2 momentary trigger switches
-  - Airhorn and siren presets
+  - 5 rotary encoders with bank switching (10 parameters total)
+  - 4 momentary switches (trigger, pitch envelope, shift, shutdown)
+  - Shift button for accessing Bank A/B parameters
+  - Uses only 14 GPIO pins (avoids I2S conflict)
 
 - **High-Quality Audio**
   - PCM5102 I2S DAC for pristine audio output
@@ -35,8 +36,8 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 
 - Raspberry Pi Zero 2 W
 - PCM5102 DAC module
-- 10x rotary encoders
-- 2x momentary switches
+- 5x rotary encoders (KY-040 or similar)
+- 4x momentary switches
 - MicroSD card (8GB+)
 - 5V 2.5A power supply
 
@@ -119,28 +120,41 @@ sudo systemctl start dubsiren.service
 
 ## Control Layout
 
+The control surface uses 5 rotary encoders with a **shift button** for bank switching, providing access to 10 parameters across two banks:
+
 ```
-Row 1:  [Volume]     [Filter Freq]   [Delay Time]    [Reverb Size]
-Row 2:  [Release]    [Filter Res]    [Delay FB]      [Reverb Mix]
-Row 3:  [Osc Wave]   [LFO Wave]      [AIRHORN]       [SIREN]
+Encoders:  [Encoder 1]  [Encoder 2]  [Encoder 3]  [Encoder 4]  [Encoder 5]
+Buttons:   [TRIGGER]    [PITCH ENV]  [SHIFT]      [SHUTDOWN]
 ```
 
-### Control Descriptions
+### Bank A (Normal Mode)
 
-| Control | Function | Range |
-|---------|----------|-------|
-| **Volume** | Master output volume | 0.0 to 1.0 |
-| **Filter Freq** | Low-pass filter cutoff frequency | 20Hz to 20kHz |
-| **Delay Time** | Delay effect time | 0.001s to 2.0s |
-| **Reverb Size** | Reverb room size | 0.0 to 1.0 |
-| **Release** | Oscillator envelope release time | 0.001s to 5.0s |
-| **Filter Res** | Filter resonance/emphasis | 0.0 to 0.95 |
-| **Delay FB** | Delay feedback amount | 0.0 to 0.95 |
-| **Reverb Mix** | Reverb dry/wet mix | 0.0 (dry) to 1.0 (wet) |
-| **Osc Wave** | Oscillator waveform | Sine/Square/Saw/Triangle |
-| **LFO Wave** | LFO waveform | Sine/Square/Saw/Triangle |
-| **AIRHORN** | Trigger airhorn sound | Momentary switch |
-| **SIREN** | Trigger siren sound | Momentary switch |
+| Encoder | Parameter | Function | Range |
+|---------|-----------|----------|-------|
+| **Encoder 1** | Volume | Master output volume | 0.0 to 1.0 |
+| **Encoder 2** | Filter Freq | Low-pass filter cutoff frequency | 20Hz to 20kHz |
+| **Encoder 3** | Filter Res | Filter resonance/emphasis | 0.0 to 0.95 |
+| **Encoder 4** | Delay FB | Delay feedback amount | 0.0 to 0.95 |
+| **Encoder 5** | Reverb Mix | Reverb dry/wet mix | 0.0 (dry) to 1.0 (wet) |
+
+### Bank B (Shift Held)
+
+| Encoder | Parameter | Function | Range |
+|---------|-----------|----------|-------|
+| **Encoder 1** | Release Time | Oscillator envelope release time | 0.001s to 5.0s |
+| **Encoder 2** | Delay Time | Delay effect time | 0.001s to 2.0s |
+| **Encoder 3** | Reverb Size | Reverb room size | 0.0 to 1.0 |
+| **Encoder 4** | Osc Wave | Oscillator waveform | Sine/Square/Saw/Triangle |
+| **Encoder 5** | LFO Wave | LFO waveform | Sine/Square/Saw/Triangle |
+
+### Button Functions
+
+| Button | Function | Behavior |
+|--------|----------|----------|
+| **TRIGGER** | Trigger the siren | Press to start, release to stop |
+| **PITCH ENV** | Cycle pitch envelope mode | Cycles through: none → up → down |
+| **SHIFT** | Switch to Bank B | Hold to access Bank B parameters |
+| **SHUTDOWN** | Safe system shutdown | Press to safely power down the Pi |
 
 ## Architecture
 
@@ -224,9 +238,8 @@ Test without hardware using simulation mode:
 python3 main.py --simulate --interactive
 
 Commands:
-  1 - Trigger airhorn
-  2 - Trigger siren
-  r - Release
+  t - Trigger siren (press/release)
+  p - Cycle pitch envelope mode
   s - Show status
   q - Quit
 ```
