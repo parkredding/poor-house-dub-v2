@@ -90,6 +90,8 @@ If you prefer to install manually:
 
 See [HARDWARE.md](HARDWARE.md) for detailed wiring instructions.
 
+**Testing incrementally?** Check out [MINIMAL_BUILD.md](MINIMAL_BUILD.md) to build with just 1-2 encoders and a button for quick testing.
+
 **Quick PCM5102 Wiring:**
 ```
 PCM5102    ->  Raspberry Pi Zero 2

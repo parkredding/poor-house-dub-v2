@@ -222,40 +222,68 @@ class ControlSurface:
             self._setup_controls()
 
     def _setup_controls(self):
-        """Initialize all encoders and switches"""
-        # Setup encoders
-        for name, (clk, dt) in self.ENCODER_PINS.items():
-            callback = lambda direction, n=name: self._handle_encoder(n, direction)
-            self.encoders[name] = RotaryEncoder(clk, dt, callback)
+        """Initialize all encoders and switches (gracefully handles partial hardware)"""
+        print("Initializing control surface...")
 
-        # Setup switches
+        # Setup encoders - each one is optional for partial builds
+        for name, (clk, dt) in self.ENCODER_PINS.items():
+            try:
+                callback = lambda direction, n=name: self._handle_encoder(n, direction)
+                self.encoders[name] = RotaryEncoder(clk, dt, callback)
+                print(f"  ✓ {name} initialized (GPIO {clk}, {dt})")
+            except Exception as e:
+                print(f"  ✗ {name} failed to initialize (GPIO {clk}, {dt}): {e}")
+                print(f"    Continuing without {name}...")
+
+        # Setup switches - each one is optional for partial builds
         # Main trigger button
-        self.switches['trigger'] = MomentarySwitch(
-            self.SWITCH_PINS['trigger'],
-            press_callback=self.synth.trigger,
-            release_callback=self.synth.release
-        )
+        try:
+            self.switches['trigger'] = MomentarySwitch(
+                self.SWITCH_PINS['trigger'],
+                press_callback=self.synth.trigger,
+                release_callback=self.synth.release
+            )
+            print(f"  ✓ trigger button initialized (GPIO {self.SWITCH_PINS['trigger']})")
+        except Exception as e:
+            print(f"  ✗ trigger button failed (GPIO {self.SWITCH_PINS['trigger']}): {e}")
 
         # Pitch envelope button: cycles through none -> up -> down on press
-        self.switches['pitch_env'] = MomentarySwitch(
-            self.SWITCH_PINS['pitch_env'],
-            press_callback=self._cycle_pitch_envelope,
-            release_callback=None  # No action on release
-        )
+        try:
+            self.switches['pitch_env'] = MomentarySwitch(
+                self.SWITCH_PINS['pitch_env'],
+                press_callback=self._cycle_pitch_envelope,
+                release_callback=None  # No action on release
+            )
+            print(f"  ✓ pitch_env button initialized (GPIO {self.SWITCH_PINS['pitch_env']})")
+        except Exception as e:
+            print(f"  ✗ pitch_env button failed (GPIO {self.SWITCH_PINS['pitch_env']}): {e}")
 
         # Shift button: switches banks
-        self.switches['shift'] = MomentarySwitch(
-            self.SWITCH_PINS['shift'],
-            press_callback=self._shift_press,
-            release_callback=self._shift_release
-        )
+        try:
+            self.switches['shift'] = MomentarySwitch(
+                self.SWITCH_PINS['shift'],
+                press_callback=self._shift_press,
+                release_callback=self._shift_release
+            )
+            print(f"  ✓ shift button initialized (GPIO {self.SWITCH_PINS['shift']})")
+        except Exception as e:
+            print(f"  ✗ shift button failed (GPIO {self.SWITCH_PINS['shift']}): {e}")
 
         # Shutdown button (latching switch)
-        self.switches['shutdown'] = MomentarySwitch(
-            self.SWITCH_PINS['shutdown'],
-            press_callback=self._handle_shutdown,
-            release_callback=None  # No action on release for shutdown
-        )
+        try:
+            self.switches['shutdown'] = MomentarySwitch(
+                self.SWITCH_PINS['shutdown'],
+                press_callback=self._handle_shutdown,
+                release_callback=None  # No action on release for shutdown
+            )
+            print(f"  ✓ shutdown button initialized (GPIO {self.SWITCH_PINS['shutdown']})")
+        except Exception as e:
+            print(f"  ✗ shutdown button failed (GPIO {self.SWITCH_PINS['shutdown']}): {e}")
+
+        # Summary
+        num_encoders = len(self.encoders)
+        num_switches = len(self.switches)
+        print(f"\nControl surface ready: {num_encoders}/5 encoders, {num_switches}/4 buttons")
 
     def _cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes and log the change"""
