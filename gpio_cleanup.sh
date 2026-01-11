@@ -22,6 +22,11 @@ cleanup_gpio_pin() {
     # If the pin is already exported, unexport it (this clears edge detection)
     if [ -d "$gpio_path" ]; then
         echo "$pin" > "$unexport_path" 2>/dev/null || true
+    else
+        # Try exporting and then unexporting to force a reset
+        echo "$pin" > "$export_path" 2>/dev/null || true
+        sleep 0.01  # Small delay to let kernel process the export
+        echo "$pin" > "$unexport_path" 2>/dev/null || true
     fi
 }
 
@@ -29,5 +34,8 @@ cleanup_gpio_pin() {
 for pin in "${ALL_PINS[@]}"; do
     cleanup_gpio_pin "$pin"
 done
+
+# Give the kernel a moment to fully release the GPIO resources
+sleep 0.1
 
 exit 0

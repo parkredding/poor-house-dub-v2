@@ -175,7 +175,8 @@ After=sound.target
 Type=simple
 User=$INSTALL_USER
 WorkingDirectory=$USER_HOME/poor-house-dub-v2
-ExecStartPre=$USER_HOME/poor-house-dub-v2/gpio_cleanup.sh
+# Run cleanup script with root privileges (+ prefix) to access GPIO sysfs
+ExecStartPre=+$USER_HOME/poor-house-dub-v2/gpio_cleanup.sh
 ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py
 Restart=on-failure
 RestartSec=5
