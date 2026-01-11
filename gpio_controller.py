@@ -176,6 +176,13 @@ class ControlSurface:
         }
 
         if GPIO_AVAILABLE:
+            # Clean up any existing GPIO state from previous runs
+            # This is critical when the service crashes without proper cleanup
+            try:
+                GPIO.cleanup()
+            except:
+                pass  # Ignore if GPIO was not previously initialized
+
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
             self._setup_controls()
