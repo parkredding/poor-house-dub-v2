@@ -41,6 +41,7 @@ class AudioOutput:
         self.buffer_underruns = 0
         self.total_buffers = 0
         self.nan_buffers = 0  # Count of buffers containing NaN values
+        self.last_underflow_msg_time = 0  # Throttle underflow messages
 
     def _audio_callback(self, outdata, frames, time_info, status):
         """Audio callback function called by sounddevice
@@ -51,9 +52,16 @@ class AudioOutput:
         to the DAC.
         """
         if status:
-            print(f"Audio status: {status}")
+            # Throttle underflow messages to once per minute
+            current_time = time.time()
             if status.output_underflow:
                 self.buffer_underruns += 1
+                if current_time - self.last_underflow_msg_time >= 60:
+                    print(f"Audio status: {status} (suppressing further messages for 60s)")
+                    self.last_underflow_msg_time = current_time
+            else:
+                # Print non-underflow status messages immediately
+                print(f"Audio status: {status}")
 
         try:
             # Generate audio from synthesizer
