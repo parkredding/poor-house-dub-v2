@@ -103,9 +103,18 @@ class AudioOutput:
         try:
             # List available devices for debugging
             if self.device is None:
+                devices = sd.query_devices()
                 print("\nAvailable audio devices:")
-                print(sd.query_devices())
+                print(devices)
                 print()
+
+                # If no devices found via enumeration, try to use default ALSA device
+                # This handles cases where portaudio can't enumerate but devices exist
+                if not devices or len(str(devices).strip()) == 0:
+                    print("No devices found via enumeration.")
+                    print("Attempting to use system default audio device...")
+                    # On Raspberry Pi with ALSA, we can often use the default device
+                    # even if enumeration fails. Leave self.device as None to use default.
 
             # Create and start the audio stream
             self.stream = sd.OutputStream(
@@ -125,6 +134,10 @@ class AudioOutput:
 
         except Exception as e:
             print(f"Failed to start audio output: {e}")
+            print("\nTroubleshooting:")
+            print("1. Check ALSA config: cat /etc/asound.conf")
+            print("2. Test ALSA directly: aplay -l")
+            print("3. Check audio group: groups (should include 'audio')")
             return False
 
     def stop(self):
