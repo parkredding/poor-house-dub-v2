@@ -154,6 +154,7 @@ chmod +x synthesizer.py
 chmod +x gpio_controller.py
 chmod +x audio_output.py
 chmod +x gpio_cleanup.sh
+chmod +x gpio_cleanup.py
 
 # Create systemd service
 echo "Creating systemd service..."
@@ -175,8 +176,8 @@ After=sound.target
 Type=simple
 User=$INSTALL_USER
 WorkingDirectory=$USER_HOME/poor-house-dub-v2
-# Run cleanup script with root privileges (+ prefix) to access GPIO sysfs
-ExecStartPre=+$USER_HOME/poor-house-dub-v2/gpio_cleanup.sh
+# Run Python GPIO cleanup before starting (uses RPi.GPIO library to properly clean state)
+ExecStartPre=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/gpio_cleanup.py
 ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py
 Restart=on-failure
 RestartSec=5
