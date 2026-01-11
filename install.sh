@@ -31,6 +31,8 @@ fi
 if [ -d "$INSTALL_DIR" ]; then
     echo "⚠️  Directory $INSTALL_DIR already exists!"
     echo "🗑️  Removing for fresh installation..."
+    # Change to home directory first to avoid "current working directory" issues
+    cd "$HOME"
     rm -rf "$INSTALL_DIR"
     echo "✓ Old installation removed"
     echo ""
