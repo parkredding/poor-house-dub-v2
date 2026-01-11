@@ -128,30 +128,60 @@ class MomentarySwitch:
 class ControlSurface:
     """
     Main control surface handler for the Dub Siren
-    Layout (4x3 matrix):
-    Row 1: Volume, Filter Freq, Delay Time, Reverb Size
-    Row 2: Release Time, Filter Res, Delay FB, Reverb Mix
-    Row 3: Osc Wave, LFO Wave, Pitch Env (cycle), Trigger
+
+    5 Encoders + Shift Button = 10 Parameters
+
+    Bank A (Normal):
+      Encoder 1: Volume
+      Encoder 2: Filter Frequency
+      Encoder 3: Filter Resonance
+      Encoder 4: Delay Feedback
+      Encoder 5: Reverb Mix
+
+    Bank B (Shift held):
+      Encoder 1: Release Time
+      Encoder 2: Delay Time
+      Encoder 3: Reverb Size
+      Encoder 4: Osc Waveform
+      Encoder 5: LFO Waveform
+
+    Buttons: Trigger, Pitch Env, Shift, Shutdown
+
+    NOTE: Avoids I2S pins (18, 19, 21) used by PCM5102 DAC
     """
 
-    # GPIO pin assignments (BCM numbering)
+    # GPIO pin assignments (BCM numbering) - 5 encoders
+    # Avoiding I2S pins: GPIO 18 (LRCLK), 19 (BCLK), 21 (DOUT)
     ENCODER_PINS = {
-        'volume': (17, 18),           # Row 1
-        'filter_freq': (27, 22),
-        'delay_time': (23, 24),
-        'reverb_size': (25, 8),
-        'release_time': (7, 12),      # Row 2
-        'filter_res': (16, 20),
-        'delay_feedback': (21, 26),
-        'reverb_mix': (19, 13),
-        'osc_waveform': (6, 5),       # Row 3
-        'lfo_waveform': (11, 9),
+        'encoder_1': (17, 2),         # Bank A: Volume    | Bank B: Release Time
+        'encoder_2': (27, 22),        # Bank A: Filter Freq | Bank B: Delay Time
+        'encoder_3': (23, 24),        # Bank A: Filter Res | Bank B: Reverb Size
+        'encoder_4': (20, 26),        # Bank A: Delay FB   | Bank B: Osc Wave
+        'encoder_5': (14, 13),        # Bank A: Reverb Mix | Bank B: LFO Wave
     }
 
     SWITCH_PINS = {
-        'pitch_env': 10,              # Pitch envelope cycle (was airhorn)
-        'trigger': 4,                 # Main trigger (was siren)
-        'shutdown': 3,                # Shutdown/power button (latching switch)
+        'trigger': 4,                 # Main trigger button
+        'pitch_env': 10,              # Pitch envelope cycle (none/up/down)
+        'shift': 15,                  # Shift button (access Bank B)
+        'shutdown': 3,                # Shutdown/power button
+    }
+
+    # Bank mapping - which parameter each encoder controls in each bank
+    BANK_A_PARAMS = {
+        'encoder_1': 'volume',
+        'encoder_2': 'filter_freq',
+        'encoder_3': 'filter_res',
+        'encoder_4': 'delay_feedback',
+        'encoder_5': 'reverb_mix',
+    }
+
+    BANK_B_PARAMS = {
+        'encoder_1': 'release_time',
+        'encoder_2': 'delay_time',
+        'encoder_3': 'reverb_size',
+        'encoder_4': 'osc_waveform',
+        'encoder_5': 'lfo_waveform',
     }
 
     def __init__(self, synth, shutdown_callback=None):
@@ -160,17 +190,21 @@ class ControlSurface:
         self.encoders = {}
         self.switches = {}
         self.running = False
+        self.shift_pressed = False    # Track shift button state
+        self.current_bank = 'A'       # Current bank (A or B)
 
-        # Parameter ranges for encoders
+        # Parameter ranges for all parameters (both banks)
         self.param_values = {
+            # Bank A parameters
             'volume': 0.5,              # 0.0 to 1.0
             'filter_freq': 2000.0,      # 20 to 20000 Hz
-            'delay_time': 0.5,          # 0.001 to 2.0 seconds
-            'reverb_size': 0.5,         # 0.0 to 1.0
-            'release_time': 0.5,        # 0.001 to 5.0 seconds
-            'filter_res': 0.1,          # 0.0 to 0.95
+            'filter_res': 0.3,          # 0.0 to 0.95
             'delay_feedback': 0.3,      # 0.0 to 0.95
             'reverb_mix': 0.3,          # 0.0 to 1.0
+            # Bank B parameters
+            'release_time': 0.5,        # 0.001 to 5.0 seconds
+            'delay_time': 0.5,          # 0.001 to 2.0 seconds
+            'reverb_size': 0.5,         # 0.0 to 1.0
             'osc_waveform': 0,          # 0 to 3 (discrete)
             'lfo_waveform': 0,          # 0 to 3 (discrete)
         }
@@ -195,6 +229,13 @@ class ControlSurface:
             self.encoders[name] = RotaryEncoder(clk, dt, callback)
 
         # Setup switches
+        # Main trigger button
+        self.switches['trigger'] = MomentarySwitch(
+            self.SWITCH_PINS['trigger'],
+            press_callback=self.synth.trigger,
+            release_callback=self.synth.release
+        )
+
         # Pitch envelope button: cycles through none -> up -> down on press
         self.switches['pitch_env'] = MomentarySwitch(
             self.SWITCH_PINS['pitch_env'],
@@ -202,11 +243,11 @@ class ControlSurface:
             release_callback=None  # No action on release
         )
 
-        # Main trigger button
-        self.switches['trigger'] = MomentarySwitch(
-            self.SWITCH_PINS['trigger'],
-            press_callback=self.synth.trigger,
-            release_callback=self.synth.release
+        # Shift button: switches banks
+        self.switches['shift'] = MomentarySwitch(
+            self.SWITCH_PINS['shift'],
+            press_callback=self._shift_press,
+            release_callback=self._shift_release
         )
 
         # Shutdown button (latching switch)
@@ -220,6 +261,18 @@ class ControlSurface:
         """Cycle through pitch envelope modes and log the change"""
         new_mode = self.synth.cycle_pitch_envelope()
         print(f"Pitch envelope: {new_mode}")
+
+    def _shift_press(self):
+        """Handle shift button press - switch to Bank B"""
+        self.shift_pressed = True
+        self.current_bank = 'B'
+        print("Bank B active")
+
+    def _shift_release(self):
+        """Handle shift button release - switch back to Bank A"""
+        self.shift_pressed = False
+        self.current_bank = 'A'
+        print("Bank A active")
 
     def _handle_shutdown(self):
         """Handle shutdown button press - safely shutdown the system"""
@@ -244,84 +297,90 @@ class ControlSurface:
         except FileNotFoundError:
             print("WARNING: shutdown command not found (running in development mode?)")
 
-    def _handle_encoder(self, name: str, direction: int):
-        """Handle encoder rotation"""
-        current_value = self.param_values[name]
+    def _handle_encoder(self, encoder_name: str, direction: int):
+        """Handle encoder rotation with bank switching support"""
+        # Determine which parameter to control based on current bank
+        if self.shift_pressed:
+            param_name = self.BANK_B_PARAMS[encoder_name]
+        else:
+            param_name = self.BANK_A_PARAMS[encoder_name]
+
+        current_value = self.param_values[param_name]
 
         # Update value based on parameter type
-        if name == 'volume':
+        if param_name == 'volume':
             step = 0.02 * direction
             new_value = max(0.0, min(1.0, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_volume(new_value)
 
-        elif name == 'filter_freq':
+        elif param_name == 'filter_freq':
             # Logarithmic scale for frequency
             step = 50 * direction
             new_value = max(20.0, min(20000.0, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_filter_frequency(new_value)
 
-        elif name == 'delay_time':
+        elif param_name == 'delay_time':
             step = 0.05 * direction
             new_value = max(0.001, min(2.0, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_delay_time(new_value)
 
-        elif name == 'reverb_size':
+        elif param_name == 'reverb_size':
             step = 0.02 * direction
             new_value = max(0.0, min(1.0, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_reverb_size(new_value)
 
-        elif name == 'release_time':
+        elif param_name == 'release_time':
             step = 0.1 * direction
             new_value = max(0.001, min(5.0, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_release_time(new_value)
 
-        elif name == 'filter_res':
+        elif param_name == 'filter_res':
             step = 0.02 * direction
             new_value = max(0.0, min(0.95, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_filter_resonance(new_value)
 
-        elif name == 'delay_feedback':
+        elif param_name == 'delay_feedback':
             step = 0.02 * direction
             new_value = max(0.0, min(0.95, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_delay_feedback(new_value)
 
-        elif name == 'reverb_mix':
+        elif param_name == 'reverb_mix':
             step = 0.02 * direction
             new_value = max(0.0, min(1.0, current_value + step))
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_reverb_dry_wet(new_value)
 
-        elif name == 'osc_waveform':
+        elif param_name == 'osc_waveform':
             # Discrete values 0-3
             new_value = int((current_value + direction) % 4)
             if new_value < 0:
                 new_value = 3
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_oscillator_waveform(new_value)
 
-        elif name == 'lfo_waveform':
+        elif param_name == 'lfo_waveform':
             # Discrete values 0-3
             new_value = int((current_value + direction) % 4)
             if new_value < 0:
                 new_value = 3
-            self.param_values[name] = new_value
+            self.param_values[param_name] = new_value
             self.synth.set_lfo_waveform(new_value)
 
         # Print status for debugging
         waveform_names = ['Sine', 'Square', 'Saw', 'Triangle']
-        if name in ['osc_waveform', 'lfo_waveform']:
-            value_str = waveform_names[int(self.param_values[name])]
+        if param_name in ['osc_waveform', 'lfo_waveform']:
+            value_str = waveform_names[int(self.param_values[param_name])]
         else:
-            value_str = f"{self.param_values[name]:.3f}"
+            value_str = f"{self.param_values[param_name]:.3f}"
 
-        print(f"{name}: {value_str}")
+        print(f"[Bank {self.current_bank}] {param_name}: {value_str}")
 
     def start(self):
         """Start the control surface"""

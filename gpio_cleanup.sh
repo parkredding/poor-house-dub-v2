@@ -4,10 +4,14 @@
 # This is necessary when the service crashes without proper GPIO cleanup
 
 # All GPIO pins used by the Dub Siren (from gpio_controller.py)
-# Encoder pins: (clk, dt) pairs
-ENCODER_PINS=(17 18 27 22 23 24 25 8 7 12 16 20 21 26 19 13 6 5 11 9)
-# Switch pins
-SWITCH_PINS=(10 4 3)
+# 5 Encoders (clk, dt pairs) + 4 Switches = 14 GPIO pins total
+# NOTE: Avoids I2S pins (18, 19, 21) used by PCM5102 DAC
+
+# Encoder pins: 5 encoders x 2 pins = 10 pins
+ENCODER_PINS=(17 2 27 22 23 24 20 26 14 13)
+
+# Switch pins: 4 switches
+SWITCH_PINS=(4 10 15 3)
 
 # Combine all pins
 ALL_PINS=("${ENCODER_PINS[@]}" "${SWITCH_PINS[@]}")
