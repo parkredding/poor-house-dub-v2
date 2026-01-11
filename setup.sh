@@ -156,7 +156,15 @@ chmod +x audio_output.py
 
 # Create systemd service
 echo "Creating systemd service..."
-INSTALL_USER=$(whoami)
+# Detect the actual user (not root if running via sudo)
+if [ -n "$SUDO_USER" ]; then
+    INSTALL_USER="$SUDO_USER"
+    USER_HOME=$(eval echo ~$SUDO_USER)
+else
+    INSTALL_USER=$(whoami)
+    USER_HOME="$HOME"
+fi
+
 cat > /tmp/dubsiren.service << EOF
 [Unit]
 Description=Dub Siren V2 Synthesizer
@@ -165,8 +173,8 @@ After=sound.target
 [Service]
 Type=simple
 User=$INSTALL_USER
-WorkingDirectory=$HOME/poor-house-dub-v2
-ExecStart=$HOME/poor-house-dub-v2-venv/bin/python3 $HOME/poor-house-dub-v2/main.py
+WorkingDirectory=$USER_HOME/poor-house-dub-v2
+ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py
 Restart=on-failure
 RestartSec=5
 
