@@ -32,6 +32,17 @@ class RotaryEncoder:
         if GPIO_AVAILABLE:
             GPIO.setup(clk_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             GPIO.setup(dt_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+            # Remove any existing edge detection before adding new ones
+            try:
+                GPIO.remove_event_detect(clk_pin)
+            except:
+                pass  # Ignore if no edge detection was set up
+            try:
+                GPIO.remove_event_detect(dt_pin)
+            except:
+                pass  # Ignore if no edge detection was set up
+
             GPIO.add_event_detect(clk_pin, GPIO.BOTH, callback=self._update)
             GPIO.add_event_detect(dt_pin, GPIO.BOTH, callback=self._update)
 
@@ -82,6 +93,13 @@ class MomentarySwitch:
 
         if GPIO_AVAILABLE:
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+            # Remove any existing edge detection before adding new ones
+            try:
+                GPIO.remove_event_detect(pin)
+            except:
+                pass  # Ignore if no edge detection was set up
+
             # Use both edges to detect press and release
             GPIO.add_event_detect(
                 pin,
