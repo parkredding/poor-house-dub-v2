@@ -1029,14 +1029,11 @@ class DubSiren:
             self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
             env = self.envelope.current_value
 
-            # === LFO modulated filter ===
-            # LFO modulates filter cutoff: ±1 octave around base
-            lfo_mod = lfo_signal[i]
-            cutoff = base_cutoff * (2.0 ** lfo_mod)  # Exponential for musical intervals
-            cutoff = max(100.0, min(cutoff, 5000.0))
-            
-            # Calculate filter coefficient per sample (needed for LFO modulation)
-            alpha = 1.0 - np.exp(-2.0 * np.pi * cutoff / self.sample_rate)
+            # === Simple one-pole filter (LFO temporarily disabled) ===
+            # TEMP: Calculate alpha once - bypass LFO to test stability
+            if i == 0:
+                cutoff = base_cutoff
+                alpha = 1.0 - np.exp(-2.0 * np.pi * cutoff / self.sample_rate)
             
             # Simple one-pole filter
             self._simple_filter_state += alpha * (raw_buffer[i] - self._simple_filter_state)
