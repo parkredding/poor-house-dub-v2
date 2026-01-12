@@ -123,6 +123,8 @@ class MomentarySwitch:
         self.running = True
         self._last_state = GPIO.HIGH if GPIO_AVAILABLE else True
         self._last_change = time.time()
+        self._last_press_time = 0.0
+        self._min_press_ms = 30  # require presses to be at least 30ms before release is honored
 
         if GPIO_AVAILABLE:
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -180,10 +182,14 @@ class MomentarySwitch:
         if state == GPIO.LOW and not self.is_pressed:
             # Button pressed
             self.is_pressed = True
+            self._last_press_time = time.time()
             if self.press_callback:
                 self.press_callback()
         elif state == GPIO.HIGH and self.is_pressed:
             # Button released
+            # Enforce minimum press duration to avoid tiny glitches
+            if (time.time() - self._last_press_time) * 1000.0 < self._min_press_ms:
+                return
             self.is_pressed = False
             if self.release_callback:
                 self.release_callback()

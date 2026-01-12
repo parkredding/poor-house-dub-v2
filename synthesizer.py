@@ -263,10 +263,11 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
+        # Slightly longer sustain/release to mask micro-gaps from noisy triggers
         self.attack = 0.01   # seconds (browser preset)
-        self.decay = 0.1     # seconds (browser preset)
-        self.sustain = 0.7   # level (browser preset)
-        self.release = 0.3   # seconds (browser preset)
+        self.decay = 0.05    # seconds (short)
+        self.sustain = 1.0   # hold full level
+        self.release = 0.25  # seconds (a bit longer)
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
