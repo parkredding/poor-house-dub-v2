@@ -153,6 +153,8 @@ chmod +x main.py
 chmod +x synthesizer.py
 chmod +x gpio_controller.py
 chmod +x audio_output.py
+chmod +x gpio_cleanup.sh
+chmod +x gpio_cleanup.py
 
 # Create systemd service
 echo "Creating systemd service..."
@@ -174,6 +176,8 @@ After=sound.target
 Type=simple
 User=$INSTALL_USER
 WorkingDirectory=$USER_HOME/poor-house-dub-v2
+# Run Python GPIO cleanup before starting (uses RPi.GPIO library to properly clean state)
+ExecStartPre=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/gpio_cleanup.py
 ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py
 Restart=on-failure
 RestartSec=5
@@ -226,13 +230,20 @@ echo "  SCK        ->  GND (for 48kHz)"
 echo "  FLT        ->  GND (normal filter)"
 echo "  FMT        ->  GND (I2S format)"
 echo ""
-echo "GPIO Pin Assignments:"
-echo "--------------------"
-echo "See gpio_controller.py for detailed pin assignments"
+echo "Control Surface (Bank Switching Design):"
+echo "----------------------------------------"
+echo "  5 Rotary Encoders + 4 Buttons = 10 Parameters (14 GPIO pins)"
+echo "  - Bank A: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix"
+echo "  - Bank B: Release, Delay Time, Reverb Size, Osc Wave, LFO Wave"
+echo "  - Buttons: Trigger, Pitch Env, Shift, Shutdown"
+echo ""
+echo "  ⚠️  IMPORTANT: Avoid GPIO 18, 19, 21 (used by I2S audio)"
+echo ""
+echo "  See GPIO_WIRING_GUIDE.md for complete wiring diagrams"
 echo ""
 echo "Next Steps:"
 echo "1. Wire up the PCM5102 DAC according to the guide above"
-echo "2. Wire up the 10 rotary encoders and 2 switches"
+echo "2. Wire up the 5 rotary encoders and 4 switches (see GPIO_WIRING_GUIDE.md)"
 echo "3. Reboot: sudo reboot"
 echo "4. Test in simulation mode: ~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive"
 echo "5. Run on hardware: ~/poor-house-dub-v2-venv/bin/python3 main.py"

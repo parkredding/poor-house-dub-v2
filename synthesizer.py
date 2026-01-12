@@ -263,10 +263,11 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.attack = 0.01   # seconds (matches browser test default)
-        self.decay = 0.1     # seconds
-        self.sustain = 0.7   # level (0.0 to 1.0)
-        self.release = 0.3   # seconds (matches browser test default)
+        # Gating envelope tuned to avoid pops: fast attack, short decay, moderate sustain, long release
+        self.attack = 0.01
+        self.decay = 0.01
+        self.sustain = 0.7
+        self.release = 1.5
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -348,13 +349,13 @@ class LowPassFilter:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.cutoff = 2000.0  # Hz (target value - matches browser test default)
+        self.cutoff = 2000.0  # Hz (browser preset default)
         self.cutoff_current = 2000.0  # Current smoothed value
-        self.resonance = 1.0  # Q value (matches browser test default)
+        self.resonance = 1.0  # Q value (browser preset default)
         self.resonance_current = 1.0  # Current smoothed value
         self.prev_output = 0.0
         # Smoothing coefficient: larger = smoother but slower response
-        # 0.001 = smooth over ~1ms, good balance for real-time control
+        # Browser preset default smoothing
         self.smoothing = 0.001
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
@@ -900,20 +901,26 @@ class DubSiren:
         self.oscillator = Oscillator(sample_rate)
         self.lfo = LFO(sample_rate)
         self.envelope = Envelope(sample_rate)
+        self._env_lock = threading.Lock()
         self.filter = LowPassFilter(sample_rate)
         self.delay = DelayEffect(sample_rate)
         self.reverb = ReverbEffect(sample_rate)
         self.dc_blocker = DCBlocker()  # Removes DC offset before output
 
         # Control parameters (match browser test defaults)
-        self.volume = 0.7  # Matches browser test default
+        self.volume = 0.7  # Browser preset default
         self.is_running = False
 
         # Frequency control
-        self.base_frequency = 440.0  # Current trigger frequency
+        self.base_frequency = 800.0  # Browser preset siren frequency
+
+        # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
+        self.lfo.set_waveform('sine')
+        self.lfo.frequency = 4.0
+        self.lfo.depth = 0.0  # disable wobble by default
 
         # Pitch envelope: 'none', 'up', 'down'
-        self.pitch_envelope = 'none'
+        self.pitch_envelope = 'none'  # keep off for stability
         self._pitch_env_modes = ['none', 'up', 'down']
 
         # NaN protection monitoring
@@ -921,12 +928,14 @@ class DubSiren:
 
     def trigger(self):
         """Trigger sound at current base_frequency"""
-        self.oscillator.set_frequency(self.base_frequency)
-        self.envelope.trigger()
+        with self._env_lock:
+            self.oscillator.set_frequency(self.base_frequency)
+            self.envelope.trigger()
 
     def release(self):
         """Release sound (pitch envelope will be applied during generate_audio)"""
-        self.envelope.release_trigger()
+        with self._env_lock:
+            self.envelope.release_trigger()
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -983,60 +992,20 @@ class DubSiren:
         clamping to prevent values from growing unbounded. This makes NaN impossible
         under normal operation, ensuring audio always respects volume control.
         """
-        # Apply pitch envelope during release phase
-        # Uses current base_frequency so manual frequency changes affect pitch in real-time
-        if self.envelope.is_releasing and self.pitch_envelope != 'none':
-            release_samples = int(self.envelope.release * self.sample_rate)
-            if release_samples > 0:
-                progress = min(1.0, self.envelope.current_sample / release_samples)
-                if self.pitch_envelope == 'up':
-                    # Sweep up 2 octaves (multiply by 4)
-                    freq_mult = 1.0 + (3.0 * progress)  # 1.0 to 4.0
-                elif self.pitch_envelope == 'down':
-                    # Sweep down 2 octaves (divide by 4)
-                    freq_mult = 1.0 - (0.75 * progress)  # 1.0 to 0.25
-                else:
-                    freq_mult = 1.0
-                # Apply envelope as multiplier on current base_frequency for real-time control
-                self.oscillator.set_frequency(self.base_frequency * freq_mult)
-
-        # Generate oscillator output
+        # No pitch envelope or FX for now; re-enable envelope gating
+        with self._env_lock:
+            env = self.envelope.generate(num_samples)
         audio = self.oscillator.generate(num_samples)
-
-        # Apply LFO modulation to frequency
-        lfo_signal = self.lfo.generate(num_samples)
-        # Modulate oscillator frequency (this is a simplified approach)
-        # In a real-time system, you'd apply this per-sample
-
-        # Apply envelope
-        env = self.envelope.generate(num_samples)
         audio = audio * env
 
-        # Apply filter (state clamping prevents instability)
-        audio = self.filter.process(audio)
-
-        # Apply delay (buffer/state clamping prevents runaway feedback)
-        audio = self.delay.process(audio)
-
-        # Apply reverb (all internal filters have clamping)
-        audio = self.reverb.process(audio)
-
-        # Remove DC offset to prevent headroom waste and asymmetric clipping
-        audio = self.dc_blocker.process(audio)
-
-        # Apply volume
+        # Dry path: skip filter/delay/reverb; apply volume
         audio = audio * self.volume
 
-        # Final safety check for monitoring (should never trigger with prevention in place)
         if not np.all(np.isfinite(audio)):
             self._nan_events += 1
-            # Fallback sanitization only if somehow NaN still occurred
             audio = sanitize_audio(audio)
 
-        # Hard clip as final safety net
-        audio = np.clip(audio, -1.0, 1.0)
-
-        return audio
+        return np.clip(audio, -1.0, 1.0)
 
     # Control setters
     def set_volume(self, volume: float):

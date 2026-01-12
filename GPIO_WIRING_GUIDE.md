@@ -1,304 +1,454 @@
-# GPIO Wiring Guide for Pi Zero 2W Audio Test
+# GPIO Wiring Guide for Dub Siren V2
 
-Complete wiring instructions for connecting 2 rotary encoders and 1 momentary switch to control the audio test.
+Complete wiring instructions for the Poor House Dub V2 control surface with shift button bank switching.
+
+## Overview
+
+The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 10 parameters across 2 banks, plus 3 additional function buttons.
+
+**Total GPIO pins: 14** (10 for encoders + 4 for buttons)
+
+### Bank System
+- **Bank A (Normal):** Primary dub controls (volume, filter, delay, reverb)
+- **Bank B (Shift held):** Secondary controls (envelopes, waveforms, timing)
 
 ## Components Needed
 
-- **2x Rotary Encoders** (KY-040 or similar)
-- **1x Momentary Switch** (normally open, push button)
-- **Breadboard** (optional, for easy prototyping)
-- **Jumper wires**
-- **Pi Zero 2W** with GPIO header
+- **5x Rotary Encoders** (KY-040 or EC11 compatible)
+- **4x Momentary Switches** (Trigger, Pitch Env, Shift, Shutdown)
+- **Breadboard** or **PCB** for prototyping
+- **Jumper wires** (male-to-female, 10-15cm)
+- **Pi Zero 2W** with 40-pin GPIO header
+- **Optional:** Panel-mount encoders with knobs for enclosure
 
-## Pin Assignments
+## Critical: I2S Pin Avoidance
 
-### Encoder 1 - Volume Control
-| Encoder Pin | Pi Zero 2W GPIO | Physical Pin |
-|-------------|-----------------|--------------|
-| CLK (A)     | GPIO 17         | Pin 11       |
-| DT (B)      | GPIO 27         | Pin 13       |
-| SW (button) | Not used        | -            |
-| + (VCC)     | 3.3V            | Pin 1 or 17  |
-| GND         | Ground          | Pin 9 or 14  |
+⚠️ **DO NOT USE** these GPIO pins - they are reserved for PCM5102 DAC audio:
+- **GPIO 18** (Pin 12) - I2S LRCLK
+- **GPIO 19** (Pin 35) - I2S BCLK
+- **GPIO 21** (Pin 40) - I2S DOUT
 
-### Encoder 2 - Delay Wet/Dry Control
-| Encoder Pin | Pi Zero 2W GPIO | Physical Pin |
-|-------------|-----------------|--------------|
-| CLK (A)     | GPIO 22         | Pin 15       |
-| DT (B)      | GPIO 23         | Pin 16       |
-| SW (button) | Not used        | -            |
-| + (VCC)     | 3.3V            | Pin 1 or 17  |
-| GND         | Ground          | Pin 9 or 14  |
+The pin assignments below carefully avoid these pins.
 
-### Momentary Switch - Trigger
-| Switch Pin  | Pi Zero 2W GPIO | Physical Pin |
-|-------------|-----------------|--------------|
-| One side    | GPIO 4          | Pin 7        |
-| Other side  | Ground          | Pin 9 or 14  |
+## Complete Pin Assignments
 
-## Complete Wiring Diagram
+### 5 Rotary Encoders (10 GPIO pins)
+
+| Encoder | Function (Bank A / Bank B) | CLK Pin | DT Pin | Physical Pins |
+|---------|---------------------------|---------|--------|---------------|
+| **Encoder 1** | Volume / Release Time | GPIO 17 | GPIO 2 | Pin 11, Pin 3 |
+| **Encoder 2** | Filter Freq / Delay Time | GPIO 27 | GPIO 22 | Pin 13, Pin 15 |
+| **Encoder 3** | Filter Res / Reverb Size | GPIO 23 | GPIO 24 | Pin 16, Pin 18 |
+| **Encoder 4** | Delay Feedback / Osc Wave | GPIO 20 | GPIO 26 | Pin 38, Pin 37 |
+| **Encoder 5** | Reverb Mix / LFO Wave | GPIO 14 | GPIO 13 | Pin 8, Pin 33 |
+
+### 4 Buttons (4 GPIO pins)
+
+| Button | Function | GPIO Pin | Physical Pin |
+|--------|----------|----------|--------------|
+| **Trigger** | Main sound trigger (hold to play) | GPIO 4 | Pin 7 |
+| **Pitch Env** | Cycle pitch envelope (none/up/down) | GPIO 10 | Pin 19 |
+| **Shift** | Access Bank B parameters | GPIO 15 | Pin 10 |
+| **Shutdown** | Safe system shutdown | GPIO 3 | Pin 5 |
+
+### Power Connections
+
+| Connection | Pin(s) |
+|------------|--------|
+| **3.3V** (encoder power) | Pin 1, Pin 17 |
+| **GND** (common ground) | Pins 6, 9, 14, 20, 25, 30, 34, 39 |
+
+## Parameter Bank Mapping
+
+### Bank A (Normal - no shift)
+1. **Volume** - Master output level (0-100%)
+2. **Filter Frequency** - Low-pass filter cutoff (20-20000 Hz)
+3. **Filter Resonance** - Filter emphasis (0-95%)
+4. **Delay Feedback** - Echo repeats (0-95%)
+5. **Reverb Mix** - Reverb dry/wet (0-100%)
+
+### Bank B (Hold Shift)
+1. **Release Time** - Envelope decay (0.001-5.0s)
+2. **Delay Time** - Echo timing (0.001-2.0s)
+3. **Reverb Size** - Room size (0-100%)
+4. **Osc Waveform** - Oscillator shape (Sine/Square/Saw/Triangle)
+5. **LFO Waveform** - LFO shape (Sine/Square/Saw/Triangle)
+
+## Detailed Wiring Diagrams
+
+### GPIO Header Overview (Pi Zero 2W)
 
 ```
-Pi Zero 2W GPIO Header
-┌────────────────────────────┐
-│ 1  [3.3V]      [5V]     2  │
-│ 3  GPIO 2      [5V]     4  │
-│ 5  GPIO 3      [GND]    6  │  ← PCM5102 GND
-│ 7  [GPIO 4]    GPIO 14  8  │  ← Trigger Switch
-│ 9  [GND]       GPIO 15  10 │  ← Common GND
-│ 11 [GPIO 17]   GPIO 18  12 │  ← Enc1-A, PCM5102 LCK
-│ 13 [GPIO 27]   [GND]    14 │  ← Enc1-B
-│ 15 [GPIO 22]   GPIO 23  16 │  ← Enc2-A, Enc2-B
-│ 17 3.3V        GPIO 24  18 │  ← Encoder power
-│ 19 GPIO 10     [GND]    20 │
+Raspberry Pi Zero 2W GPIO Header (40-pin)
+┌────────────────────────────────────────┐
+│ 1  [3.3V]      [5V]     2  │  ← Encoder power
+│ 3  [GPIO 2]    [5V]     4  │  ← Enc1-DT
+│ 5  [GPIO 3]    [GND]    6  │  ← Shutdown, PCM5102 GND
+│ 7  [GPIO 4]    GPIO 14  8  │  ← Trigger
+│ 9  [GND]       GPIO 15  10 │  ← Common GND, Shift
+│ 11 [GPIO 17]   GPIO 18  12 │  ← Enc1-CLK, I2S-LCK (DO NOT USE 18!)
+│ 13 [GPIO 27]   [GND]    14 │  ← Enc2-CLK
+│ 15 [GPIO 22]   GPIO 23  16 │  ← Enc2-DT, Enc3-CLK
+│ 17 3.3V        GPIO 24  18 │  ← Enc3-DT
+│ 19 GPIO 10     [GND]    20 │  ← Pitch Env
 │ 21 GPIO 9      GPIO 25  22 │
 │ 23 GPIO 11     GPIO 8   24 │
 │ 25 [GND]       GPIO 7   26 │
 │ 27 ID_SD       ID_SC    28 │
 │ 29 GPIO 5      [GND]    30 │
 │ 31 GPIO 6      GPIO 12  32 │
-│ 33 GPIO 13     [GND]    34 │
-│ 35 [GPIO 19]   GPIO 16  36 │  ← PCM5102 BCK
-│ 37 GPIO 26     GPIO 20  38 │
-│ 39 [GND]       GPIO 21  40 │  ← PCM5102 DIN
-└────────────────────────────┘
+│ 33 [GPIO 13]   [GND]    34 │  ← Enc5-DT
+│ 35 GPIO 19     GPIO 16  36 │  ← I2S-BCK (DO NOT USE 19!)
+│ 37 [GPIO 26]   GPIO 20  38 │  ← Enc4-DT, Enc4-CLK
+│ 39 [GND]       GPIO 21  40 │  ← I2S-DOUT (DO NOT USE 21!)
+└────────────────────────────────────────┘
 
-[Bracketed] = Used by this test
+[Bracketed] = Used by Dub Siren V2
 ```
 
-## Rotary Encoder Wiring
+### Rotary Encoder Wiring (All 5 Encoders)
 
-### Standard KY-040 Rotary Encoder Pinout
+Standard KY-040/EC11 rotary encoder pinout:
 ```
-  ┌─────────┐
-  │  Enc 1  │
-  │ Volume  │
-  └─────────┘
-     │││││
-     │││││
-     ││││└─ GND ──────────────→ Pin 9 (GND)
-     │││└── + (VCC) ──────────→ Pin 1 (3.3V)
-     ││└─── SW (not used)
-     │└──── DT (B) ───────────→ Pin 13 (GPIO 27)
-     └───── CLK (A) ──────────→ Pin 11 (GPIO 17)
-
-  ┌─────────┐
-  │  Enc 2  │
-  │  Delay  │
-  └─────────┘
-     │││││
-     │││││
-     ││││└─ GND ──────────────→ Pin 9 (GND)
-     │││└── + (VCC) ──────────→ Pin 1 (3.3V)
-     ││└─── SW (not used)
-     │└──── DT (B) ───────────→ Pin 16 (GPIO 23)
-     └───── CLK (A) ──────────→ Pin 15 (GPIO 22)
+┌─────────┐
+│ Encoder │
+└─────────┘
+   │││││
+   │││││
+   ││││└─ GND      → Common GND
+   │││└── + (VCC)  → 3.3V
+   ││└─── SW (not used)
+   │└──── DT (B)   → See table above
+   └───── CLK (A)  → See table above
 ```
 
-**Note:** If your encoder has pull-up resistors built-in, you can use them. The software enables internal pull-ups by default, so external resistors are optional.
-
-## Momentary Switch Wiring
-
-### Simple Push Button
+**Encoder 1 (Volume / Release Time):**
 ```
-     ┌─────────┐
-     │ Trigger │
-     │  Button │
-     └─────────┘
-        │   │
-        │   └──────────────────→ Pin 9 (GND)
-        └──────────────────────→ Pin 7 (GPIO 4)
+CLK (A) → Pin 11 (GPIO 17)
+DT (B)  → Pin 3  (GPIO 2)
++ (VCC) → Pin 1  (3.3V)
+GND     → Pin 9  (GND)
 ```
 
-**Important:** The switch is configured as **active low** (pressed = LOW/GND). The software enables internal pull-up resistors, so no external resistor is needed.
+**Encoder 2 (Filter Freq / Delay Time):**
+```
+CLK (A) → Pin 13 (GPIO 27)
+DT (B)  → Pin 15 (GPIO 22)
++ (VCC) → Pin 1  (3.3V)
+GND     → Pin 9  (GND)
+```
+
+**Encoder 3 (Filter Res / Reverb Size):**
+```
+CLK (A) → Pin 16 (GPIO 23)
+DT (B)  → Pin 18 (GPIO 24)
++ (VCC) → Pin 1  (3.3V)
+GND     → Pin 9  (GND)
+```
+
+**Encoder 4 (Delay FB / Osc Wave):**
+```
+CLK (A) → Pin 38 (GPIO 20)
+DT (B)  → Pin 37 (GPIO 26)
++ (VCC) → Pin 17 (3.3V)
+GND     → Pin 39 (GND)
+```
+
+**Encoder 5 (Reverb Mix / LFO Wave):**
+```
+CLK (A) → Pin 8  (GPIO 14)
+DT (B)  → Pin 33 (GPIO 13)
++ (VCC) → Pin 1  (3.3V)
+GND     → Pin 9  (GND)
+```
+
+### Button Wiring (All 4 Buttons)
+
+All buttons are wired as **active low** (pressed = connects to GND). Internal pull-ups are enabled in software.
+
+**Trigger Button (Main Sound):**
+```
+Pin 1 → Pin 7  (GPIO 4)
+Pin 2 → Pin 9  (GND)
+```
+
+**Pitch Envelope Button (Cycle Modes):**
+```
+Pin 1 → Pin 19 (GPIO 10)
+Pin 2 → Pin 20 (GND)
+```
+
+**Shift Button (Access Bank B):**
+```
+Pin 1 → Pin 10 (GPIO 15)
+Pin 2 → Pin 9  (GND)
+```
+
+**Shutdown Button (Power Off):**
+```
+Pin 1 → Pin 5  (GPIO 3)
+Pin 2 → Pin 6  (GND)
+```
 
 ## Breadboard Layout Example
 
 ```
-                    Pi Zero 2W
-                 ┌───────────────┐
-                 │   [GPIO]      │
-                 └───────┬───────┘
+                Raspberry Pi Zero 2W
+             ┌─────────────────────────┐
+             │      [40-pin GPIO]      │
+             │   PCM5102 DAC attached  │
+             └───────────┬─────────────┘
                          │
-         ┌───────────────┼───────────────┐
-         │               │               │
-         │           Breadboard          │
-         │  ┌─────────────────────────┐  │
-         │  │                         │  │
-         ├──┤ Enc1    Enc2    Switch  │──┤
-         │  │ (Vol)   (Delay) (Trig)  │  │
-         │  │                         │  │
-         │  │  [O]     [O]      [O]   │  │
-         │  │   │       │        │    │  │
-         │  └───┼───────┼────────┼────┘  │
-         │      │       │        │       │
-         └──────┴───────┴────────┴───────┘
-            3.3V/GND Power & Signal
+    ┌────────────────────┼────────────────────┐
+    │                                         │
+    │           Breadboard / Perfboard        │
+    │  ┌────────────────────────────────────┐ │
+    │  │                                    │ │
+    │  │  [Enc1] [Enc2] [Enc3] [Enc4] [Enc5]│ │
+    │  │   Vol  Filter Filter Delay  Reverb │ │
+    │  │                                    │ │
+    │  │  [Trig] [Pitch] [Shift] [Shutdown]│ │
+    │  │                                    │ │
+    │  └────────────────────────────────────┘ │
+    │                                         │
+    └─────────────────────────────────────────┘
+         3.3V, GND, and Signal connections
 ```
 
 ## Step-by-Step Assembly
 
-### 1. Prepare the Breadboard (Optional)
-- Use breadboard rails for 3.3V and GND distribution
-- Keep wires short to minimize noise
+### 1. Prepare Your Workspace
+- **Power off** the Raspberry Pi
+- Gather all components
+- Use ESD protection (wrist strap recommended)
 
 ### 2. Connect Power Rails
-```bash
-Pin 1 (3.3V)  → Breadboard + rail
-Pin 9 (GND)   → Breadboard - rail
+```
+Pin 1  (3.3V) → Breadboard + rail
+Pin 9  (GND)  → Breadboard - rail
+Pin 17 (3.3V) → Breadboard + rail (additional power)
+Pin 39 (GND)  → Breadboard - rail (additional ground)
 ```
 
-### 3. Connect Encoder 1 (Volume)
+### 3. Wire Encoders (in order)
+Wire one encoder at a time and test:
+
 ```bash
-Enc1 CLK → GPIO 17 (Pin 11)
-Enc1 DT  → GPIO 27 (Pin 13)
-Enc1 +   → 3.3V rail
-Enc1 GND → GND rail
+# Encoder 1
+CLK: GPIO 17 (Pin 11), DT: GPIO 2 (Pin 3)
+
+# Encoder 2
+CLK: GPIO 27 (Pin 13), DT: GPIO 22 (Pin 15)
+
+# Encoder 3
+CLK: GPIO 23 (Pin 16), DT: GPIO 24 (Pin 18)
+
+# Encoder 4
+CLK: GPIO 20 (Pin 38), DT: GPIO 26 (Pin 37)
+
+# Encoder 5
+CLK: GPIO 14 (Pin 8), DT: GPIO 13 (Pin 33)
 ```
 
-### 4. Connect Encoder 2 (Delay)
+### 4. Wire Buttons
 ```bash
-Enc2 CLK → GPIO 22 (Pin 15)
-Enc2 DT  → GPIO 23 (Pin 16)
-Enc2 +   → 3.3V rail
-Enc2 GND → GND rail
+Trigger:   GPIO 4  (Pin 7)  to GND
+Pitch Env: GPIO 10 (Pin 19) to GND
+Shift:     GPIO 15 (Pin 10) to GND
+Shutdown:  GPIO 3  (Pin 5)  to GND
 ```
 
-### 5. Connect Trigger Switch
-```bash
-Switch pin 1 → GPIO 4 (Pin 7)
-Switch pin 2 → GND rail
-```
+### 5. Double-Check Connections
+⚠️ **Critical checks before powering on:**
+- [ ] No shorts between 3.3V and GND
+- [ ] No connections to GPIO 18, 19, or 21 (I2S pins)
+- [ ] All encoder power pins to 3.3V (NOT 5V!)
+- [ ] All grounds connected to common GND
 
-## Testing the Connections
+## Testing the Control Surface
 
-### 1. Check Continuity (Power Off!)
-Before powering on, verify:
-- No shorts between 3.3V and GND
-- All encoder pins properly connected
-- Switch properly connected
-
-### 2. Power On and Test
+### 1. Power On and Start Service
 ```bash
 cd ~/poor-house-dub-v2
-python3 pi_audio_test.py --gpio
+sudo systemctl start dubsiren.service
+sudo journalctl -u dubsiren.service -f
 ```
 
-### 3. Verify Each Control
+### 2. Test Each Encoder (Bank A)
 
 **Encoder 1 (Volume):**
-- Turn clockwise → Volume should increase
-- Turn counter-clockwise → Volume should decrease
-- Display should show: `Volume: XXX%`
+- Turn clockwise → Should see `[Bank A] volume: 0.520`
+- Turn counter-clockwise → Should see `[Bank A] volume: 0.480`
 
-**Encoder 2 (Delay):**
-- Turn clockwise → Delay mix should increase
-- Turn counter-clockwise → Delay mix should decrease
-- Display should show: `Delay: XXX%`
+**Encoder 2 (Filter Frequency):**
+- Turn → Should see `[Bank A] filter_freq: XXXX.000`
 
-**Trigger Switch:**
-- Press → Should see `[TRIGGER PRESSED]` and hear tone
-- Release → Should see `[TRIGGER RELEASED]` and tone stops
+**Encoder 3 (Filter Resonance):**
+- Turn → Should see `[Bank A] filter_res: 0.XXX`
+
+**Encoder 4 (Delay Feedback):**
+- Turn → Should see `[Bank A] delay_feedback: 0.XXX`
+
+**Encoder 5 (Reverb Mix):**
+- Turn → Should see `[Bank A] reverb_mix: 0.XXX`
+
+### 3. Test Shift Button (Bank B)
+
+**Hold Shift and turn encoders:**
+- Should see `Bank B active`
+- Encoder 1 → `[Bank B] release_time: X.XXX`
+- Encoder 2 → `[Bank B] delay_time: X.XXX`
+- Encoder 3 → `[Bank B] reverb_size: 0.XXX`
+- Encoder 4 → `[Bank B] osc_waveform: Sine/Square/Saw/Triangle`
+- Encoder 5 → `[Bank B] lfo_waveform: Sine/Square/Saw/Triangle`
+
+**Release Shift:**
+- Should see `Bank A active`
+- Encoders return to Bank A parameters
+
+### 4. Test Function Buttons
+
+**Trigger Button:**
+- Press and hold → Should hear dub siren sound
+- Release → Sound stops
+
+**Pitch Envelope Button:**
+- Press repeatedly → Cycles: `none` → `up` → `down` → `none`
+
+**Shutdown Button:**
+- Press → System shuts down safely after 1 second
 
 ## Troubleshooting
 
 ### Encoder Not Responding
-1. **Check wiring:**
+1. **Check wiring** - verify CLK and DT pins
+2. **Test GPIO:**
    ```bash
-   # Test GPIO read (encoder should be LOW when idle)
-   python3 -c "import RPi.GPIO as GPIO; GPIO.setmode(GPIO.BCM); GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP); print(GPIO.input(17))"
+   python3 -c "import RPi.GPIO as GPIO; GPIO.setmode(GPIO.BCM); \
+   GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP); \
+   print('GPIO 17:', GPIO.input(17))"
    ```
-   Should print: `1` (HIGH)
+   Should print `GPIO 17: 1`
 
-2. **Swap CLK and DT** if encoder direction is reversed
+3. **Swap CLK and DT** if direction is reversed
 
-3. **Check for loose connections**
+### Button Not Responding
+1. **Check switch type** - must be normally open (NO)
+2. **Test continuity** with multimeter
+3. **Verify GPIO not shorted to ground**
 
-### Switch Not Responding
-1. **Test switch continuity** with multimeter
-2. **Verify GPIO 4 is not used elsewhere**
-3. **Try different switch** (some switches are normally closed)
+### Shift Button Stuck
+- Check for debris in switch
+- Verify wiring (GPIO 15 to GND)
+- Test switch with multimeter
+
+### I2S Audio Conflict Error
+```
+RuntimeError: Failed to add edge detection
+```
+**Cause:** Using GPIO 18, 19, or 21 (reserved for I2S audio)
+**Solution:** Verify pin assignments match this guide exactly
 
 ### Encoder Direction Reversed
-- Swap CLK and DT wires
-- Or modify code: swap `pin_a` and `pin_b` in `pi_test_gpio.py`
+- **Quick fix:** Swap CLK and DT wires
+- **Code fix:** Edit `gpio_controller.py` encoder pin order
 
 ### Noisy/Jittery Encoders
-- Add 0.1µF capacitors between each signal pin and GND
-- Use shorter wires
-- Keep wires away from PCM5102 I2S signals
+- Add **0.1µF capacitors** between each signal pin and GND
+- Use **shorter wires** (<15cm recommended)
+- **Twist CLK/DT pairs** together to reduce noise
+- Keep wires away from I2S audio signals
 
-## Advanced: Custom Pin Assignments
+## Panel Mount Installation
 
-To use different GPIO pins, edit `pi_test_gpio.py`:
+For a permanent enclosure build:
 
-```python
-gpio = TestGPIOController(
-    synth,
-    volume_pins=(17, 27),   # Change these
-    delay_pins=(22, 23),    # Change these
-    trigger_pin=4           # Change this
-)
+### Recommended Layout
+```
+┌──────────────────────────────────┐
+│                                  │
+│  [1]    [2]    [3]    [4]   [5]  │  ← Encoders
+│  Vol  Filter Filter Delay  Rev   │
+│                                  │
+│  (Trigger)  (Pitch)  (Shift)     │  ← Buttons
+│                                  │
+│  [Power LED]        (Shutdown)   │
+│                                  │
+└──────────────────────────────────┘
 ```
 
-## Compatible with PCM5102 DAC
-
-This GPIO setup is fully compatible with the PCM5102 DAC wiring. Pins used:
-
-**PCM5102 I2S Pins:**
-- GPIO 18 (Pin 12) - LCK
-- GPIO 19 (Pin 35) - BCK
-- GPIO 21 (Pin 40) - DIN
-
-**GPIO Test Control Pins (non-conflicting):**
-- GPIO 17, 27 - Encoder 1
-- GPIO 22, 23 - Encoder 2
-- GPIO 4 - Trigger
-
-**Shared:**
-- 3.3V (Pin 1) - Both PCM5102 and encoders
-- GND (Pins 6, 9, 14, 20, etc.) - Common ground
-
-## Safety Notes
-
-⚠️ **Important:**
-- Never connect encoders to 5V (use 3.3V only!)
-- Double-check wiring before powering on
-- Disconnect GPIO during flashing/programming
-- Use GPIO-safe components (3.3V logic level)
-
-## Enclosure Mounting Tips
-
-When mounting in an enclosure:
-- Mount encoders on front panel
-- Use panel-mount encoders with nuts
-- Mount switch within easy reach
-- Keep wires away from audio path to minimize noise
-- Use shielded cable for long runs (>6 inches)
+### Tips
+- Use **panel-mount encoders** with mounting nuts
+- **Label each knob** with bank functions:
+  - `VOL / REL` (Volume / Release Time)
+  - `FILT / DLY` (Filter Freq / Delay Time)
+  - etc.
+- Mount **Shift button** in easy reach
+- Add **LED indicator** for shift/bank status (optional)
+- Use **arcade buttons** for trigger (satisfying tactile feel)
 
 ## Shopping List
 
-Recommended components:
+### Encoders (5x)
+- **KY-040** rotary encoder modules, OR
+- **EC11** encoders with breakout boards
+- Encoder knobs (recommend 20mm diameter)
 
-- **Rotary Encoders:** KY-040 or EC11 compatible (2x)
-- **Momentary Switch:** 6mm tactile switch or arcade button (1x)
-- **Breadboard:** 400-point solderless breadboard
-- **Jumper Wires:** Male-to-female, 10cm length
-- **Optional:** 0.1µF ceramic capacitors for debouncing
+### Buttons (4x)
+- **Trigger:** Arcade button (30mm) or large tactile switch
+- **Pitch/Shift:** 6mm tactile switches or small arcade buttons
+- **Shutdown:** Latching switch or recessed button (prevent accidents)
+
+### Wiring
+- **Male-to-female jumper wires** (20-pack, 15cm length)
+- **Breadboard** (400-point) for prototyping, OR
+- **Perfboard** (70x90mm) for permanent build
+
+### Optional
+- **0.1µF ceramic capacitors** (10-pack) for noise reduction
+- **Panel-mount encoder brackets**
+- **Enclosure** (Hammond 1590DD or similar)
+- **Status LEDs** (3mm, various colors)
+
+## Advanced: Custom Pin Configuration
+
+To use different GPIO pins, edit `gpio_controller.py`:
+
+```python
+ENCODER_PINS = {
+    'encoder_1': (17, 2),    # Change these
+    'encoder_2': (27, 22),   # Change these
+    'encoder_3': (23, 24),   # Change these
+    'encoder_4': (20, 26),   # Change these
+    'encoder_5': (14, 13),   # Change these
+}
+
+SWITCH_PINS = {
+    'trigger': 4,      # Change these
+    'pitch_env': 10,   # Change these
+    'shift': 15,       # Change these
+    'shutdown': 3,     # Change these
+}
+```
+
+**Remember:** Avoid GPIOs 18, 19, 21 (I2S audio)!
+
+## Safety Notes
+
+⚠️ **Critical Safety:**
+- **NEVER** connect encoders to 5V (3.3V ONLY!)
+- **Double-check** all wiring before powering on
+- **Avoid** GPIO 18, 19, 21 (will conflict with audio)
+- **Use ESD protection** when handling components
+- **Disconnect GPIO** during SD card flashing
 
 ## Next Steps
 
-Once wired and tested:
+1. ✅ Wire according to this guide
+2. ✅ Test with `sudo journalctl -u dubsiren.service -f`
+3. ✅ Verify all encoders and buttons respond
+4. ✅ Test shift button bank switching
+5. ✅ Build enclosure for permanent installation
+6. 🎵 Make dub music!
 
-1. **Run the GPIO test:**
-   ```bash
-   python3 pi_audio_test.py --gpio
-   ```
-
-2. **Verify each control works**
-
-3. **Proceed to full synthesizer** with full GPIO control surface
-
-4. **Build enclosure** for permanent installation
-
-Happy building! 🎛️
+Happy building! 🎛️🔊

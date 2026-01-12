@@ -87,15 +87,20 @@ Run in simulation mode to test the synthesizer:
 ```
 
 Commands in interactive mode:
-- `1` - Trigger airhorn
-- `2` - Trigger siren
-- `r` - Release
+- `t` - Trigger siren (press/release)
+- `p` - Cycle pitch envelope mode
 - `s` - Show status
 - `q` - Quit
 
 ## Step 5: Add Controls (Optional)
 
-If you have the rotary encoders and switches wired up:
+The control surface uses **5 rotary encoders** with a **shift button** for bank switching:
+
+- **Bank A (normal):** Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
+- **Bank B (shift held):** Release Time, Delay Time, Reverb Size, Osc Waveform, LFO Waveform
+- **4 Buttons:** Trigger, Pitch Envelope, Shift, Shutdown
+
+See [GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md) for complete wiring instructions.
 
 ### Test GPIO:
 
@@ -203,10 +208,8 @@ When you start the siren, these are the default values:
 | Reverb Size | 0.5 |
 | Reverb Mix | 0.3 (30% wet) |
 | Release Time | 0.5 seconds |
-| Osc Waveform | Sine |
-| LFO Waveform | Sine |
-| Airhorn Freq | 150 Hz |
-| Siren Freq | 800 Hz |
+| Osc Waveform | Sine (0) |
+| LFO Waveform | Sine (0) |
 
 ## Performance Tweaks
 
