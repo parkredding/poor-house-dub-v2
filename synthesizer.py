@@ -1054,21 +1054,13 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # Apply pitch envelope using PRE-CALCULATED LOOKUP TABLE (fast!)
-        target_frequency = self._base_frequency_current
+        # PITCH ENVELOPE NOT FEASIBLE ON PI ZERO 2
+        # Even pre-calculated lookup tables cause pulsing
+        # The hardware can't handle frequency changes during audio generation
+        # Static pitch only - use encoder to change base frequency instead
         
-        if self._pitch_env_active and len(self._pitch_env_buffer) > 0:
-            # Look up frequency from pre-calculated buffer (just array indexing - very fast)
-            if self._pitch_env_index < len(self._pitch_env_buffer):
-                target_frequency = self._pitch_env_buffer[self._pitch_env_index]
-                self._pitch_env_index += num_samples
-            else:
-                # Envelope complete
-                self._pitch_env_active = False
-                target_frequency = self._base_frequency_current
-        
-        # Update oscillator frequency
-        self.oscillator.set_frequency(target_frequency)
+        # Update oscillator frequency (static - no pitch envelope)
+        self.oscillator.set_frequency(self._base_frequency_current)
         
         # Waveform selection (discrete switching)
         # Round to nearest integer for clean switching
