@@ -1079,8 +1079,8 @@ class DubSiren:
             num_samples = len(output)
             
             # Smooth reverb size parameter (prevents zipper noise)
-            size_smoothing = 0.005  # Smooth parameter changes
-            self._reverb_size_current += (self._reverb_size - self._reverb_size_current) * size_smoothing * num_samples
+            size_smoothing = 0.01  # Smooth parameter changes
+            self._reverb_size_current += (self._reverb_size - self._reverb_size_current) * size_smoothing
             
             for tap_idx, base_time in enumerate(self._reverb_times):
                 # Scale delay time by smoothed size parameter
