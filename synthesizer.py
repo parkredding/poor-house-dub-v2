@@ -272,9 +272,17 @@ class Envelope:
         self.is_active = False
         self.is_releasing = False
         self.release_level = 0.0
+        self.current_level = 0.0  # Track current envelope output for smooth retriggering
+        self.attack_start_level = 0.0  # Level to start attack from (for soft retrigger)
 
     def trigger(self):
-        """Trigger the envelope"""
+        """Trigger the envelope with soft retriggering to prevent pops"""
+        # If already active, capture current level for smooth retrigger
+        if self.is_active:
+            self.attack_start_level = self.current_level
+        else:
+            self.attack_start_level = 0.0
+
         self.current_sample = 0
         self.is_active = True
         self.is_releasing = False
@@ -300,6 +308,7 @@ class Envelope:
     def generate(self, num_samples: int) -> np.ndarray:
         """Generate envelope values"""
         if not self.is_active:
+            self.current_level = 0.0
             return np.zeros(num_samples)
 
         output = np.zeros(num_samples)
@@ -320,9 +329,13 @@ class Envelope:
                     self.is_active = False
                     self.is_releasing = False
             else:
-                # Attack phase
+                # Attack phase - interpolate from attack_start_level to 1.0
                 if self.current_sample < attack_samples:
-                    output[i] = self.current_sample / attack_samples
+                    if attack_samples > 0:
+                        progress = self.current_sample / attack_samples
+                        output[i] = self.attack_start_level + (1.0 - self.attack_start_level) * progress
+                    else:
+                        output[i] = 1.0
                 # Decay phase
                 elif self.current_sample < attack_samples + decay_samples:
                     progress = (self.current_sample - attack_samples) / decay_samples
@@ -332,6 +345,9 @@ class Envelope:
                     output[i] = self.sustain
 
                 self.current_sample += 1
+
+            # Track current level for smooth retriggering
+            self.current_level = output[i]
 
         return output
 
