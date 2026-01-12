@@ -1016,20 +1016,29 @@ class DubSiren:
         self.oscillator.waveform = 'square'
         raw_buffer = self.oscillator.generate(num_samples)
 
-        # Simple inline one-pole low-pass filter
-        # Calculate coefficient once per buffer (not per sample)
-        cutoff = self.filter.cutoff
-        cutoff = max(20.0, min(cutoff, 20000.0))
-        # One-pole coefficient: alpha = 1 - e^(-2*pi*fc/fs)
-        alpha = 1.0 - np.exp(-2.0 * np.pi * cutoff / self.sample_rate)
+        # Generate LFO modulation for entire buffer
+        lfo_signal = self.lfo.generate(num_samples)
+        
+        # Base filter settings
+        base_cutoff = self.filter.cutoff
+        base_cutoff = max(200.0, min(base_cutoff, 3500.0))
 
-        # Sample-by-sample envelope and filtering
+        # Sample-by-sample envelope and filtering with LFO
         for i in range(num_samples):
             # === Envelope ===
             self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
             env = self.envelope.current_value
 
-            # === Simple one-pole filter ===
+            # === LFO modulated filter ===
+            # LFO modulates filter cutoff: ±1 octave around base
+            lfo_mod = lfo_signal[i]
+            cutoff = base_cutoff * (2.0 ** lfo_mod)  # Exponential for musical intervals
+            cutoff = max(100.0, min(cutoff, 5000.0))
+            
+            # Calculate filter coefficient per sample (needed for LFO modulation)
+            alpha = 1.0 - np.exp(-2.0 * np.pi * cutoff / self.sample_rate)
+            
+            # Simple one-pole filter
             self._simple_filter_state += alpha * (raw_buffer[i] - self._simple_filter_state)
             filtered_sample = self._simple_filter_state
 
