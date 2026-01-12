@@ -912,7 +912,7 @@ class DubSiren:
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
         self._delay_write_pos = 0
         self._delay_time = 0.3  # seconds
-        self._delay_feedback = 0.0  # TEMP: Test with zero feedback
+        self._delay_feedback = 0.4  # Multiple fading repeats
         self._delay_mix = 0.5
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
@@ -929,10 +929,6 @@ class DubSiren:
         
         # Simple one-pole filter state (stable, no pulsing)
         self._simple_filter_state = 0.0
-        
-        # Diagnostics
-        self._buffer_count = 0
-        self._last_log_time = 0.0
 
     def trigger(self):
         """Trigger sound at current base_frequency"""
@@ -1043,8 +1039,8 @@ class DubSiren:
             # Read delayed samples
             delayed_output = self._delay_buffer[read_positions]
             
-            # Write to buffer (without feedback for now)
-            self._delay_buffer[write_positions] = output
+            # Write to buffer WITH feedback (creates multiple fading repeats)
+            self._delay_buffer[write_positions] = output + delayed_output * self._delay_feedback
             
             # Update write position
             self._delay_write_pos = (self._delay_write_pos + num_samples) % buffer_len
@@ -1054,20 +1050,6 @@ class DubSiren:
 
         # === Volume ===
         output = output * self.volume
-
-        # Diagnostics
-        self._buffer_count += 1
-        if self._buffer_count % 100 == 0:
-            current_time = time.time()
-            if current_time - self._last_log_time >= 2.0:
-                # Measure different stages
-                pre_delay_rms = np.sqrt(np.mean((raw_buffer * self.envelope.current_value)**2))
-                output_rms = np.sqrt(np.mean(output**2))
-                print(f"[DEBUG] env={self.envelope.current_value:.4f}, "
-                      f"filter_state={self._simple_filter_state:.4f}, "
-                      f"pre_delay_rms={pre_delay_rms:.4f}, "
-                      f"output_rms={output_rms:.4f}")
-                self._last_log_time = current_time
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)
