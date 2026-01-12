@@ -980,38 +980,73 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer with filter - matches reference implementation
+        """Generate audio buffer - matches reference implementation
 
-        Signal chain (like reference):
-        Oscillator → Filter → (× Envelope) → DC Blocker → Volume
-
-        This keeps filter stable by always processing signal, then gates with envelope
+        Sample-by-sample processing like reference dub siren:
+        1. Calculate envelope value
+        2. Generate raw oscillator
+        3. Process through state variable filter (raw signal)
+        4. Multiply filtered output by envelope
+        5. DC blocker
+        6. Volume
         """
-        with self._env_lock:
-            env = self.envelope.generate(num_samples)
+        output = np.zeros(num_samples, dtype=np.float32)
 
-        # Generate raw oscillator
-        audio = self.oscillator.generate(num_samples)
+        # Get envelope state
+        env_target = 1.0 if self.envelope.is_active else 0.0
+        env_coeff = self.envelope.attack_coeff if self.envelope.is_active else self.envelope.release_coeff
 
-        # Filter BEFORE envelope (like reference code)
-        # Filter always sees raw signal, stays stable
-        audio = self.filter.process(audio)
+        # State variable filter state (persistent across buffers)
+        # Initialize if needed
+        if not hasattr(self, 'filt_low'):
+            self.filt_low = 0.0
+            self.filt_band = 0.0
 
-        # THEN apply envelope (gates the filtered signal)
-        audio = audio * env
+        # Sample-by-sample processing (like reference)
+        for i in range(num_samples):
+            # === Envelope ===
+            self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
+            env = self.envelope.current_value
 
-        # DC blocker removes any DC offset
-        audio = self.dc_blocker.process(audio)
+            # === Oscillator ===
+            # Generate one sample of square wave
+            self.oscillator.phase += self.oscillator.frequency / self.sample_rate
+            if self.oscillator.phase >= 1.0:
+                self.oscillator.phase -= 1.0
+            raw = 1.0 if self.oscillator.phase < 0.5 else -1.0
 
-        # Volume
-        audio = audio * self.volume
+            # === State Variable Filter (processes RAW oscillator) ===
+            # Filter cutoff (using current filter settings)
+            fc = self.filter.cutoff_current
+            fc = max(100.0, min(fc, 3500.0))  # Clamp like reference
 
-        # Basic NaN protection only
-        if not np.all(np.isfinite(audio)):
-            self._nan_events += 1
-            audio = sanitize_audio(audio)
+            # Calculate filter coefficient
+            f = 2.0 * np.sin(np.pi * fc / self.sample_rate)
+            q = 0.15  # Fixed Q like reference
 
-        return np.clip(audio, -1.0, 1.0)
+            # State variable filter algorithm (Chamberlin)
+            self.filt_low += f * self.filt_band
+            high = raw - self.filt_low - (q * self.filt_band)
+            self.filt_band += f * high
+
+            # NaN protection
+            if not (np.isfinite(self.filt_low) and np.isfinite(self.filt_band)):
+                self.filt_low = 0.0
+                self.filt_band = 0.0
+
+            # THEN apply envelope to filtered signal (like reference)
+            voice = self.filt_low * env
+
+            # === DC Blocker ===
+            dc_out = voice - self.dc_blocker.x_prev + self.dc_blocker.coeff * self.dc_blocker.y_prev
+            self.dc_blocker.x_prev = voice
+            self.dc_blocker.y_prev = dc_out
+
+            # === Volume ===
+            output[i] = dc_out * self.volume
+
+        # Final clipping
+        return np.clip(output, -1.0, 1.0)
 
     # Control setters
     def set_volume(self, volume: float):
