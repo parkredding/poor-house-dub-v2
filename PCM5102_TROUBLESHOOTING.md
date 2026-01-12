@@ -168,6 +168,23 @@ sudo reboot
 3. **I2S pins not connected properly**
    - Solution: Verify LCK→Pin 12, BCK→Pin 35, DIN→Pin 40
 
+### Issue: "Hearing audio on ground wire" or "Audio without PCM5102 powered"
+**Cause:** Pi's onboard audio is still enabled and bleeding signal through ground
+**This means you're NOT hearing the I2S DAC!**
+**Solution:**
+1. Run the disable script:
+   ```bash
+   cd ~/poor-house-dub-v2
+   ./disable_onboard_audio.sh
+   sudo reboot
+   ```
+2. Verify onboard audio is disabled:
+   ```bash
+   grep "dtparam=audio" /boot/firmware/config.txt  # Should show: audio=off
+   lsmod | grep snd_bcm2835  # Should be empty (driver not loaded)
+   ```
+3. After reboot, connect headphones to PCM5102 output pins (not Pi's jack)
+
 ### Issue: "Crackling or distorted audio"
 **Cause:** Poor power supply or loose connections
 **Solution:**
