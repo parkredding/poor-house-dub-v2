@@ -912,7 +912,7 @@ class DubSiren:
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
         self._delay_write_pos = 0
         self._delay_time = 0.3  # seconds
-        self._delay_feedback = 0.4
+        self._delay_feedback = 0.0  # TEMP: Test with zero feedback
         self._delay_mix = 0.5
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
