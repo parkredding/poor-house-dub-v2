@@ -267,13 +267,15 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.release_time = 0.05  # 50ms decay time (like reference code)
+        self.release_time = 0.05  # 50ms perceived decay time to silence
         self.current_value = 0.0
         self.is_active = False
 
-        # Envelope coefficients (like reference code)
+        # Envelope coefficients
         self.attack_coeff = 0.1  # Fast attack
-        self.release_coeff = 1.0 / (self.release_time * sample_rate)
+        # Scale release coefficient for perceived decay time (4.605 = -ln(0.01))
+        decay_scale = 4.605
+        self.release_coeff = decay_scale / (self.release_time * sample_rate)
 
     def trigger(self):
         """Trigger the envelope"""
@@ -313,14 +315,19 @@ class Envelope:
         """Set release time in seconds (0.001 to 5.0)
 
         Args:
-            release_time: Decay time in seconds. Clamped to safe range.
-                         0.001 = very fast (1ms)
-                         5.0 = very slow (5 seconds)
+            release_time: Perceived decay time in seconds. Clamped to safe range.
+                         0.001 = very fast (1ms to silence)
+                         5.0 = very slow (5 seconds to silence)
+
+        Note: Uses exponential decay scaling factor (4.605) so that release_time
+              represents the actual time to reach 99% decay (perceived silence).
         """
         self.release_time = max(0.001, min(release_time, 5.0))
-        # Update coefficient to match new release time
-        self.release_coeff = 1.0 / (self.release_time * self.sample_rate)
-        self.release_coeff = 1.0 / (self.release_time * self.sample_rate)
+        # Scale coefficient so release_time represents time to 99% decay
+        # Exponential decay: time to 1% = -ln(0.01) × τ ≈ 4.605 × τ
+        # Therefore: τ = release_time / 4.605
+        decay_scale = 4.605
+        self.release_coeff = decay_scale / (self.release_time * self.sample_rate)
 
 
 class LowPassFilter:
