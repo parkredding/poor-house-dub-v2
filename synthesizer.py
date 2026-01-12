@@ -1005,13 +1005,15 @@ class DubSiren:
         audio = audio * env
         audio = audio * self.volume
 
-        # Add noise floor to prevent PCM5102 DAC auto-mute click
-        # PCM5102 has hardware auto-mute that engages when signal is very quiet
-        # Noise floor at -60dB keeps DAC active without being audible
-        # Using triangular dither (TPDF) for better psychoacoustic masking
-        dither1 = np.random.uniform(-0.001, 0.001, num_samples)
-        dither2 = np.random.uniform(-0.001, 0.001, num_samples)
-        dither = (dither1 + dither2) / 2.0  # TPDF has better spectral properties
+        # Add dither to prevent int16 quantization click
+        # ROOT CAUSE: ALSA converts float audio to int16 by: int16 = float × 32767
+        # Our envelope reaches 0.000001, which becomes: 0.000001 × 32767 = 0.03
+        # This rounds to 0 in int16, creating the click we've been chasing!
+        #
+        # Solution: Add dither > 1 LSB (Least Significant Bit)
+        # 1 LSB in 16-bit = 1/32767 = 0.00003 ≈ -90dB
+        # Using -85dB dither: quiet enough to be inaudible, loud enough to survive quantization
+        dither = np.random.uniform(-0.00006, 0.00006, num_samples)
         audio = audio + dither
 
         # Basic NaN protection only
