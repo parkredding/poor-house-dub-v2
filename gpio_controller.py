@@ -246,8 +246,8 @@ class ControlSurface:
 
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
-        'encoder_1': 'attack',          # TEMP: Testing envelope attack
-        'encoder_2': 'release',         # TEMP: Testing envelope release
+        'encoder_1': 'delay_time',      # TEMP: Testing delay
+        'encoder_2': 'delay_feedback',  # TEMP: Testing delay
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -561,15 +561,14 @@ class ControlSurface:
         self.synth.lfo.frequency = self.param_values['lfo_rate']
         self.synth._waveform_morph = self.param_values['waveform_morph']
         # Pitch envelope not feasible on Pi Zero 2 - use pitch encoder instead
-        print(f"Attack control: encoder_1 (starting at {self.param_values['attack']*1000:.1f}ms)")
-        print(f"Release control: encoder_2 (starting at {self.param_values['release']*1000:.1f}ms)")
-        print(f"Pitch Envelope: NOT FEASIBLE (Pi Zero 2 can't handle frequency modulation)")
+        print(f"Delay Time: encoder_1 (starting at {self.param_values['delay_time']*1000:.0f}ms)")
+        print(f"Delay Feedback: encoder_2 (starting at {self.param_values['delay_feedback']:.2f})")
+        print(f"Delay Mix: {self.param_values['delay_mix']:.2f} (30% wet)")
+        print(f"Attack/Release locked: {self.param_values['attack']*1000:.0f}ms / {self.param_values['release']*1000:.0f}ms")
         print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
               f"rate={self.param_values['lfo_rate']:.1f}Hz")
         print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
               f"mix={self.param_values['reverb_mix']:.2f}")
-        print(f"Delay locked: time={self.param_values['delay_time']:.2f}s, "
-              f"feedback={self.param_values['delay_feedback']:.2f}")
         print(f"Waveform locked: {self.param_values['waveform_morph']:.1f} (0=sine, 1=square, 2=saw, 3=triangle)")
         
         print("Control surface started")
