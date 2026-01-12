@@ -1100,25 +1100,25 @@ class DubSiren:
         # Vectorized alpha calculation (much faster than per-sample)
         alpha_array = 1.0 - np.exp(-2.0 * np.pi * cutoff_array / self.sample_rate)
 
-        # OPTIMIZED: Vectorized envelope generation (eliminates loop overhead)
-        env_buffer = np.zeros(num_samples, dtype=np.float32)
-        current_env = self.envelope.current_value
+        # Sample-by-sample envelope and filtering (stable, no pulsing)
         for i in range(num_samples):
-            current_env += (env_target - current_env) * env_coeff
-            env_buffer[i] = current_env
-        self.envelope.current_value = current_env
+            # === Envelope ===
+            self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
+            env = self.envelope.current_value
 
-        # OPTIMIZED: Vectorized filter processing (still need loop for state, but faster)
-        filtered_buffer = np.zeros(num_samples, dtype=np.float32)
-        filter_state = self._simple_filter_state
-        for i in range(num_samples):
-            filter_state += alpha_array[i] * (raw_buffer[i] - filter_state)
-            filtered_buffer[i] = filter_state
-        self._simple_filter_state = filter_state
+            # === LFO modulated filter ===
+            # Use pre-calculated alpha from array
+            alpha = alpha_array[i]
+            
+            # Simple one-pole filter
+            self._simple_filter_state += alpha * (raw_buffer[i] - self._simple_filter_state)
+            filtered_sample = self._simple_filter_state
 
-        # Apply envelope with hard gate (vectorized)
-        output = filtered_buffer * env_buffer
-        output[env_buffer < 0.001] = 0.0
+            # Apply envelope with hard gate at very low levels (prevents delay noise)
+            if env < 0.001:
+                output[i] = 0.0
+            else:
+                output[i] = filtered_sample * env
 
         # === Analog-Style Delay (smooth time changes with pitch shifting) ===
         if self._delay_mix > 0.001:
