@@ -310,8 +310,16 @@ class Envelope:
         return output
 
     def set_release(self, release_time: float):
-        """Set release time in seconds"""
-        self.release_time = max(0.001, min(release_time, 10.0))
+        """Set release time in seconds (0.001 to 5.0)
+
+        Args:
+            release_time: Decay time in seconds. Clamped to safe range.
+                         0.001 = very fast (1ms)
+                         5.0 = very slow (5 seconds)
+        """
+        self.release_time = max(0.001, min(release_time, 5.0))
+        # Update coefficient to match new release time
+        self.release_coeff = 1.0 / (self.release_time * self.sample_rate)
         self.release_coeff = 1.0 / (self.release_time * self.sample_rate)
 
 
