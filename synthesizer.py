@@ -930,14 +930,12 @@ class DubSiren:
         # Waveform morphing
         self._waveform_morph = 0.0  # 0.0=sine, 1.0=square, 2.0=saw, 3.0=triangle
 
-        # Pitch envelope (for siren effects)
+        # Pitch envelope (for siren effects) - PRE-CALCULATED LOOKUP TABLE
         self._pitch_env_mode = 'none'  # 'none', 'up', 'down'
-        self._pitch_env_time = 1.0  # Duration of pitch sweep (seconds)
         self._pitch_env_range = 2.0  # Octaves to sweep (2.0 = 2 octaves)
-        self._pitch_env_position = 0.0  # Current position in envelope (0.0 to 1.0)
         self._pitch_env_active = False  # Is pitch envelope currently running?
-        self._pitch_env_target_freq = 440.0  # Target frequency (smoothed)
-        self._pitch_env_current_freq = 440.0  # Current frequency (smoothed)
+        self._pitch_env_buffer = np.array([])  # Pre-calculated frequency curve
+        self._pitch_env_index = 0  # Current sample index in buffer
 
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
@@ -977,24 +975,28 @@ class DubSiren:
         with self._env_lock:
             self.oscillator.set_frequency(self.base_frequency)
             self.envelope.trigger()
-            # Pitch envelope will start on release
+            # Pitch envelope will start on release (pre-calculated)
             self._pitch_env_active = False
-            self._pitch_env_position = 0.0
-            # Initialize smoothed frequency to base
-            self._pitch_env_target_freq = self.base_frequency
-            self._pitch_env_current_freq = self.base_frequency
+            self._pitch_env_index = 0
 
     def release(self):
-        """Release sound - start pitch envelope sweep"""
+        """Release sound - pre-calculate pitch envelope curve"""
         with self._env_lock:
             self.envelope.release_trigger()
             
-            # Start pitch envelope on release (sweeps during decay)
+            # Pre-calculate pitch envelope curve on release (fast lookup during audio gen)
             if self._pitch_env_mode != 'none':
-                self._pitch_env_position = 0.0
+                # Calculate total samples needed for pitch envelope
+                total_samples = int(self.envelope.release_time * self.sample_rate)
+                
+                # Pre-calculate the entire frequency curve (linear interpolation)
+                start_freq = self.base_frequency
+                end_freq = self.base_frequency * 4.0  # 2 octaves up
+                
+                # Create smooth frequency ramp
+                self._pitch_env_buffer = np.linspace(start_freq, end_freq, total_samples, dtype=np.float32)
+                self._pitch_env_index = 0
                 self._pitch_env_active = True
-                # Match pitch envelope duration to release time for synchronization
-                self._pitch_env_time = self.envelope.release_time
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -1052,12 +1054,21 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # PITCH ENVELOPE DISABLED - Pi Zero 2 can't handle real-time pitch calculations
-        # Even simple linear interpolation causes pulsing on single-core hardware
-        # Would need Pi 4 or pre-calculated lookup table approach
+        # Apply pitch envelope using PRE-CALCULATED LOOKUP TABLE (fast!)
+        target_frequency = self._base_frequency_current
         
-        # Update oscillator frequency (no pitch envelope)
-        self.oscillator.set_frequency(self._base_frequency_current)
+        if self._pitch_env_active and len(self._pitch_env_buffer) > 0:
+            # Look up frequency from pre-calculated buffer (just array indexing - very fast)
+            if self._pitch_env_index < len(self._pitch_env_buffer):
+                target_frequency = self._pitch_env_buffer[self._pitch_env_index]
+                self._pitch_env_index += num_samples
+            else:
+                # Envelope complete
+                self._pitch_env_active = False
+                target_frequency = self._base_frequency_current
+        
+        # Update oscillator frequency
+        self.oscillator.set_frequency(target_frequency)
         
         # Waveform selection (discrete switching)
         # Round to nearest integer for clean switching
