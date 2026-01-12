@@ -221,6 +221,10 @@ class Oscillator:
         if waveform in ['sine', 'square', 'saw', 'triangle']:
             self.waveform = waveform
 
+    def reset_phase(self):
+        """Reset oscillator phase to zero (for clean restarts and preventing clicks)"""
+        self.phase = 0.0
+
 
 class LFO:
     """Low Frequency Oscillator for modulation"""
@@ -259,85 +263,71 @@ class LFO:
 
 
 class Envelope:
-    """ADSR Envelope Generator"""
+    """Simple exponential envelope - matches reference dub siren implementation"""
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        # Gating envelope tuned to avoid pops: fast attack, short decay, moderate sustain, long release
-        self.attack = 0.01
-        self.decay = 0.01
-        self.sustain = 0.7
-        self.release = 1.5
-        self.current_sample = 0
+        self.release_time = 0.05  # 50ms perceived decay time to silence
+        self.current_value = 0.0
         self.is_active = False
-        self.is_releasing = False
-        self.release_level = 0.0
+
+        # Envelope coefficients
+        self.attack_coeff = 0.1  # Fast attack
+        # Scale release coefficient for perceived decay time (4.605 = -ln(0.01))
+        decay_scale = 4.605
+        self.release_coeff = decay_scale / (self.release_time * sample_rate)
 
     def trigger(self):
         """Trigger the envelope"""
-        self.current_sample = 0
         self.is_active = True
-        self.is_releasing = False
 
     def release_trigger(self):
         """Release the envelope"""
-        if self.is_active:
-            self.is_releasing = True
-            # Capture current level for smooth release
-            attack_samples = int(self.attack * self.sample_rate)
-            decay_samples = int(self.decay * self.sample_rate)
-
-            if self.current_sample < attack_samples:
-                self.release_level = self.current_sample / attack_samples
-            elif self.current_sample < attack_samples + decay_samples:
-                progress = (self.current_sample - attack_samples) / decay_samples
-                self.release_level = 1.0 - (1.0 - self.sustain) * progress
-            else:
-                self.release_level = self.sustain
-
-            self.current_sample = 0
+        # In this simple model, release just sets is_active = False
+        # The envelope will decay to zero asymptotically
+        self.is_active = False
 
     def generate(self, num_samples: int) -> np.ndarray:
-        """Generate envelope values"""
-        if not self.is_active:
-            return np.zeros(num_samples)
+        """Generate envelope values using exponential approach to target
 
+        This matches the reference implementation:
+        env += (env_target - env) * env_coeff
+        """
         output = np.zeros(num_samples)
 
-        attack_samples = int(self.attack * self.sample_rate)
-        decay_samples = int(self.decay * self.sample_rate)
-        release_samples = int(self.release * self.sample_rate)
-
         for i in range(num_samples):
-            if self.is_releasing:
-                # Release phase
-                if self.current_sample < release_samples:
-                    progress = self.current_sample / release_samples
-                    output[i] = self.release_level * (1.0 - progress)
-                    self.current_sample += 1
-                else:
-                    output[i] = 0.0
-                    self.is_active = False
-                    self.is_releasing = False
+            if self.is_active:
+                # Attack: approach 1.0
+                env_target = 1.0
+                env_coeff = self.attack_coeff
             else:
-                # Attack phase
-                if self.current_sample < attack_samples:
-                    output[i] = self.current_sample / attack_samples
-                # Decay phase
-                elif self.current_sample < attack_samples + decay_samples:
-                    progress = (self.current_sample - attack_samples) / decay_samples
-                    output[i] = 1.0 - (1.0 - self.sustain) * progress
-                # Sustain phase
-                else:
-                    output[i] = self.sustain
+                # Release: approach 0.0
+                env_target = 0.0
+                env_coeff = self.release_coeff
 
-                self.current_sample += 1
+            # Exponential approach to target (first-order filter)
+            self.current_value += (env_target - self.current_value) * env_coeff
+            output[i] = self.current_value
 
         return output
 
     def set_release(self, release_time: float):
-        """Set release time in seconds"""
-        self.release = max(0.001, min(release_time, 10.0))
+        """Set release time in seconds (0.001 to 5.0)
+
+        Args:
+            release_time: Perceived decay time in seconds. Clamped to safe range.
+                         0.001 = very fast (1ms to silence)
+                         5.0 = very slow (5 seconds to silence)
+
+        Note: Uses exponential decay scaling factor (4.605) so that release_time
+              represents the actual time to reach 99% decay (perceived silence).
+        """
+        self.release_time = max(0.001, min(release_time, 5.0))
+        # Scale coefficient so release_time represents time to 99% decay
+        # Exponential decay: time to 1% = -ln(0.01) × τ ≈ 4.605 × τ
+        # Therefore: τ = release_time / 4.605
+        decay_scale = 4.605
+        self.release_coeff = decay_scale / (self.release_time * self.sample_rate)
 
 
 class LowPassFilter:
@@ -392,6 +382,10 @@ class LowPassFilter:
     def set_resonance(self, res: float):
         """Set filter resonance / Q value (0.1 to 20, matches browser test range)"""
         self.resonance = max(0.1, min(res, 20.0))
+
+    def reset(self):
+        """Reset filter state to prevent buildup and self-oscillation"""
+        self.prev_output = 0.0
 
 
 class DCBlocker:
@@ -986,26 +980,73 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer with NaN prevention
+        """Generate audio buffer - matches reference implementation
 
-        All DSP components (filters, delay, reverb) use internal state and buffer
-        clamping to prevent values from growing unbounded. This makes NaN impossible
-        under normal operation, ensuring audio always respects volume control.
+        Sample-by-sample processing like reference dub siren:
+        1. Calculate envelope value
+        2. Generate raw oscillator
+        3. Process through state variable filter (raw signal)
+        4. Multiply filtered output by envelope
+        5. DC blocker
+        6. Volume
         """
-        # No pitch envelope or FX for now; re-enable envelope gating
-        with self._env_lock:
-            env = self.envelope.generate(num_samples)
-        audio = self.oscillator.generate(num_samples)
-        audio = audio * env
+        output = np.zeros(num_samples, dtype=np.float32)
 
-        # Dry path: skip filter/delay/reverb; apply volume
-        audio = audio * self.volume
+        # Get envelope state
+        env_target = 1.0 if self.envelope.is_active else 0.0
+        env_coeff = self.envelope.attack_coeff if self.envelope.is_active else self.envelope.release_coeff
 
-        if not np.all(np.isfinite(audio)):
-            self._nan_events += 1
-            audio = sanitize_audio(audio)
+        # State variable filter state (persistent across buffers)
+        # Initialize if needed
+        if not hasattr(self, 'filt_low'):
+            self.filt_low = 0.0
+            self.filt_band = 0.0
 
-        return np.clip(audio, -1.0, 1.0)
+        # Sample-by-sample processing (like reference)
+        for i in range(num_samples):
+            # === Envelope ===
+            self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
+            env = self.envelope.current_value
+
+            # === Oscillator ===
+            # Generate one sample of square wave
+            self.oscillator.phase += self.oscillator.frequency / self.sample_rate
+            if self.oscillator.phase >= 1.0:
+                self.oscillator.phase -= 1.0
+            raw = 1.0 if self.oscillator.phase < 0.5 else -1.0
+
+            # === State Variable Filter (processes RAW oscillator) ===
+            # Filter cutoff (using current filter settings)
+            fc = self.filter.cutoff_current
+            fc = max(100.0, min(fc, 3500.0))  # Clamp like reference
+
+            # Calculate filter coefficient
+            f = 2.0 * np.sin(np.pi * fc / self.sample_rate)
+            q = 0.15  # Fixed Q like reference
+
+            # State variable filter algorithm (Chamberlin)
+            self.filt_low += f * self.filt_band
+            high = raw - self.filt_low - (q * self.filt_band)
+            self.filt_band += f * high
+
+            # NaN protection
+            if not (np.isfinite(self.filt_low) and np.isfinite(self.filt_band)):
+                self.filt_low = 0.0
+                self.filt_band = 0.0
+
+            # THEN apply envelope to filtered signal (like reference)
+            voice = self.filt_low * env
+
+            # === DC Blocker ===
+            dc_out = voice - self.dc_blocker.x_prev + self.dc_blocker.coeff * self.dc_blocker.y_prev
+            self.dc_blocker.x_prev = voice
+            self.dc_blocker.y_prev = dc_out
+
+            # === Volume ===
+            output[i] = dc_out * self.volume
+
+        # Final clipping
+        return np.clip(output, -1.0, 1.0)
 
     # Control setters
     def set_volume(self, volume: float):
