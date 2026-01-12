@@ -1015,39 +1015,20 @@ class DubSiren:
         # Update oscillator frequency with smoothed value
         self.oscillator.set_frequency(self._base_frequency_current)
         
-        # Waveform morphing: pre-generate all waveforms and blend
-        phase_start = self.oscillator.phase
+        # Waveform selection (discrete - Pi Zero 2 can't handle morphing)
+        # Round to nearest integer for clean switching
+        morph_index = int(round(self._waveform_morph))
         
-        # Generate all 4 waveforms (phase-coherent)
-        self.oscillator.waveform = 'sine'
-        wave_sine = self.oscillator.generate(num_samples)
-        
-        self.oscillator.phase = phase_start
-        self.oscillator.waveform = 'square'
-        wave_square = self.oscillator.generate(num_samples)
-        
-        self.oscillator.phase = phase_start
-        self.oscillator.waveform = 'saw'
-        wave_saw = self.oscillator.generate(num_samples)
-        
-        self.oscillator.phase = phase_start
-        self.oscillator.waveform = 'triangle'
-        wave_triangle = self.oscillator.generate(num_samples)
-        
-        # Blend between waveforms based on morph parameter
-        morph = np.clip(self._waveform_morph, 0.0, 3.0)
-        
-        if morph < 1.0:
-            # Blend sine → square
-            raw_buffer = wave_sine * (1.0 - morph) + wave_square * morph
-        elif morph < 2.0:
-            # Blend square → saw
-            blend = morph - 1.0
-            raw_buffer = wave_square * (1.0 - blend) + wave_saw * blend
+        if morph_index == 0:
+            self.oscillator.waveform = 'sine'
+        elif morph_index == 1:
+            self.oscillator.waveform = 'square'
+        elif morph_index == 2:
+            self.oscillator.waveform = 'saw'
         else:
-            # Blend saw → triangle
-            blend = morph - 2.0
-            raw_buffer = wave_saw * (1.0 - blend) + wave_triangle * blend
+            self.oscillator.waveform = 'triangle'
+        
+        raw_buffer = self.oscillator.generate(num_samples)
 
         # Generate LFO modulation for entire buffer
         lfo_signal = self.lfo.generate(num_samples)
