@@ -312,26 +312,19 @@ class Envelope:
         decay_samples = int(self.decay * self.sample_rate)
         release_samples = int(self.release * self.sample_rate)
 
-        # Add tail-out period: envelope gets very quiet but doesn't instantly cut
-        tail_samples = 960  # ~20ms at 48kHz - hold at near-zero before final cutoff
-
         for i in range(num_samples):
             if self.is_releasing:
-                # Release phase - LINEAR to 5% of release_level
-                if self.current_sample < release_samples:
-                    progress = self.current_sample / release_samples
-                    # Only decay to 5% of release level, not to zero
-                    output[i] = self.release_level * (1.0 - 0.95 * progress)
-                    self.current_sample += 1
-                # Tail-out phase - hold at 5% for a bit, then final fade
-                elif self.current_sample < release_samples + tail_samples:
-                    tail_progress = (self.current_sample - release_samples) / tail_samples
-                    # Fade from 5% to 0% over tail period
-                    output[i] = self.release_level * 0.05 * (1.0 - tail_progress)
-                    self.current_sample += 1
-                else:
-                    # Release complete
-                    output[i] = 0.0
+                # Release phase - EXPONENTIAL decay that asymptotically approaches zero
+                # Never actually outputs zero to avoid discontinuity
+                progress = min(self.current_sample / release_samples, 0.9999)
+                # Use steep exponential curve: (1-x)^6 creates very fast decay
+                decay = (1.0 - progress) ** 6
+                output[i] = self.release_level * decay
+                self.current_sample += 1
+
+                # When extremely quiet, clamp to tiny value and mark inactive
+                if output[i] < 0.000001:
+                    output[i] = 0.000001  # Never truly zero - asymptotic approach
                     self.is_active = False
                     self.is_releasing = False
             else:
