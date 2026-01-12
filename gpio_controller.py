@@ -309,8 +309,8 @@ class ControlSurface:
         try:
             self.switches['trigger'] = MomentarySwitch(
                 self.SWITCH_PINS['trigger'],
-                press_callback=self.synth.trigger,
-                release_callback=self.synth.release
+                press_callback=self._trigger_press,
+                release_callback=self._trigger_release
             )
             print(f"  ✓ trigger button initialized (GPIO {self.SWITCH_PINS['trigger']})")
         except Exception as e:
@@ -358,6 +358,16 @@ class ControlSurface:
         """Cycle through pitch envelope modes and log the change"""
         new_mode = self.synth.cycle_pitch_envelope()
         print(f"Pitch envelope: {new_mode}")
+
+    def _trigger_press(self):
+        """Log trigger press and fire synth"""
+        print("Trigger: PRESSED")
+        self.synth.trigger()
+
+    def _trigger_release(self):
+        """Log trigger release and stop synth"""
+        print("Trigger: RELEASED")
+        self.synth.release()
 
     def _shift_press(self):
         """Handle shift button press - switch to Bank B"""
