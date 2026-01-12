@@ -972,15 +972,14 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer - matches reference implementation
+        """Generate audio buffer with stable filtering
 
-        Sample-by-sample processing like reference dub siren:
-        1. Calculate envelope value
-        2. Generate raw oscillator
-        3. Process through state variable filter (raw signal)
-        4. Multiply filtered output by envelope
-        5. DC blocker
-        6. Volume
+        Processing chain:
+        1. Generate anti-aliased oscillator (PolyBLEP square wave)
+        2. Process through stable one-pole low-pass filter
+        3. Apply envelope
+        4. DC blocker
+        5. Volume control
         """
         output = np.zeros(num_samples, dtype=np.float32)
 
@@ -988,29 +987,21 @@ class DubSiren:
         env_target = 1.0 if self.envelope.is_active else 0.0
         env_coeff = self.envelope.attack_coeff if self.envelope.is_active else self.envelope.release_coeff
 
-        # State variable filter state (persistent across buffers)
-        # Initialize if needed
-        if not hasattr(self, 'filt_low'):
-            self.filt_low = 0.0
-            self.filt_band = 0.0
-
         # Generate anti-aliased square wave using PolyBLEP
-        # This prevents aliasing artifacts that cause filter instability
         self.oscillator.waveform = 'square'
         raw_buffer = self.oscillator.generate(num_samples)
 
-        # Sample-by-sample processing (like reference)
+        # Process through stable low-pass filter (vectorized)
+        filtered = self.filter.process(raw_buffer)
+
+        # Sample-by-sample envelope, DC blocking, and volume
         for i in range(num_samples):
             # === Envelope ===
             self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
             env = self.envelope.current_value
 
-            # === Oscillator ===
-            raw = raw_buffer[i]
-
-            # TEMPORARY: Bypass filter to test if it's causing pulsing
-            # Just apply envelope directly to raw oscillator
-            voice = raw * env
+            # Apply envelope to filtered signal
+            voice = filtered[i] * env
 
             # === DC Blocker ===
             dc_out = voice - self.dc_blocker.x_prev + self.dc_blocker.coeff * self.dc_blocker.y_prev
