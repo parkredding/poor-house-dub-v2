@@ -918,7 +918,8 @@ class DubSiren:
         self._delay_slew_rate = 0.02  # Analog-style smooth ramping
         
         # Simple reverb (multiple short delays for spatial effect)
-        self._reverb_size = 0.5  # 0.0 to 1.0
+        self._reverb_size = 0.5  # 0.0 to 1.0 (target)
+        self._reverb_size_current = 0.5  # Smoothed current value
         self._reverb_mix = 0.35  # 0.0 to 1.0
         # Multiple delay lines for early reflections and diffusion
         self._reverb_times = [0.029, 0.037, 0.041, 0.043, 0.053, 0.061]  # seconds
@@ -1077,9 +1078,13 @@ class DubSiren:
             reverb_output = np.zeros_like(output)
             num_samples = len(output)
             
+            # Smooth reverb size parameter (prevents zipper noise)
+            size_smoothing = 0.005  # Smooth parameter changes
+            self._reverb_size_current += (self._reverb_size - self._reverb_size_current) * size_smoothing * num_samples
+            
             for tap_idx, base_time in enumerate(self._reverb_times):
-                # Scale delay time by size parameter
-                delay_time = base_time * (0.5 + self._reverb_size * 0.5)  # 0.5x to 1.0x
+                # Scale delay time by smoothed size parameter
+                delay_time = base_time * (0.5 + self._reverb_size_current * 0.5)  # 0.5x to 1.0x
                 delay_samples = int(delay_time * self.sample_rate)
                 
                 buffer = self._reverb_buffers[tap_idx]
