@@ -1007,13 +1007,9 @@ class DubSiren:
             # Apply envelope to filtered signal
             voice = filtered[i] * env
 
-            # === DC Blocker ===
-            dc_out = voice - self.dc_blocker.x_prev + self.dc_blocker.coeff * self.dc_blocker.y_prev
-            self.dc_blocker.x_prev = voice
-            self.dc_blocker.y_prev = dc_out
-
+            # TEMP: Bypass DC blocker to test if it's causing pulsing
             # === Volume ===
-            output[i] = dc_out * self.volume
+            output[i] = voice * self.volume
 
         # Diagnostic logging
         self._buffer_count += 1
