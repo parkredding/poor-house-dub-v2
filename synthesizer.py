@@ -263,89 +263,56 @@ class LFO:
 
 
 class Envelope:
-    """ADSR Envelope Generator - MINIMAL VERSION FOR DEBUGGING"""
+    """Simple exponential envelope - matches reference dub siren implementation"""
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        # Simple linear envelope
-        self.attack = 0.01
-        self.decay = 0.01
-        self.sustain = 0.7
-        self.release = 1.5
-        self.current_sample = 0
+        self.release_time = 0.05  # 50ms decay time (like reference code)
+        self.current_value = 0.0
         self.is_active = False
-        self.is_releasing = False
-        self.release_level = 0.0
+
+        # Envelope coefficients (like reference code)
+        self.attack_coeff = 0.1  # Fast attack
+        self.release_coeff = 1.0 / (self.release_time * sample_rate)
 
     def trigger(self):
-        """Trigger the envelope - SIMPLE VERSION"""
-        self.current_sample = 0
+        """Trigger the envelope"""
         self.is_active = True
-        self.is_releasing = False
 
     def release_trigger(self):
-        """Release the envelope - SIMPLE VERSION"""
-        if self.is_active:
-            self.is_releasing = True
-            # Capture current level for release
-            attack_samples = int(self.attack * self.sample_rate)
-            decay_samples = int(self.decay * self.sample_rate)
-
-            if self.current_sample < attack_samples:
-                self.release_level = self.current_sample / attack_samples
-            elif self.current_sample < attack_samples + decay_samples:
-                progress = (self.current_sample - attack_samples) / decay_samples
-                self.release_level = 1.0 - (1.0 - self.sustain) * progress
-            else:
-                self.release_level = self.sustain
-
-            self.current_sample = 0
+        """Release the envelope"""
+        # In this simple model, release just sets is_active = False
+        # The envelope will decay to zero asymptotically
+        self.is_active = False
 
     def generate(self, num_samples: int) -> np.ndarray:
-        """Generate envelope values - SIMPLE LINEAR VERSION"""
-        if not self.is_active:
-            return np.zeros(num_samples)
+        """Generate envelope values using exponential approach to target
 
+        This matches the reference implementation:
+        env += (env_target - env) * env_coeff
+        """
         output = np.zeros(num_samples)
 
-        attack_samples = int(self.attack * self.sample_rate)
-        decay_samples = int(self.decay * self.sample_rate)
-        release_samples = int(self.release * self.sample_rate)
-
         for i in range(num_samples):
-            if self.is_releasing:
-                # Release phase - EXPONENTIAL decay that asymptotically approaches zero
-                # Never actually outputs zero to avoid discontinuity
-                progress = min(self.current_sample / release_samples, 0.9999)
-                # Use steep exponential curve: (1-x)^6 creates very fast decay
-                decay = (1.0 - progress) ** 6
-                output[i] = self.release_level * decay
-                self.current_sample += 1
-
-                # When extremely quiet, clamp to tiny value and mark inactive
-                if output[i] < 0.000001:
-                    output[i] = 0.000001  # Never truly zero - asymptotic approach
-                    self.is_active = False
-                    self.is_releasing = False
+            if self.is_active:
+                # Attack: approach 1.0
+                env_target = 1.0
+                env_coeff = self.attack_coeff
             else:
-                # Attack phase - SIMPLE LINEAR
-                if self.current_sample < attack_samples:
-                    output[i] = self.current_sample / attack_samples
-                # Decay phase
-                elif self.current_sample < attack_samples + decay_samples:
-                    progress = (self.current_sample - attack_samples) / decay_samples
-                    output[i] = 1.0 - (1.0 - self.sustain) * progress
-                # Sustain phase
-                else:
-                    output[i] = self.sustain
+                # Release: approach 0.0
+                env_target = 0.0
+                env_coeff = self.release_coeff
 
-                self.current_sample += 1
+            # Exponential approach to target (first-order filter)
+            self.current_value += (env_target - self.current_value) * env_coeff
+            output[i] = self.current_value
 
         return output
 
     def set_release(self, release_time: float):
         """Set release time in seconds"""
-        self.release = max(0.001, min(release_time, 10.0))
+        self.release_time = max(0.001, min(release_time, 10.0))
+        self.release_coeff = 1.0 / (self.release_time * self.sample_rate)
 
 
 class LowPassFilter:
