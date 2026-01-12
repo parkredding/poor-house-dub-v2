@@ -111,7 +111,7 @@ class MomentarySwitch:
         pin: int,
         press_callback: Optional[Callable[[], None]] = None,
         release_callback: Optional[Callable[[], None]] = None,
-        debounce_ms: int = 15
+        debounce_ms: int = 10
     ):
         self.pin = pin
         self.press_callback = press_callback
@@ -159,7 +159,7 @@ class MomentarySwitch:
         """Polling loop for button state (runs in separate thread)"""
         while self.running:
             self._handle_event(None)
-            time.sleep(0.005)  # Faster poll for better responsiveness
+            time.sleep(0.003)  # Faster poll for better responsiveness
 
     def _handle_event(self, channel):
         """Handle button press/release events with software debouncing"""
@@ -261,17 +261,20 @@ class ControlSurface:
         self.running = False
         self.shift_pressed = False    # Track shift button state
         self.current_bank = 'A'       # Current bank (A or B)
+        self._trigger_min_gate = 0.08  # seconds minimum gate time
+        self._last_trigger_press = 0.0
+        self._pending_trigger_release = None
 
         # Parameter ranges for all parameters (both banks)
         self.param_values = {
             # Bank A parameters
             'volume': 0.9,              # Start loud
             'filter_freq': 12000.0,     # Start bright
-            'filter_res': 0.2,          # Lower Q by default
+            'filter_res': 0.1,          # Lower Q by default
             'delay_feedback': 0.0,      # Start dry
             'reverb_mix': 0.0,          # Start dry
             # Bank B parameters
-            'release_time': 0.5,        # 0.001 to 5.0 seconds
+            'release_time': 0.8,        # 0.001 to 5.0 seconds (longer sustain)
             'delay_time': 0.5,          # 0.001 to 2.0 seconds
             'reverb_size': 0.5,         # 0.0 to 1.0
             'osc_waveform': 0,          # 0 to 3 (discrete)
@@ -362,12 +365,28 @@ class ControlSurface:
     def _trigger_press(self):
         """Log trigger press and fire synth"""
         print("Trigger: PRESSED")
+        self._last_trigger_press = time.time()
+        if self._pending_trigger_release:
+            self._pending_trigger_release.cancel()
+            self._pending_trigger_release = None
         self.synth.trigger()
 
     def _trigger_release(self):
         """Log trigger release and stop synth"""
         print("Trigger: RELEASED")
-        self.synth.release()
+        elapsed = time.time() - self._last_trigger_press
+        remaining = self._trigger_min_gate - elapsed
+        if remaining > 0:
+            # Delay release to enforce minimum gate time
+            try:
+                import threading
+                self._pending_trigger_release = threading.Timer(remaining, self.synth.release)
+                self._pending_trigger_release.start()
+            except Exception:
+                time.sleep(remaining)
+                self.synth.release()
+        else:
+            self.synth.release()
 
     def _shift_press(self):
         """Handle shift button press - switch to Bank B"""
