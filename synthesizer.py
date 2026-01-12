@@ -901,6 +901,7 @@ class DubSiren:
         self.oscillator = Oscillator(sample_rate)
         self.lfo = LFO(sample_rate)
         self.envelope = Envelope(sample_rate)
+        self._env_lock = threading.Lock()
         self.filter = LowPassFilter(sample_rate)
         self.delay = DelayEffect(sample_rate)
         self.reverb = ReverbEffect(sample_rate)
@@ -927,12 +928,14 @@ class DubSiren:
 
     def trigger(self):
         """Trigger sound at current base_frequency"""
-        self.oscillator.set_frequency(self.base_frequency)
-        self.envelope.trigger()
+        with self._env_lock:
+            self.oscillator.set_frequency(self.base_frequency)
+            self.envelope.trigger()
 
     def release(self):
         """Release sound (pitch envelope will be applied during generate_audio)"""
-        self.envelope.release_trigger()
+        with self._env_lock:
+            self.envelope.release_trigger()
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -990,10 +993,9 @@ class DubSiren:
         under normal operation, ensuring audio always respects volume control.
         """
         # No pitch envelope or FX for now; re-enable envelope gating
+        with self._env_lock:
+            env = self.envelope.generate(num_samples)
         audio = self.oscillator.generate(num_samples)
-
-        # Apply amplitude envelope for gating
-        env = self.envelope.generate(num_samples)
         audio = audio * env
 
         # Dry path: skip filter/delay/reverb; keep DC blocker to tame tail offset
