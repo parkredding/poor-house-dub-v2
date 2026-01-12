@@ -912,13 +912,13 @@ class DubSiren:
         # Frequency control
         self.base_frequency = 800.0  # Browser preset siren frequency
 
-        # LFO defaults (browser-style wobble for siren)
+        # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
         self.lfo.frequency = 4.0
-        self.lfo.depth = 0.6
+        self.lfo.depth = 0.0  # disable wobble by default
 
         # Pitch envelope: 'none', 'up', 'down'
-        self.pitch_envelope = 'up'
+        self.pitch_envelope = 'none'
         self._pitch_env_modes = ['none', 'up', 'down']
 
         # NaN protection monitoring
@@ -988,30 +988,22 @@ class DubSiren:
         clamping to prevent values from growing unbounded. This makes NaN impossible
         under normal operation, ensuring audio always respects volume control.
         """
-        # Apply pitch envelope during release phase
-        # Uses current base_frequency so manual frequency changes affect pitch in real-time
+        # Apply pitch envelope during release phase if enabled
         if self.envelope.is_releasing and self.pitch_envelope != 'none':
             release_samples = int(self.envelope.release * self.sample_rate)
             if release_samples > 0:
                 progress = min(1.0, self.envelope.current_sample / release_samples)
                 if self.pitch_envelope == 'up':
-                    # Sweep up 2 octaves (multiply by 4)
                     freq_mult = 1.0 + (3.0 * progress)  # 1.0 to 4.0
                 elif self.pitch_envelope == 'down':
-                    # Sweep down 2 octaves (divide by 4)
                     freq_mult = 1.0 - (0.75 * progress)  # 1.0 to 0.25
                 else:
                     freq_mult = 1.0
-                # Apply envelope as multiplier on current base_frequency for real-time control
                 self.oscillator.set_frequency(self.base_frequency * freq_mult)
+            else:
+                self.oscillator.set_frequency(self.base_frequency)
 
         # Generate oscillator output
-        # Apply simple pitch LFO: modulate oscillator frequency around base_frequency
-        lfo_signal = self.lfo.generate(num_samples)
-        # Use mean LFO value over the buffer to adjust pitch smoothly
-        lfo_mod = 1.0 + 0.5 * float(np.mean(lfo_signal))  # +/-50% depth scaled by LFO depth
-        self.oscillator.set_frequency(max(20.0, min(20000.0, self.base_frequency * lfo_mod)))
-
         audio = self.oscillator.generate(num_samples)
 
         # Apply envelope

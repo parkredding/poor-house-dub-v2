@@ -121,7 +121,8 @@ class MomentarySwitch:
         self.use_polling = False
         self.poll_thread = None
         self.running = True
-        self.last_event_time = 0
+        self._last_state = GPIO.HIGH if GPIO_AVAILABLE else True
+        self._last_change = time.time()
 
         if GPIO_AVAILABLE:
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -163,27 +164,27 @@ class MomentarySwitch:
 
     def _handle_event(self, channel):
         """Handle button press/release events with software debouncing"""
-        # Software debouncing for polling mode
-        if self.use_polling:
-            current_time = time.time()
-            if current_time - self.last_event_time < (self.debounce_ms / 1000.0):
-                return
-
         state = GPIO.input(self.pin)
+
+        # Stable-state debounce for polling mode
+        if self.use_polling:
+            now = time.time()
+            if state != self._last_state:
+                self._last_state = state
+                self._last_change = now
+                return
+            if now - self._last_change < (self.debounce_ms / 1000.0):
+                return
 
         # Button is active low (pressed when pin reads 0)
         if state == GPIO.LOW and not self.is_pressed:
             # Button pressed
             self.is_pressed = True
-            if self.use_polling:
-                self.last_event_time = time.time()
             if self.press_callback:
                 self.press_callback()
         elif state == GPIO.HIGH and self.is_pressed:
             # Button released
             self.is_pressed = False
-            if self.use_polling:
-                self.last_event_time = time.time()
             if self.release_callback:
                 self.release_callback()
 
