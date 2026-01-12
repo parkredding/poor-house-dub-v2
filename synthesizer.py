@@ -264,9 +264,9 @@ class Envelope:
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
         self.attack = 0.0    # seconds (snappy)
-        self.decay = 0.02    # seconds (short decay)
+        self.decay = 0.01    # seconds (very short decay)
         self.sustain = 1.0   # level (hold full level)
-        self.release = 0.4   # seconds (longer tail)
+        self.release = 0.2   # seconds (shorter tail for responsiveness)
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -348,14 +348,14 @@ class LowPassFilter:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.cutoff = 12000.0  # Hz (brighter default)
-        self.cutoff_current = 12000.0  # Current smoothed value
-        self.resonance = 0.3  # Q value (less peaky by default)
-        self.resonance_current = 0.3  # Current smoothed value
+        self.cutoff = 20000.0  # Hz (fully open by default)
+        self.cutoff_current = 20000.0  # Current smoothed value
+        self.resonance = 0.1  # Q value (very low peaking by default)
+        self.resonance_current = 0.1  # Current smoothed value
         self.prev_output = 0.0
         # Smoothing coefficient: larger = smoother but slower response
-        # 0.001 = smooth over ~1ms, good balance for real-time control
-        self.smoothing = 0.001
+        # Increase slightly for responsiveness to encoder moves
+        self.smoothing = 0.01
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
         """Process audio through the filter with state clamping to prevent NaN"""

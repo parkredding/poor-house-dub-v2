@@ -267,7 +267,7 @@ class ControlSurface:
         self.param_values = {
             # Bank A parameters
             'volume': 1.0,              # Start loudest
-            'filter_freq': 18000.0,     # Start very bright
+            'filter_freq': 20000.0,     # Start fully open
             'filter_res': 0.1,          # Low Q by default
             'delay_feedback': 0.0,      # Start dry
             'reverb_mix': 0.0,          # Start dry
