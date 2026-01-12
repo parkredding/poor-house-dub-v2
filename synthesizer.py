@@ -263,10 +263,10 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.attack = 0.01   # seconds (matches browser test default)
-        self.decay = 0.1     # seconds
-        self.sustain = 0.7   # level (0.0 to 1.0)
-        self.release = 0.3   # seconds (matches browser test default)
+        self.attack = 0.0    # seconds (snappy)
+        self.decay = 0.02    # seconds (short decay)
+        self.sustain = 1.0   # level (hold full level)
+        self.release = 0.4   # seconds (longer tail)
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -906,7 +906,7 @@ class DubSiren:
         self.dc_blocker = DCBlocker()  # Removes DC offset before output
 
         # Control parameters (match browser test defaults)
-        self.volume = 0.9  # Start louder for clearer response
+        self.volume = 1.0  # Start loudest for clearer response
         self.is_running = False
 
         # Frequency control
