@@ -563,7 +563,7 @@ class ControlSurface:
         self.synth.set_pitch_envelope('up')  # TEMP: Testing pitch envelope UP
         print(f"Attack control: encoder_1 (starting at {self.param_values['attack']*1000:.1f}ms)")
         print(f"Release control: encoder_2 (starting at {self.param_values['release']*1000:.1f}ms)")
-        print(f"Pitch Envelope: UP (2 octaves, 1.0s sweep) - TESTING")
+        print(f"Pitch Envelope: UP (2 octaves during RELEASE) - Turn up release time to hear it!")
         print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
               f"rate={self.param_values['lfo_rate']:.1f}Hz")
         print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "

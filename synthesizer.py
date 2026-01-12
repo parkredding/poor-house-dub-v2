@@ -972,21 +972,25 @@ class DubSiren:
         self._simple_filter_state = 0.0
 
     def trigger(self):
-        """Trigger sound - start pitch envelope on trigger"""
+        """Trigger sound - steady pitch during press"""
         with self._env_lock:
             self.oscillator.set_frequency(self.base_frequency)
             self.envelope.trigger()
+            # Pitch envelope will start on release
+            self._pitch_env_active = False
+            self._pitch_env_position = 0.0
+
+    def release(self):
+        """Release sound - start pitch envelope sweep"""
+        with self._env_lock:
+            self.envelope.release_trigger()
             
-            # Start pitch envelope on trigger (sweeps during the sound)
+            # Start pitch envelope on release (sweeps during decay)
             if self._pitch_env_mode != 'none':
                 self._pitch_env_position = 0.0
                 self._pitch_env_active = True
-
-    def release(self):
-        """Release sound"""
-        with self._env_lock:
-            self.envelope.release_trigger()
-            # Pitch envelope continues running if active
+                # Match pitch envelope duration to release time for synchronization
+                self._pitch_env_time = self.envelope.release_time
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
