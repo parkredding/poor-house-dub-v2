@@ -1021,13 +1021,24 @@ class DubSiren:
         with self._env_lock:
             env = self.envelope.generate(num_samples)
         audio = self.oscillator.generate(num_samples)
+
+        # Apply envelope to audio
         audio = audio * env
+
+        # Apply final audio-level gate when envelope is very quiet to ensure smooth zero crossing
+        # This prevents clicks from oscillator being at arbitrary phase when envelope ends
+        gate_threshold = 0.01  # When envelope is below this, apply additional smoothing
+        for i in range(len(env)):
+            if 0.0 < env[i] < gate_threshold:
+                # Envelope is very quiet - apply additional exponential smoothing
+                gate_amount = (env[i] / gate_threshold) ** 2  # Quadratic curve for smooth tail
+                audio[i] *= gate_amount
 
         # If envelope just became inactive, reset oscillator phase to prevent clicks on next trigger
         if was_active and not self.envelope.is_active:
             self.oscillator.reset_phase()
 
-        # Apply DC blocker to remove clicks and pops from envelope discontinuities
+        # Apply DC blocker to remove any remaining DC offset
         audio = self.dc_blocker.process(audio)
 
         # Dry path: skip filter/delay/reverb; apply volume
