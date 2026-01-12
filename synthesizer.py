@@ -936,6 +936,7 @@ class DubSiren:
         self._pitch_env_range = 2.0  # Octaves to sweep (2.0 = 2 octaves)
         self._pitch_env_position = 0.0  # Current position in envelope (0.0 to 1.0)
         self._pitch_env_active = False  # Is pitch envelope currently running?
+        self._pitch_env_frequency = 440.0  # Current pitch envelope frequency (smoothed)
 
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
@@ -971,23 +972,21 @@ class DubSiren:
         self._simple_filter_state = 0.0
 
     def trigger(self):
-        """Trigger sound at current base_frequency"""
+        """Trigger sound - start pitch envelope on trigger"""
         with self._env_lock:
             self.oscillator.set_frequency(self.base_frequency)
             self.envelope.trigger()
-            # Reset pitch envelope (will start on release)
-            self._pitch_env_active = False
-            self._pitch_env_position = 0.0
-
-    def release(self):
-        """Release sound - start pitch envelope if enabled"""
-        with self._env_lock:
-            self.envelope.release_trigger()
             
-            # Start pitch envelope on release
+            # Start pitch envelope on trigger (sweeps during the sound)
             if self._pitch_env_mode != 'none':
                 self._pitch_env_position = 0.0
                 self._pitch_env_active = True
+
+    def release(self):
+        """Release sound"""
+        with self._env_lock:
+            self.envelope.release_trigger()
+            # Pitch envelope continues running if active
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -1045,8 +1044,7 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # Apply pitch envelope if active (simple, no expensive exponentials)
-        target_frequency = self._base_frequency_current
+        # Apply pitch envelope if active (with smooth frequency transitions)
         if self._pitch_env_active:
             # Calculate pitch envelope position (0.0 to 1.0)
             samples_per_env = self._pitch_env_time * self.sample_rate
@@ -1060,21 +1058,24 @@ class DubSiren:
                 self._pitch_env_position = 1.0
                 self._pitch_env_active = False  # Envelope complete
             
-            # Calculate frequency using simple log-linear interpolation
+            # Calculate target frequency using simple log-linear interpolation
             position = self._pitch_env_position  # Already clamped above
             
             if self._pitch_env_mode == 'up':
                 # Start low, sweep up to base frequency
                 octave_shift = -self._pitch_env_range * (1.0 - position)
-                target_frequency = self._base_frequency_current * (2.0 ** octave_shift)
+                self._pitch_env_frequency = self._base_frequency_current * (2.0 ** octave_shift)
                 
             elif self._pitch_env_mode == 'down':
                 # Start high, sweep down to base frequency
                 octave_shift = self._pitch_env_range * (1.0 - position)
-                target_frequency = self._base_frequency_current * (2.0 ** octave_shift)
+                self._pitch_env_frequency = self._base_frequency_current * (2.0 ** octave_shift)
+        else:
+            # No pitch envelope - use base frequency
+            self._pitch_env_frequency = self._base_frequency_current
 
-        # Update oscillator frequency with pitch envelope applied
-        self.oscillator.set_frequency(target_frequency)
+        # Update oscillator frequency (already smooth from pitch smoothing above)
+        self.oscillator.set_frequency(self._pitch_env_frequency)
         
         # Waveform selection (discrete switching)
         # Round to nearest integer for clean switching
