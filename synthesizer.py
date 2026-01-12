@@ -227,7 +227,7 @@ class Oscillator:
 
 
 class LFO:
-    """Low Frequency Oscillator for modulation - OPTIMIZED with lookup table"""
+    """Low Frequency Oscillator for modulation"""
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
@@ -235,32 +235,24 @@ class LFO:
         self.phase = 0.0
         self.waveform: WaveformType = 'sine'
         self.depth = 0.0  # 0.0 to 1.0 (matches browser test default)
-        
-        # Pre-calculated sine wave lookup table (one cycle, 1024 samples)
-        self._table_size = 1024
-        self._sine_table = np.sin(2 * np.pi * np.arange(self._table_size) / self._table_size).astype(np.float32)
 
     def generate(self, num_samples: int) -> np.ndarray:
-        """Generate LFO modulation signal - OPTIMIZED with lookup table"""
+        """Generate LFO modulation signal"""
+        t = (np.arange(num_samples) + self.phase) / self.sample_rate
+
         if self.waveform == 'sine':
-            # Use pre-calculated lookup table (much faster than np.sin)
-            phase_increment = self.frequency * self._table_size / self.sample_rate
-            indices = (self.phase + np.arange(num_samples) * phase_increment) % self._table_size
-            output = self._sine_table[indices.astype(int)]
-            self.phase = (self.phase + num_samples * phase_increment) % self._table_size
+            output = np.sin(2 * np.pi * self.frequency * t)
+        elif self.waveform == 'square':
+            output = np.sign(np.sin(2 * np.pi * self.frequency * t))
+        elif self.waveform == 'saw':
+            output = 2 * (t * self.frequency - np.floor(0.5 + t * self.frequency))
+        elif self.waveform == 'triangle':
+            output = 2 * np.abs(2 * (t * self.frequency - np.floor(0.5 + t * self.frequency))) - 1
         else:
-            # Other waveforms (rarely used, keep simple implementation)
-            t = (np.arange(num_samples) + self.phase) / self.sample_rate
-            if self.waveform == 'square':
-                output = np.sign(self._sine_table[((t * self.frequency * self._table_size) % self._table_size).astype(int)])
-            elif self.waveform == 'saw':
-                output = 2 * (t * self.frequency - np.floor(0.5 + t * self.frequency))
-            elif self.waveform == 'triangle':
-                output = 2 * np.abs(2 * (t * self.frequency - np.floor(0.5 + t * self.frequency))) - 1
-            else:
-                output = np.zeros(num_samples)
-            self.phase += num_samples
-            self.phase = self.phase % self.sample_rate
+            output = np.zeros(num_samples)
+
+        self.phase += num_samples
+        self.phase = self.phase % self.sample_rate
 
         return output * self.depth
 
