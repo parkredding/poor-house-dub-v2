@@ -919,14 +919,21 @@ class DubSiren:
         # NaN protection monitoring
         self._nan_events = 0  # Count of NaN occurrences for debugging
 
+        # Thread safety: protect envelope state from race conditions
+        # trigger()/release() called from GPIO thread
+        # generate_audio() called from audio callback thread
+        self._envelope_lock = threading.Lock()
+
     def trigger(self):
         """Trigger sound at current base_frequency"""
-        self.oscillator.set_frequency(self.base_frequency)
-        self.envelope.trigger()
+        with self._envelope_lock:
+            self.oscillator.set_frequency(self.base_frequency)
+            self.envelope.trigger()
 
     def release(self):
         """Release sound (pitch envelope will be applied during generate_audio)"""
-        self.envelope.release_trigger()
+        with self._envelope_lock:
+            self.envelope.release_trigger()
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -1008,8 +1015,9 @@ class DubSiren:
         # Modulate oscillator frequency (this is a simplified approach)
         # In a real-time system, you'd apply this per-sample
 
-        # Apply envelope
-        env = self.envelope.generate(num_samples)
+        # Apply envelope (protected by lock to prevent race conditions)
+        with self._envelope_lock:
+            env = self.envelope.generate(num_samples)
         audio = audio * env
 
         # Apply filter (state clamping prevents instability)
