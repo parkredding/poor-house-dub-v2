@@ -246,7 +246,7 @@ class ControlSurface:
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
         'encoder_1': 'volume',
-        'encoder_2': 'pitch_freq',  # TEMP: Testing pitch oscillator
+        'encoder_2': 'filter_freq',  # Low-pass filter cutoff
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
