@@ -910,10 +910,15 @@ class DubSiren:
         self.is_running = False
 
         # Frequency control
-        self.base_frequency = 440.0  # Current trigger frequency
+        self.base_frequency = 800.0  # Browser preset siren frequency
+
+        # LFO defaults (browser-style wobble for siren)
+        self.lfo.set_waveform('sine')
+        self.lfo.frequency = 4.0
+        self.lfo.depth = 0.6
 
         # Pitch envelope: 'none', 'up', 'down'
-        self.pitch_envelope = 'none'
+        self.pitch_envelope = 'up'
         self._pitch_env_modes = ['none', 'up', 'down']
 
         # NaN protection monitoring
@@ -1001,12 +1006,13 @@ class DubSiren:
                 self.oscillator.set_frequency(self.base_frequency * freq_mult)
 
         # Generate oscillator output
-        audio = self.oscillator.generate(num_samples)
-
-        # Apply LFO modulation to frequency
+        # Apply simple pitch LFO: modulate oscillator frequency around base_frequency
         lfo_signal = self.lfo.generate(num_samples)
-        # Modulate oscillator frequency (this is a simplified approach)
-        # In a real-time system, you'd apply this per-sample
+        # Use mean LFO value over the buffer to adjust pitch smoothly
+        lfo_mod = 1.0 + 0.5 * float(np.mean(lfo_signal))  # +/-50% depth scaled by LFO depth
+        self.oscillator.set_frequency(max(20.0, min(20000.0, self.base_frequency * lfo_mod)))
+
+        audio = self.oscillator.generate(num_samples)
 
         # Apply envelope
         env = self.envelope.generate(num_samples)
