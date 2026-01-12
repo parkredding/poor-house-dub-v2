@@ -221,6 +221,10 @@ class Oscillator:
         if waveform in ['sine', 'square', 'saw', 'triangle']:
             self.waveform = waveform
 
+    def reset_phase(self):
+        """Reset oscillator phase to zero (for clean restarts and preventing clicks)"""
+        self.phase = 0.0
+
 
 class LFO:
     """Low Frequency Oscillator for modulation"""
@@ -268,14 +272,12 @@ class Envelope:
         self.decay = 0.01
         self.sustain = 0.7
         self.release = 1.5
-        self.tail_time = 0.02  # 20ms exponential tail-out to ensure clean zero crossing
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
         self.release_level = 0.0
         self.current_level = 0.0  # Track current envelope output for smooth retriggering
         self.attack_start_level = 0.0  # Level to start attack from (for soft retrigger)
-        self.is_tail = False  # Flag for final tail-out phase
 
     def trigger(self):
         """Trigger the envelope with soft retriggering to prevent pops"""
@@ -288,7 +290,6 @@ class Envelope:
         self.current_sample = 0
         self.is_active = True
         self.is_releasing = False
-        self.is_tail = False
 
     def release_trigger(self):
         """Release the envelope"""
@@ -309,7 +310,7 @@ class Envelope:
             self.current_sample = 0
 
     def generate(self, num_samples: int) -> np.ndarray:
-        """Generate envelope values"""
+        """Generate envelope values with smooth retriggering support"""
         if not self.is_active:
             self.current_level = 0.0
             return np.zeros(num_samples)
@@ -319,35 +320,20 @@ class Envelope:
         attack_samples = int(self.attack * self.sample_rate)
         decay_samples = int(self.decay * self.sample_rate)
         release_samples = int(self.release * self.sample_rate)
-        tail_samples = int(self.tail_time * self.sample_rate)
 
         for i in range(num_samples):
-            if self.is_tail:
-                # Final tail-out phase: exponential fade to ensure clean zero
-                if self.current_sample < tail_samples:
-                    # Exponential decay: each sample is 99% of previous
-                    progress = self.current_sample / tail_samples
-                    # Use exponential curve for smooth tail
+            if self.is_releasing:
+                # Release phase - exponential decay to zero
+                if self.current_sample < release_samples:
+                    progress = self.current_sample / release_samples
+                    # Use exponential curve for smoother decay: (1-x)^2 instead of (1-x)
                     output[i] = self.release_level * (1.0 - progress) * (1.0 - progress)
                     self.current_sample += 1
                 else:
+                    # Release complete - deactivate envelope
                     output[i] = 0.0
                     self.is_active = False
                     self.is_releasing = False
-                    self.is_tail = False
-            elif self.is_releasing:
-                # Release phase
-                if self.current_sample < release_samples:
-                    progress = self.current_sample / release_samples
-                    output[i] = self.release_level * (1.0 - progress)
-                    self.current_sample += 1
-                else:
-                    # Transition to tail-out phase instead of hard cutoff
-                    self.is_tail = True
-                    self.release_level = self.current_level  # Capture current tiny level
-                    self.current_sample = 0
-                    # Process this sample as tail
-                    output[i] = self.release_level
             else:
                 # Attack phase - interpolate from attack_start_level to 1.0
                 if self.current_sample < attack_samples:
@@ -1029,23 +1015,20 @@ class DubSiren:
         under normal operation, ensuring audio always respects volume control.
         """
         # No pitch envelope or FX for now; re-enable envelope gating
+        # Track if envelope was active before this buffer
+        was_active = self.envelope.is_active
+
         with self._env_lock:
             env = self.envelope.generate(num_samples)
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
 
-        # Find where envelope reaches zero and apply final fade to prevent oscillator discontinuity
-        # When envelope ends, oscillator could be at any phase, causing a click
-        threshold = 0.001  # When envelope drops below this, apply final fade
-        for i in range(len(env)):
-            if env[i] < threshold and (i == 0 or env[i-1] >= threshold):
-                # Found the point where envelope drops below threshold
-                # Apply short fade from this point forward
-                fade_len = min(32, len(env) - i)  # ~0.67ms at 48kHz
-                for j in range(fade_len):
-                    fade = 1.0 - (j / fade_len)
-                    audio[i + j] *= fade
-                break
+        # If envelope just became inactive, reset oscillator phase to prevent clicks on next trigger
+        if was_active and not self.envelope.is_active:
+            self.oscillator.reset_phase()
+
+        # Apply DC blocker to remove clicks and pops from envelope discontinuities
+        audio = self.dc_blocker.process(audio)
 
         # Dry path: skip filter/delay/reverb; apply volume
         audio = audio * self.volume
