@@ -178,7 +178,7 @@ User=$INSTALL_USER
 WorkingDirectory=$USER_HOME/poor-house-dub-v2
 # Run Python GPIO cleanup before starting (uses RPi.GPIO library to properly clean state)
 ExecStartPre=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/gpio_cleanup.py
-ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py
+ExecStart=$USER_HOME/poor-house-dub-v2-venv/bin/python3 $USER_HOME/poor-house-dub-v2/main.py --audio-backend alsa --audio-device 0 --buffer-size 1024 --sample-rate 48000
 Restart=on-failure
 RestartSec=5
 
