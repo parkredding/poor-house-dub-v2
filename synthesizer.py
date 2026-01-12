@@ -919,6 +919,10 @@ class DubSiren:
 
         # NaN protection monitoring
         self._nan_events = 0  # Count of NaN occurrences for debugging
+        
+        # Diagnostic monitoring
+        self._buffer_count = 0
+        self._last_log_time = 0.0
 
     def trigger(self):
         """Trigger sound at current base_frequency"""
@@ -1010,6 +1014,20 @@ class DubSiren:
 
             # === Volume ===
             output[i] = dc_out * self.volume
+
+        # Diagnostic logging
+        self._buffer_count += 1
+        if self._buffer_count % 100 == 0:
+            current_time = time.time()
+            if current_time - self._last_log_time >= 2.0:
+                filtered_rms = np.sqrt(np.mean(filtered**2))
+                output_rms = np.sqrt(np.mean(output**2))
+                print(f"[DEBUG] env={self.envelope.current_value:.4f}, "
+                      f"filter_state={self.filter.prev_output:.4f}, "
+                      f"filtered_rms={filtered_rms:.4f}, "
+                      f"output_rms={output_rms:.4f}, "
+                      f"cutoff={self.filter.cutoff:.1f}Hz")
+                self._last_log_time = current_time
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)
