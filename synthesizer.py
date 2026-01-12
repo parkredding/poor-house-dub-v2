@@ -263,11 +263,11 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        # Gating envelope: fast attack/decay, strong sustain, long release to smooth tail
+        # Gating envelope tuned to avoid pops: fast attack, short decay, moderate sustain, long release
         self.attack = 0.01
-        self.decay = 0.02
-        self.sustain = 0.9
-        self.release = 1.2
+        self.decay = 0.01
+        self.sustain = 0.7
+        self.release = 1.5
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -998,8 +998,7 @@ class DubSiren:
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
 
-        # Dry path: skip filter/delay/reverb; keep DC blocker to tame tail offset
-        audio = self.dc_blocker.process(audio)
+        # Dry path: skip filter/delay/reverb and DC blocker to avoid tail discontinuity
         audio = audio * self.volume
 
         if not np.all(np.isfinite(audio)):
