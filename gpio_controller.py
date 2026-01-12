@@ -8,6 +8,7 @@ import threading
 import time
 import os
 import subprocess
+import numpy as np
 from typing import Callable, Optional
 
 try:
