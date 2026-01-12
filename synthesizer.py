@@ -911,9 +911,9 @@ class DubSiren:
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
         self._delay_write_pos = 0
-        self._delay_time = 0.3  # seconds (target)
-        self._delay_time_current = 0.3  # seconds (actual, smoothed)
-        self._delay_feedback = 0.35  # Multiple fading repeats
+        self._delay_time = 0.2  # seconds (locked - faster echoes)
+        self._delay_time_current = 0.2  # seconds (actual, smoothed)
+        self._delay_feedback = 0.5  # Multiple fading repeats (locked)
         self._delay_mix = 0.3  # More distant/subtle (30% wet)
         self._delay_slew_rate = 0.02  # Analog-style smooth ramping
 
@@ -1063,6 +1063,9 @@ class DubSiren:
             
             # Mix dry and wet
             output = output * (1.0 - self._delay_mix) + delayed_output * self._delay_mix
+
+        # === Reverb Effect ===
+        output = self.reverb.process(output)
 
         # === Volume ===
         output = output * self.volume

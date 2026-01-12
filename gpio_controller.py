@@ -245,8 +245,8 @@ class ControlSurface:
 
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
-        'encoder_1': 'delay_feedback',  # TEMP: Testing delay
-        'encoder_2': 'delay_time',      # TEMP: Testing delay
+        'encoder_1': 'reverb_mix',      # Reverb wet/dry mix
+        'encoder_2': 'reverb_size',     # Reverb size/decay
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -277,13 +277,13 @@ class ControlSurface:
             'pitch_freq': 440.0,        # TEMP: Testing pitch oscillator (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
-            'delay_feedback': 0.35,     # TEMP: Testing delay
-            'delay_time': 0.3,          # TEMP: Testing delay
-            'delay_mix': 0.3,           # TEMP: Testing delay (30% wet, more distant)
-            'reverb_mix': 0.0,          # Reverb off for tone test
+            'delay_feedback': 0.5,      # Locked - good repeats
+            'delay_time': 0.2,          # Locked - faster echoes
+            'delay_mix': 0.3,           # Locked - 30% wet
+            'reverb_mix': 0.35,         # Middle-of-the-road (35% wet)
+            'reverb_size': 0.5,         # Middle-of-the-road room size
             # Bank B parameters
             'release_time': 0.5,        # TEMPORARY TEST - mid-range for obvious changes
-            'reverb_size': 0.5,         # Browser preset match
             'osc_waveform': 0,          # 0 to 3 (discrete)
             'lfo_waveform': 0,          # 0 to 3 (discrete)
         }
@@ -511,13 +511,13 @@ class ControlSurface:
         """Start the control surface"""
         self.running = True
         
-        # Apply delay settings for testing
-        self.synth.set_delay_time(self.param_values['delay_time'])
-        self.synth.set_delay_feedback(self.param_values['delay_feedback'])
-        self.synth.set_delay_dry_wet(self.param_values['delay_mix'])
-        print(f"Delay enabled: time={self.param_values['delay_time']:.2f}s, "
-              f"feedback={self.param_values['delay_feedback']:.2f}, "
-              f"mix={self.param_values['delay_mix']:.2f}")
+        # Apply reverb settings
+        self.synth.set_reverb_size(self.param_values['reverb_size'])
+        self.synth.set_reverb_dry_wet(self.param_values['reverb_mix'])
+        print(f"Reverb enabled: size={self.param_values['reverb_size']:.2f}, "
+              f"mix={self.param_values['reverb_mix']:.2f}")
+        print(f"Delay locked: time={self.param_values['delay_time']:.2f}s, "
+              f"feedback={self.param_values['delay_feedback']:.2f}")
         
         print("Control surface started")
 
