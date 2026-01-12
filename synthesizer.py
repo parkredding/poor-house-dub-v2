@@ -919,7 +919,7 @@ class DubSiren:
         self.lfo.depth = 0.0  # disable wobble by default
 
         # Pitch envelope: 'none', 'up', 'down'
-        self.pitch_envelope = 'none'
+        self.pitch_envelope = 'none'  # keep off for stability
         self._pitch_env_modes = ['none', 'up', 'down']
 
         # NaN protection monitoring
@@ -989,53 +989,22 @@ class DubSiren:
         clamping to prevent values from growing unbounded. This makes NaN impossible
         under normal operation, ensuring audio always respects volume control.
         """
-        # Apply pitch envelope during release phase if enabled
-        if self.envelope.is_releasing and self.pitch_envelope != 'none':
-            release_samples = int(self.envelope.release * self.sample_rate)
-            if release_samples > 0:
-                progress = min(1.0, self.envelope.current_sample / release_samples)
-                if self.pitch_envelope == 'up':
-                    freq_mult = 1.0 + (3.0 * progress)  # 1.0 to 4.0
-                elif self.pitch_envelope == 'down':
-                    freq_mult = 1.0 - (0.75 * progress)  # 1.0 to 0.25
-                else:
-                    freq_mult = 1.0
-                self.oscillator.set_frequency(self.base_frequency * freq_mult)
-            else:
-                self.oscillator.set_frequency(self.base_frequency)
-
-        # Generate oscillator output
+        # Bypass pitch envelope and FX for stable dry tone
         audio = self.oscillator.generate(num_samples)
-
-        # Apply envelope
-        env = self.envelope.generate(num_samples)
-        audio = audio * env
-
-        # Apply filter (state clamping prevents instability)
-        audio = self.filter.process(audio)
-
-        # Apply delay (buffer/state clamping prevents runaway feedback)
-        audio = self.delay.process(audio)
-
-        # Apply reverb (all internal filters have clamping)
-        audio = self.reverb.process(audio)
-
+        # Unity envelope (always on)
+        audio = audio  # no envelope multiplication
+        # Skip filter/delay/reverb for now (dry path)
         # Remove DC offset to prevent headroom waste and asymmetric clipping
         audio = self.dc_blocker.process(audio)
-
         # Apply volume
         audio = audio * self.volume
 
-        # Final safety check for monitoring (should never trigger with prevention in place)
+        # Final safety check
         if not np.all(np.isfinite(audio)):
             self._nan_events += 1
-            # Fallback sanitization only if somehow NaN still occurred
             audio = sanitize_audio(audio)
 
-        # Hard clip as final safety net
-        audio = np.clip(audio, -1.0, 1.0)
-
-        return audio
+        return np.clip(audio, -1.0, 1.0)
 
     # Control setters
     def set_volume(self, volume: float):
