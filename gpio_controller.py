@@ -245,7 +245,7 @@ class ControlSurface:
 
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
-        'encoder_1': 'lfo_depth',       # TEMP: Testing LFO filter modulation
+        'encoder_1': 'waveform_morph',  # TEMP: Testing waveform morphing
         'encoder_2': 'volume',          # TEMP: Testing volume
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
@@ -277,8 +277,9 @@ class ControlSurface:
             'pitch_freq': 440.0,        # Starting pitch (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
-            'lfo_depth': 0.0,           # LFO modulation depth (0.0 to 1.0)
-            'lfo_rate': 3.0,            # LFO rate in Hz (locked at 3Hz for now)
+            'waveform_morph': 0.0,      # Waveform morphing (0.0=sine to 3.0=triangle)
+            'lfo_depth': 0.5,           # LFO modulation depth (locked at 50%)
+            'lfo_rate': 3.0,            # LFO rate in Hz (locked at 3Hz)
             'delay_feedback': 0.5,      # Locked - good repeats
             'delay_time': 0.2,          # Locked - faster echoes
             'delay_mix': 0.3,           # Locked - 30% wet
@@ -492,6 +493,12 @@ class ControlSurface:
             self.param_values[param_name] = new_value
             self.synth.set_oscillator_waveform(new_value)
 
+        elif param_name == 'waveform_morph':
+            step = 0.05 * direction  # Smooth morphing steps
+            new_value = max(0.0, min(3.0, current_value + step))
+            self.param_values[param_name] = new_value
+            self.synth._waveform_morph = new_value
+
         elif param_name == 'lfo_depth':
             step = 0.02 * direction
             new_value = max(0.0, min(1.0, current_value + step))
@@ -524,9 +531,11 @@ class ControlSurface:
         self.synth.set_volume(self.param_values['volume'])
         self.synth.lfo.depth = self.param_values['lfo_depth']
         self.synth.lfo.frequency = self.param_values['lfo_rate']
-        print(f"LFO→Filter: encoder_1 (depth={self.param_values['lfo_depth']:.2f}, "
-              f"rate={self.param_values['lfo_rate']:.1f}Hz)")
+        self.synth._waveform_morph = self.param_values['waveform_morph']
+        print(f"Waveform morph: encoder_1 (0=sine, 1=square, 2=saw, 3=triangle)")
         print(f"Volume control: encoder_2 (starting at {self.param_values['volume']:.2f})")
+        print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
+              f"rate={self.param_values['lfo_rate']:.1f}Hz")
         print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
               f"mix={self.param_values['reverb_mix']:.2f}")
         print(f"Delay locked: time={self.param_values['delay_time']:.2f}s, "
