@@ -244,10 +244,9 @@ class ControlSurface:
     }
 
     # Bank mapping - which parameter each encoder controls in each bank
-    # TEMPORARY: Encoder 2 remapped to release_time for testing Phase 2.1
     BANK_A_PARAMS = {
         'encoder_1': 'volume',
-        'encoder_2': 'release_time',  # TEMPORARY TEST - normally 'filter_freq'
+        'encoder_2': 'filter_freq',  # Phase 3.1: Low-pass filter
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',

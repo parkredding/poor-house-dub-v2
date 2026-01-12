@@ -976,9 +976,9 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer - MINIMAL VERSION
+        """Generate audio buffer with filter enabled
 
-        Add tiny dither to prevent DAC/ALSA from detecting absolute silence
+        Signal chain: Oscillator → Envelope → Filter → DC Blocker → Volume
         """
         with self._env_lock:
             env = self.envelope.generate(num_samples)
@@ -986,14 +986,13 @@ class DubSiren:
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
 
-        # DC blocker BEFORE volume - remove any DC offset from oscillator/envelope
-        # DC offset can cause clicks when signal starts/stops
+        # Phase 3.1: Low-pass filter for tone shaping
+        audio = self.filter.process(audio)
+
+        # DC blocker removes any DC offset from filter
         audio = self.dc_blocker.process(audio)
 
         audio = audio * self.volume
-
-        # Remove dither - wasn't helping and was audible
-        # If we still have click, it's not a quantization/DAC mute issue
 
         # Basic NaN protection only
         if not np.all(np.isfinite(audio)):
