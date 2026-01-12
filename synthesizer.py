@@ -906,7 +906,8 @@ class DubSiren:
         self.is_running = False
 
         # Frequency control
-        self.base_frequency = 440.0  # A4 - good test tone for pitch oscillator
+        self.base_frequency = 440.0  # A4 - good test tone for pitch oscillator (target)
+        self._base_frequency_current = 440.0  # Smoothed current frequency
         
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
@@ -967,13 +968,9 @@ class DubSiren:
     def set_frequency(self, freq: float):
         """Set base frequency for triggering and during playback/release
 
-        This allows real-time frequency control even during the decay/release phase.
-        The pitch envelope (if active) will be applied as a multiplier on top of this.
+        The frequency is smoothed in generate_audio to prevent zipper noise.
         """
         self.base_frequency = max(20.0, min(freq, 20000.0))
-        # Update live oscillator frequency directly
-        # This gives real-time pitch control via encoder
-        self.oscillator.set_frequency(self.base_frequency)
 
     # Legacy methods for backwards compatibility with gpio_controller
     def trigger_airhorn(self):
@@ -1008,6 +1005,13 @@ class DubSiren:
         env_target = 1.0 if self.envelope.is_active else 0.0
         env_coeff = self.envelope.attack_coeff if self.envelope.is_active else self.envelope.release_coeff
 
+        # Smooth pitch frequency (prevents zipper noise)
+        pitch_smoothing = 0.02  # Smooth parameter changes
+        self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
+        
+        # Update oscillator frequency with smoothed value
+        self.oscillator.set_frequency(self._base_frequency_current)
+        
         # Generate anti-aliased square wave using PolyBLEP
         self.oscillator.waveform = 'square'
         raw_buffer = self.oscillator.generate(num_samples)
