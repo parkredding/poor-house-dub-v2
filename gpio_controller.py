@@ -246,7 +246,7 @@ class ControlSurface:
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
         'encoder_1': 'volume',
-        'encoder_2': 'filter_freq',  # Phase 3.1: Low-pass filter
+        'encoder_2': 'pitch_freq',  # TEMP: Testing pitch oscillator
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -274,6 +274,7 @@ class ControlSurface:
         self.param_values = {
             # Bank A parameters
             'volume': 0.7,              # Browser preset match
+            'pitch_freq': 440.0,        # TEMP: Testing pitch oscillator (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
             'delay_feedback': 0.0,      # Delay off for tone test
@@ -429,6 +430,13 @@ class ControlSurface:
             new_value = max(0.0, min(1.0, current_value + step))
             self.param_values[param_name] = new_value
             self.synth.set_volume(new_value)
+
+        elif param_name == 'pitch_freq':
+            # Pitch oscillator frequency (100 Hz to 2000 Hz for dub bass/siren range)
+            step = 20 * direction  # 20 Hz steps for smooth control
+            new_value = max(100.0, min(2000.0, current_value + step))
+            self.param_values[param_name] = new_value
+            self.synth.set_frequency(new_value)
 
         elif param_name == 'filter_freq':
             # Logarithmic scale for frequency

@@ -906,7 +906,7 @@ class DubSiren:
         self.is_running = False
 
         # Frequency control
-        self.base_frequency = 800.0  # Browser preset siren frequency
+        self.base_frequency = 440.0  # A4 - good test tone for pitch oscillator
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
