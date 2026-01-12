@@ -1022,8 +1022,8 @@ class DubSiren:
                 output[i] = filtered_sample * env
 
         # === Simple Delay Effect (clean, like browser test) ===
-        # Using a simple delay without tape effects to avoid instability
-        output = self._process_simple_delay(output)
+        # TEMP: Bypass delay to test if it's causing pulsing
+        # output = self._process_simple_delay(output)
 
         # === Volume ===
         output = output * self.volume
