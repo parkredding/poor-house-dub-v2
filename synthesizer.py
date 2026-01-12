@@ -975,18 +975,19 @@ class DubSiren:
         with self._env_lock:
             self.oscillator.set_frequency(self.base_frequency)
             self.envelope.trigger()
+            # Reset pitch envelope (will start on release)
+            self._pitch_env_active = False
+            self._pitch_env_position = 0.0
+
+    def release(self):
+        """Release sound - start pitch envelope if enabled"""
+        with self._env_lock:
+            self.envelope.release_trigger()
             
-            # Start pitch envelope if enabled
+            # Start pitch envelope on release
             if self._pitch_env_mode != 'none':
                 self._pitch_env_position = 0.0
                 self._pitch_env_active = True
-
-    def release(self):
-        """Release sound (pitch envelope will be applied during generate_audio)"""
-        with self._env_lock:
-            self.envelope.release_trigger()
-            # Stop pitch envelope
-            self._pitch_env_active = False
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -1044,7 +1045,7 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # Apply pitch envelope if active
+        # Apply pitch envelope if active (simple, no expensive exponentials)
         target_frequency = self._base_frequency_current
         if self._pitch_env_active:
             # Calculate pitch envelope position (0.0 to 1.0)
@@ -1059,24 +1060,18 @@ class DubSiren:
                 self._pitch_env_position = 1.0
                 self._pitch_env_active = False  # Envelope complete
             
-            # Calculate frequency based on envelope mode
-            position = np.clip(self._pitch_env_position, 0.0, 1.0)
+            # Calculate frequency using simple log-linear interpolation
+            position = self._pitch_env_position  # Already clamped above
             
             if self._pitch_env_mode == 'up':
                 # Start low, sweep up to base frequency
-                # Use exponential curve for musical pitch perception
-                start_freq = self._base_frequency_current / (2.0 ** self._pitch_env_range)
-                end_freq = self._base_frequency_current
-                # Exponential interpolation in pitch space
-                freq_ratio = (end_freq / start_freq) ** position
-                target_frequency = start_freq * freq_ratio
+                octave_shift = -self._pitch_env_range * (1.0 - position)
+                target_frequency = self._base_frequency_current * (2.0 ** octave_shift)
                 
             elif self._pitch_env_mode == 'down':
                 # Start high, sweep down to base frequency
-                start_freq = self._base_frequency_current * (2.0 ** self._pitch_env_range)
-                end_freq = self._base_frequency_current
-                freq_ratio = (end_freq / start_freq) ** position
-                target_frequency = start_freq * freq_ratio
+                octave_shift = self._pitch_env_range * (1.0 - position)
+                target_frequency = self._base_frequency_current * (2.0 ** octave_shift)
 
         # Update oscillator frequency with pitch envelope applied
         self.oscillator.set_frequency(target_frequency)
