@@ -1047,26 +1047,9 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # Apply pitch envelope if active (simplified to prevent pulsing)
+        # PITCH ENVELOPE TEMPORARILY DISABLED - debugging pulsing issue
+        # Just use base frequency for now
         target_frequency = self._base_frequency_current
-        
-        if self._pitch_env_active and self._pitch_env_mode == 'up':
-            # Calculate pitch envelope position (0.0 to 1.0)
-            samples_per_env = max(self._pitch_env_time * self.sample_rate, 1024)  # Min 1024 samples
-            increment_per_buffer = num_samples / samples_per_env
-            
-            # Update position
-            self._pitch_env_position = min(1.0, self._pitch_env_position + increment_per_buffer)
-            
-            # Stop when complete
-            if self._pitch_env_position >= 1.0:
-                self._pitch_env_active = False
-            
-            # Calculate frequency: start low, sweep up
-            # position = 0.0 → start at base_freq (steady during hold)
-            # position = 1.0 → end at base_freq * 4 (2 octaves up)
-            octave_shift = self._pitch_env_range * self._pitch_env_position
-            target_frequency = self._base_frequency_current * (2.0 ** octave_shift)
 
         # Update oscillator frequency
         self.oscillator.set_frequency(target_frequency)

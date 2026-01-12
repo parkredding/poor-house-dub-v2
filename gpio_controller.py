@@ -279,7 +279,7 @@ class ControlSurface:
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
             'attack': 0.01,             # Envelope attack (10ms default)
-            'release': 0.05,            # Envelope release (50ms default)
+            'release': 1.5,             # Envelope release (1.5s for pitch sweep testing)
             'waveform_morph': 0.0,      # Waveform morphing (0.0=sine to 3.0=triangle, locked)
             'lfo_depth': 0.5,           # LFO modulation depth (locked at 50%)
             'lfo_rate': 3.0,            # LFO rate in Hz (locked at 3Hz)
@@ -560,10 +560,10 @@ class ControlSurface:
         self.synth.lfo.depth = self.param_values['lfo_depth']
         self.synth.lfo.frequency = self.param_values['lfo_rate']
         self.synth._waveform_morph = self.param_values['waveform_morph']
-        self.synth.set_pitch_envelope('up')  # TEMP: Testing pitch envelope UP
+        # self.synth.set_pitch_envelope('up')  # DISABLED - debugging pulsing
         print(f"Attack control: encoder_1 (starting at {self.param_values['attack']*1000:.1f}ms)")
         print(f"Release control: encoder_2 (starting at {self.param_values['release']*1000:.1f}ms)")
-        print(f"Pitch Envelope: UP (2 octaves during RELEASE) - Turn up release time to hear it!")
+        print(f"Pitch Envelope: DISABLED (debugging pulsing issue)")
         print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
               f"rate={self.param_values['lfo_rate']:.1f}Hz")
         print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
