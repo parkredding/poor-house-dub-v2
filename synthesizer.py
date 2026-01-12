@@ -908,13 +908,12 @@ class DubSiren:
         # Frequency control
         self.base_frequency = 440.0  # A4 - good test tone for pitch oscillator
         
-        # Disable delay tape effects for clean digital delay (like browser test)
-        self.delay.repitch_rate = 0.0      # Digital mode: no pitch shifting
-        self.delay.mod_depth = 0.0         # No wobble modulation
-        self.delay.flutter_depth = 0.0     # No flutter
-        self.delay.tape_saturation = 0.0   # No saturation
-        self.delay.filter_lp_freq = 20000.0  # No high-frequency damping
-        self.delay.filter_hp_freq = 20.0     # No low-frequency filtering
+        # Ultra-simple delay buffer (bypassing DelayEffect complexity)
+        self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
+        self._delay_write_pos = 0
+        self._delay_time = 0.3  # seconds
+        self._delay_feedback = 0.4
+        self._delay_mix = 0.5
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
@@ -1029,8 +1028,25 @@ class DubSiren:
             else:
                 output[i] = filtered_sample * env
 
-        # === Delay Effect (all tape effects disabled for clean sound) ===
-        output = self.delay.process(output)
+        # === Ultra-Simple Delay (minimal circular buffer) ===
+        if self._delay_mix > 0.001:
+            delay_samples = int(self._delay_time * self.sample_rate)
+            delay_samples = max(1, min(delay_samples, len(self._delay_buffer) - 1))
+            
+            output_with_delay = np.zeros_like(output)
+            for i in range(len(output)):
+                # Read from delay
+                read_pos = (self._delay_write_pos - delay_samples) % len(self._delay_buffer)
+                delayed = self._delay_buffer[read_pos]
+                
+                # Write: input + feedback
+                self._delay_buffer[self._delay_write_pos] = output[i] + delayed * self._delay_feedback
+                self._delay_write_pos = (self._delay_write_pos + 1) % len(self._delay_buffer)
+                
+                # Mix
+                output_with_delay[i] = output[i] * (1.0 - self._delay_mix) + delayed * self._delay_mix
+            
+            output = output_with_delay
 
         # === Volume ===
         output = output * self.volume
@@ -1067,15 +1083,15 @@ class DubSiren:
 
     def set_delay_time(self, time: float):
         """Set delay time"""
-        self.delay.set_delay_time(time)
+        self._delay_time = max(0.001, min(time, 2.0))
 
     def set_delay_feedback(self, feedback: float):
         """Set delay feedback"""
-        self.delay.set_feedback(feedback)
+        self._delay_feedback = max(0.0, min(feedback, 0.95))
 
     def set_delay_dry_wet(self, dry_wet: float):
         """Set delay dry/wet mix"""
-        self.delay.set_dry_wet(dry_wet)
+        self._delay_mix = max(0.0, min(dry_wet, 1.0))
 
     def set_delay_filter_hp(self, freq: float):
         """Set delay feedback high-pass filter frequency"""
