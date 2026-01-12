@@ -268,12 +268,14 @@ class Envelope:
         self.decay = 0.01
         self.sustain = 0.7
         self.release = 1.5
+        self.tail_time = 0.02  # 20ms exponential tail-out to ensure clean zero crossing
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
         self.release_level = 0.0
         self.current_level = 0.0  # Track current envelope output for smooth retriggering
         self.attack_start_level = 0.0  # Level to start attack from (for soft retrigger)
+        self.is_tail = False  # Flag for final tail-out phase
 
     def trigger(self):
         """Trigger the envelope with soft retriggering to prevent pops"""
@@ -286,6 +288,7 @@ class Envelope:
         self.current_sample = 0
         self.is_active = True
         self.is_releasing = False
+        self.is_tail = False
 
     def release_trigger(self):
         """Release the envelope"""
@@ -316,18 +319,35 @@ class Envelope:
         attack_samples = int(self.attack * self.sample_rate)
         decay_samples = int(self.decay * self.sample_rate)
         release_samples = int(self.release * self.sample_rate)
+        tail_samples = int(self.tail_time * self.sample_rate)
 
         for i in range(num_samples):
-            if self.is_releasing:
+            if self.is_tail:
+                # Final tail-out phase: exponential fade to ensure clean zero
+                if self.current_sample < tail_samples:
+                    # Exponential decay: each sample is 99% of previous
+                    progress = self.current_sample / tail_samples
+                    # Use exponential curve for smooth tail
+                    output[i] = self.release_level * (1.0 - progress) * (1.0 - progress)
+                    self.current_sample += 1
+                else:
+                    output[i] = 0.0
+                    self.is_active = False
+                    self.is_releasing = False
+                    self.is_tail = False
+            elif self.is_releasing:
                 # Release phase
                 if self.current_sample < release_samples:
                     progress = self.current_sample / release_samples
                     output[i] = self.release_level * (1.0 - progress)
                     self.current_sample += 1
                 else:
-                    output[i] = 0.0
-                    self.is_active = False
-                    self.is_releasing = False
+                    # Transition to tail-out phase instead of hard cutoff
+                    self.is_tail = True
+                    self.release_level = self.current_level  # Capture current tiny level
+                    self.current_sample = 0
+                    # Process this sample as tail
+                    output[i] = self.release_level
             else:
                 # Attack phase - interpolate from attack_start_level to 1.0
                 if self.current_sample < attack_samples:
