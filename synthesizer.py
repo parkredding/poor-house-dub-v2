@@ -929,7 +929,14 @@ class DubSiren:
         
         # Waveform morphing
         self._waveform_morph = 0.0  # 0.0=sine, 1.0=square, 2.0=saw, 3.0=triangle
-        
+
+        # Pitch envelope (for siren effects)
+        self._pitch_env_mode = 'none'  # 'none', 'up', 'down'
+        self._pitch_env_time = 1.0  # Duration of pitch sweep (seconds)
+        self._pitch_env_range = 2.0  # Octaves to sweep (2.0 = 2 octaves)
+        self._pitch_env_position = 0.0  # Current position in envelope (0.0 to 1.0)
+        self._pitch_env_active = False  # Is pitch envelope currently running?
+
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
         self._delay_write_pos = 0
@@ -968,11 +975,18 @@ class DubSiren:
         with self._env_lock:
             self.oscillator.set_frequency(self.base_frequency)
             self.envelope.trigger()
+            
+            # Start pitch envelope if enabled
+            if self._pitch_env_mode != 'none':
+                self._pitch_env_position = 0.0
+                self._pitch_env_active = True
 
     def release(self):
         """Release sound (pitch envelope will be applied during generate_audio)"""
         with self._env_lock:
             self.envelope.release_trigger()
+            # Stop pitch envelope
+            self._pitch_env_active = False
 
     def cycle_pitch_envelope(self):
         """Cycle through pitch envelope modes: none -> up -> down -> none"""
@@ -1029,9 +1043,43 @@ class DubSiren:
         # Smooth pitch frequency (prevents zipper noise)
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
-        
-        # Update oscillator frequency with smoothed value
-        self.oscillator.set_frequency(self._base_frequency_current)
+
+        # Apply pitch envelope if active
+        target_frequency = self._base_frequency_current
+        if self._pitch_env_active:
+            # Calculate pitch envelope position (0.0 to 1.0)
+            samples_per_env = self._pitch_env_time * self.sample_rate
+            increment_per_sample = 1.0 / samples_per_env if samples_per_env > 0 else 1.0
+            
+            # Update position for this buffer
+            self._pitch_env_position += increment_per_sample * num_samples
+            
+            # Clamp position
+            if self._pitch_env_position >= 1.0:
+                self._pitch_env_position = 1.0
+                self._pitch_env_active = False  # Envelope complete
+            
+            # Calculate frequency based on envelope mode
+            position = np.clip(self._pitch_env_position, 0.0, 1.0)
+            
+            if self._pitch_env_mode == 'up':
+                # Start low, sweep up to base frequency
+                # Use exponential curve for musical pitch perception
+                start_freq = self._base_frequency_current / (2.0 ** self._pitch_env_range)
+                end_freq = self._base_frequency_current
+                # Exponential interpolation in pitch space
+                freq_ratio = (end_freq / start_freq) ** position
+                target_frequency = start_freq * freq_ratio
+                
+            elif self._pitch_env_mode == 'down':
+                # Start high, sweep down to base frequency
+                start_freq = self._base_frequency_current * (2.0 ** self._pitch_env_range)
+                end_freq = self._base_frequency_current
+                freq_ratio = (end_freq / start_freq) ** position
+                target_frequency = start_freq * freq_ratio
+
+        # Update oscillator frequency with pitch envelope applied
+        self.oscillator.set_frequency(target_frequency)
         
         # Waveform selection (discrete switching)
         # Round to nearest integer for clean switching
@@ -1225,6 +1273,12 @@ class DubSiren:
         waveforms: list[WaveformType] = ['sine', 'square', 'saw', 'triangle']
         index = waveform_index % len(waveforms)
         self.oscillator.set_waveform(waveforms[index])
+    
+    def set_pitch_envelope(self, mode: str):
+        """Set pitch envelope mode ('none', 'up', 'down')"""
+        if mode in ['none', 'up', 'down']:
+            self._pitch_env_mode = mode
+            print(f"[SYNTH] Pitch envelope: {mode}")
 
     def set_lfo_waveform(self, waveform_index: int):
         """Set LFO waveform (0=sine, 1=square, 2=saw, 3=triangle)"""
