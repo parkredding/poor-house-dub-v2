@@ -919,6 +919,9 @@ class DubSiren:
         self.volume = 0.7  # Browser preset default
         self.is_running = False
 
+        # Buffer crossfade to prevent clicks at buffer boundaries
+        self.prev_buffer_tail = np.zeros(32)  # Store last 32 samples of previous buffer
+
         # Frequency control
         self.base_frequency = 800.0  # Browser preset siren frequency
 
@@ -994,9 +997,10 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer - MINIMAL VERSION
+        """Generate audio buffer with buffer-boundary crossfade
 
-        Envelope now has extended tail-out to prevent clicks
+        Crossfades the start of each buffer with the end of the previous buffer
+        to prevent discontinuities at buffer boundaries
         """
         with self._env_lock:
             env = self.envelope.generate(num_samples)
@@ -1004,6 +1008,17 @@ class DubSiren:
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
         audio = audio * self.volume
+
+        # Crossfade first 32 samples with previous buffer's tail to prevent boundary clicks
+        crossfade_len = min(32, len(audio), len(self.prev_buffer_tail))
+        for i in range(crossfade_len):
+            fade_in = i / crossfade_len  # 0.0 to 1.0
+            fade_out = 1.0 - fade_in  # 1.0 to 0.0
+            audio[i] = audio[i] * fade_in + self.prev_buffer_tail[i] * fade_out
+
+        # Store last 32 samples for next buffer's crossfade
+        if len(audio) >= 32:
+            self.prev_buffer_tail = audio[-32:].copy()
 
         # Basic NaN protection only
         if not np.all(np.isfinite(audio)):
