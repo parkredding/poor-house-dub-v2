@@ -1015,38 +1015,18 @@ class DubSiren:
         # Update oscillator frequency with smoothed value
         self.oscillator.set_frequency(self._base_frequency_current)
         
-        # Waveform morphing: generate all waveforms and blend (phase-coherent)
+        # TEMP: Waveform selection (discrete, no morphing to test stability)
         morph = self._waveform_morph
-        morph_blend = morph - int(morph)  # 0.0 to 1.0 within section
-        
-        # Save phase before generation
-        phase_start = self.oscillator.phase
-        
-        # Generate waveforms (phase-coherent)
-        if morph < 1.0:
-            # Blend sine → square
+        if morph < 0.75:
             self.oscillator.waveform = 'sine'
-            wave_a = self.oscillator.generate(num_samples)
-            self.oscillator.phase = phase_start  # Restore phase for coherent blending
+        elif morph < 1.5:
             self.oscillator.waveform = 'square'
-            wave_b = self.oscillator.generate(num_samples)
-            raw_buffer = wave_a * (1.0 - morph_blend) + wave_b * morph_blend
-        elif morph < 2.0:
-            # Blend square → saw
-            self.oscillator.waveform = 'square'
-            wave_a = self.oscillator.generate(num_samples)
-            self.oscillator.phase = phase_start
+        elif morph < 2.25:
             self.oscillator.waveform = 'saw'
-            wave_b = self.oscillator.generate(num_samples)
-            raw_buffer = wave_a * (1.0 - morph_blend) + wave_b * morph_blend
         else:
-            # Blend saw → triangle
-            self.oscillator.waveform = 'saw'
-            wave_a = self.oscillator.generate(num_samples)
-            self.oscillator.phase = phase_start
             self.oscillator.waveform = 'triangle'
-            wave_b = self.oscillator.generate(num_samples)
-            raw_buffer = wave_a * (1.0 - morph_blend) + wave_b * morph_blend
+        
+        raw_buffer = self.oscillator.generate(num_samples)
 
         # Generate LFO modulation for entire buffer
         lfo_signal = self.lfo.generate(num_samples)
