@@ -1005,9 +1005,11 @@ class DubSiren:
         audio = audio * env
         audio = audio * self.volume
 
-        # Add extremely quiet dither to prevent true digital silence
-        # Some DACs/audio interfaces do weird things when they detect absolute 0.0
-        dither = np.random.uniform(-0.00001, 0.00001, num_samples)
+        # Add quiet dither/noise floor to prevent DAC auto-mute
+        # PCM5102 and similar DACs can have auto-mute circuits that engage
+        # when signal drops below a threshold, causing clicks
+        # Dither at -80dB should be inaudible but keep DAC active
+        dither = np.random.uniform(-0.0001, 0.0001, num_samples)
         audio = audio + dither
 
         # Basic NaN protection only
