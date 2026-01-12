@@ -383,6 +383,10 @@ class LowPassFilter:
         """Set filter resonance / Q value (0.1 to 20, matches browser test range)"""
         self.resonance = max(0.1, min(res, 20.0))
 
+    def reset(self):
+        """Reset filter state to prevent buildup and self-oscillation"""
+        self.prev_output = 0.0
+
 
 class DCBlocker:
     """DC blocking filter to remove DC offset without affecting low frequencies
@@ -978,7 +982,7 @@ class DubSiren:
     def generate_audio(self, num_samples: int) -> np.ndarray:
         """Generate audio buffer with filter enabled
 
-        Signal chain: Oscillator → Envelope → Filter → DC Blocker → Volume
+        Signal chain: Oscillator → Envelope → Filter (gated) → DC Blocker → Volume
         """
         with self._env_lock:
             env = self.envelope.generate(num_samples)
@@ -986,8 +990,14 @@ class DubSiren:
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
 
-        # Phase 3.1: Low-pass filter for tone shaping
-        audio = self.filter.process(audio)
+        # Phase 3.1: Low-pass filter with gate to prevent self-oscillation
+        # Only process filter when envelope is above threshold to avoid instability
+        max_env = np.max(np.abs(env))
+        if max_env > 0.001:  # Only filter when envelope is significantly active
+            audio = self.filter.process(audio)
+        else:
+            # Reset filter state when envelope is very low to prevent buildup/oscillation
+            self.filter.reset()
 
         # DC blocker removes any DC offset from filter
         audio = self.dc_blocker.process(audio)
