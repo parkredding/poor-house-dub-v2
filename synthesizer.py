@@ -263,10 +263,10 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.attack = 0.0    # seconds (snappy)
-        self.decay = 0.01    # seconds (very short decay)
-        self.sustain = 1.0   # level (hold full level)
-        self.release = 0.2   # seconds (shorter tail for responsiveness)
+        self.attack = 0.01   # seconds (browser preset)
+        self.decay = 0.1     # seconds (browser preset)
+        self.sustain = 0.7   # level (browser preset)
+        self.release = 0.3   # seconds (browser preset)
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -348,14 +348,14 @@ class LowPassFilter:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.cutoff = 20000.0  # Hz (fully open by default)
-        self.cutoff_current = 20000.0  # Current smoothed value
-        self.resonance = 0.1  # Q value (very low peaking by default)
-        self.resonance_current = 0.1  # Current smoothed value
+        self.cutoff = 2000.0  # Hz (browser preset default)
+        self.cutoff_current = 2000.0  # Current smoothed value
+        self.resonance = 1.0  # Q value (browser preset default)
+        self.resonance_current = 1.0  # Current smoothed value
         self.prev_output = 0.0
         # Smoothing coefficient: larger = smoother but slower response
-        # Increase slightly for responsiveness to encoder moves
-        self.smoothing = 0.01
+        # Browser preset default smoothing
+        self.smoothing = 0.001
 
     def process(self, input_signal: np.ndarray) -> np.ndarray:
         """Process audio through the filter with state clamping to prevent NaN"""
@@ -906,7 +906,7 @@ class DubSiren:
         self.dc_blocker = DCBlocker()  # Removes DC offset before output
 
         # Control parameters (match browser test defaults)
-        self.volume = 1.0  # Start loudest for clearer response
+        self.volume = 0.7  # Browser preset default
         self.is_running = False
 
         # Frequency control

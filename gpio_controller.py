@@ -266,15 +266,15 @@ class ControlSurface:
         # Parameter ranges for all parameters (both banks)
         self.param_values = {
             # Bank A parameters
-            'volume': 1.0,              # Start loudest
-            'filter_freq': 20000.0,     # Start fully open
-            'filter_res': 0.1,          # Low Q by default
-            'delay_feedback': 0.0,      # Start dry
-            'reverb_mix': 0.0,          # Start dry
+            'volume': 0.7,              # Browser preset match
+            'filter_freq': 2000.0,      # Browser preset match
+            'filter_res': 1.0,          # Browser preset match
+            'delay_feedback': 0.0,      # Delay off for tone test
+            'reverb_mix': 0.0,          # Reverb off for tone test
             # Bank B parameters
-            'release_time': 1.2,        # Longer sustain
-            'delay_time': 0.5,          # 0.001 to 2.0 seconds
-            'reverb_size': 0.5,         # 0.0 to 1.0
+            'release_time': 0.3,        # Browser preset match
+            'delay_time': 0.3,          # Browser preset match
+            'reverb_size': 0.5,         # Browser preset match
             'osc_waveform': 0,          # 0 to 3 (discrete)
             'lfo_waveform': 0,          # 0 to 3 (discrete)
         }
