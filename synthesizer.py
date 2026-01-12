@@ -267,15 +267,33 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.release_time = 0.05  # 50ms perceived decay time to silence
+        self.attack_time = 0.01  # 10ms default attack
+        self.release_time = 0.05  # 50ms default release
         self.current_value = 0.0
         self.is_active = False
 
-        # Envelope coefficients
-        self.attack_coeff = 0.1  # Fast attack
-        # Scale release coefficient for perceived decay time (4.605 = -ln(0.01))
-        decay_scale = 4.605
-        self.release_coeff = decay_scale / (self.release_time * sample_rate)
+        # Update coefficients
+        self._update_coefficients()
+    
+    def _update_coefficients(self):
+        """Update attack/release coefficients from time values"""
+        decay_scale = 4.605  # -ln(0.01) for 1% threshold
+        
+        # Attack coefficient: time to reach 99% of target
+        self.attack_coeff = decay_scale / (self.attack_time * self.sample_rate)
+        
+        # Release coefficient: time to decay to 1% of peak
+        self.release_coeff = decay_scale / (self.release_time * self.sample_rate)
+    
+    def set_attack(self, time_seconds: float):
+        """Set attack time in seconds (0.001 to 2.0)"""
+        self.attack_time = np.clip(time_seconds, 0.001, 2.0)
+        self._update_coefficients()
+    
+    def set_release(self, time_seconds: float):
+        """Set release time in seconds (0.01 to 5.0)"""
+        self.release_time = np.clip(time_seconds, 0.01, 5.0)
+        self._update_coefficients()
 
     def trigger(self):
         """Trigger the envelope"""
@@ -1194,6 +1212,10 @@ class DubSiren:
         """Set reverb dry/wet mix"""
         self._reverb_mix = max(0.0, min(dry_wet, 1.0))
 
+    def set_attack_time(self, attack: float):
+        """Set oscillator envelope attack time"""
+        self.envelope.set_attack(attack)
+    
     def set_release_time(self, release: float):
         """Set oscillator envelope release time"""
         self.envelope.set_release(release)

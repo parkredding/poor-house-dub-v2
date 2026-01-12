@@ -245,8 +245,8 @@ class ControlSurface:
 
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
-        'encoder_1': 'waveform_morph',  # TEMP: Testing waveform morphing
-        'encoder_2': 'volume',          # TEMP: Testing volume
+        'encoder_1': 'attack',          # TEMP: Testing envelope attack
+        'encoder_2': 'release',         # TEMP: Testing envelope release
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -277,7 +277,9 @@ class ControlSurface:
             'pitch_freq': 440.0,        # Starting pitch (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
-            'waveform_morph': 0.0,      # Waveform morphing (0.0=sine to 3.0=triangle)
+            'attack': 0.01,             # Envelope attack (10ms default)
+            'release': 0.05,            # Envelope release (50ms default)
+            'waveform_morph': 0.0,      # Waveform morphing (0.0=sine to 3.0=triangle, locked)
             'lfo_depth': 0.5,           # LFO modulation depth (locked at 50%)
             'lfo_rate': 3.0,            # LFO rate in Hz (locked at 3Hz)
             'delay_feedback': 0.5,      # Locked - good repeats
@@ -493,6 +495,29 @@ class ControlSurface:
             self.param_values[param_name] = new_value
             self.synth.set_oscillator_waveform(new_value)
 
+        elif param_name == 'attack':
+            # Attack time: 0.001 to 2.0 seconds (logarithmic)
+            # Use log scale for natural feel
+            log_value = np.log10(current_value)
+            log_step = 0.05 * direction  # ~12% per step
+            new_log = log_value + log_step
+            new_value = 10 ** new_log
+            new_value = max(0.001, min(2.0, new_value))
+            self.param_values[param_name] = new_value
+            self.synth.set_attack_time(new_value)
+            print(f"[GPIO] Attack: {new_value*1000:.1f}ms")
+
+        elif param_name == 'release':
+            # Release time: 0.01 to 5.0 seconds (logarithmic)
+            log_value = np.log10(current_value)
+            log_step = 0.05 * direction  # ~12% per step
+            new_log = log_value + log_step
+            new_value = 10 ** new_log
+            new_value = max(0.01, min(5.0, new_value))
+            self.param_values[param_name] = new_value
+            self.synth.set_release_time(new_value)
+            print(f"[GPIO] Release: {new_value*1000:.1f}ms")
+
         elif param_name == 'waveform_morph':
             step = 0.05 * direction  # Smooth morphing steps
             new_value = max(0.0, min(3.0, current_value + step))
@@ -529,17 +554,20 @@ class ControlSurface:
         # Apply initial settings
         self.synth.set_frequency(self.param_values['pitch_freq'])
         self.synth.set_volume(self.param_values['volume'])
+        self.synth.set_attack_time(self.param_values['attack'])
+        self.synth.set_release_time(self.param_values['release'])
         self.synth.lfo.depth = self.param_values['lfo_depth']
         self.synth.lfo.frequency = self.param_values['lfo_rate']
         self.synth._waveform_morph = self.param_values['waveform_morph']
-        print(f"Waveform morph: encoder_1 (0=sine, 1=square, 2=saw, 3=triangle)")
-        print(f"Volume control: encoder_2 (starting at {self.param_values['volume']:.2f})")
+        print(f"Attack control: encoder_1 (starting at {self.param_values['attack']*1000:.1f}ms)")
+        print(f"Release control: encoder_2 (starting at {self.param_values['release']*1000:.1f}ms)")
         print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
               f"rate={self.param_values['lfo_rate']:.1f}Hz")
         print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
               f"mix={self.param_values['reverb_mix']:.2f}")
         print(f"Delay locked: time={self.param_values['delay_time']:.2f}s, "
               f"feedback={self.param_values['delay_feedback']:.2f}")
+        print(f"Waveform locked: {self.param_values['waveform_morph']:.1f} (0=sine, 1=square, 2=saw, 3=triangle)")
         
         print("Control surface started")
 
