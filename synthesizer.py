@@ -1015,20 +1015,48 @@ class DubSiren:
         # Update oscillator frequency with smoothed value
         self.oscillator.set_frequency(self._base_frequency_current)
         
-        # Waveform selection (discrete - Pi Zero 2 can't handle morphing)
-        # Round to nearest integer for clean switching
-        morph_index = int(round(self._waveform_morph))
+        # Waveform morphing: only generate 2 waveforms for current range
+        morph = np.clip(self._waveform_morph, 0.0, 3.0)
+        phase_start = self.oscillator.phase
         
-        if morph_index == 0:
-            self.oscillator.waveform = 'sine'
-        elif morph_index == 1:
+        if morph < 1.0:
+            # Blend sine → square (sine is simple, no PolyBLEP needed)
+            # Generate sine directly for efficiency
+            phase_inc = 2.0 * np.pi * self.oscillator.frequency / self.oscillator.sample_rate
+            phases = phase_start + np.arange(num_samples) * phase_inc
+            wave_sine = np.sin(phases % (2.0 * np.pi))
+            
+            # Generate square with PolyBLEP
+            self.oscillator.phase = phase_start
             self.oscillator.waveform = 'square'
-        elif morph_index == 2:
+            wave_square = self.oscillator.generate(num_samples)
+            
+            # Blend
+            raw_buffer = wave_sine * (1.0 - morph) + wave_square * morph
+        elif morph < 2.0:
+            # Blend square → saw
+            blend = morph - 1.0
+            
+            self.oscillator.waveform = 'square'
+            wave_square = self.oscillator.generate(num_samples)
+            
+            self.oscillator.phase = phase_start
             self.oscillator.waveform = 'saw'
+            wave_saw = self.oscillator.generate(num_samples)
+            
+            raw_buffer = wave_square * (1.0 - blend) + wave_saw * blend
         else:
+            # Blend saw → triangle
+            blend = morph - 2.0
+            
+            self.oscillator.waveform = 'saw'
+            wave_saw = self.oscillator.generate(num_samples)
+            
+            self.oscillator.phase = phase_start
             self.oscillator.waveform = 'triangle'
-        
-        raw_buffer = self.oscillator.generate(num_samples)
+            wave_triangle = self.oscillator.generate(num_samples)
+            
+            raw_buffer = wave_saw * (1.0 - blend) + wave_triangle * blend
 
         # Generate LFO modulation for entire buffer
         lfo_signal = self.lfo.generate(num_samples)
