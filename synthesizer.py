@@ -1065,7 +1065,8 @@ class DubSiren:
             output = output * (1.0 - self._delay_mix) + delayed_output * self._delay_mix
 
         # === Reverb Effect ===
-        output = self.reverb.process(output)
+        # TEMP: Bypass reverb to test if it causes pulsing
+        # output = self.reverb.process(output)
 
         # === Volume ===
         output = output * self.volume
