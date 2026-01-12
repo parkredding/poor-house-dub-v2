@@ -244,17 +244,17 @@ class ControlSurface:
         'shutdown': 3,                # Shutdown/power button
     }
 
-    # Bank mapping - which parameter each encoder controls in each bank
+    # Bank mapping - matches build documentation
     BANK_A_PARAMS = {
-        'encoder_1': 'delay_time',      # TEMP: Testing delay
-        'encoder_2': 'delay_feedback',  # TEMP: Testing delay
+        'encoder_1': 'volume',
+        'encoder_2': 'filter_freq',
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
     }
 
     BANK_B_PARAMS = {
-        'encoder_1': 'release_time',
+        'encoder_1': 'release',
         'encoder_2': 'delay_time',
         'encoder_3': 'reverb_size',
         'encoder_4': 'osc_waveform',
@@ -275,23 +275,24 @@ class ControlSurface:
         self.param_values = {
             # Bank A parameters
             'volume': 0.7,              # Starting volume
-            'pitch_freq': 440.0,        # Starting pitch (A4)
-            'filter_freq': 2000.0,      # Browser preset match
-            'filter_res': 1.0,          # Browser preset match
-            'attack': 0.01,             # Envelope attack (10ms default)
-            'release': 1.5,             # Envelope release (1.5s for pitch sweep testing)
-            'waveform_morph': 0.0,      # Waveform morphing (0.0=sine to 3.0=triangle, locked)
-            'lfo_depth': 0.5,           # LFO modulation depth (locked at 50%)
-            'lfo_rate': 3.0,            # LFO rate in Hz (locked at 3Hz)
-            'delay_feedback': 0.5,      # Locked - good repeats
-            'delay_time': 0.2,          # Locked - faster echoes
-            'delay_mix': 0.3,           # Locked - 30% wet
-            'reverb_mix': 0.35,         # Locked - 35% wet
-            'reverb_size': 0.5,         # Locked - medium room
+            'filter_freq': 2000.0,      # Filter cutoff frequency
+            'filter_res': 1.0,          # Filter resonance
+            'delay_feedback': 0.5,      # Delay feedback amount
+            'reverb_mix': 0.35,         # Reverb wet/dry mix
+            
             # Bank B parameters
-            'release_time': 0.5,        # TEMPORARY TEST - mid-range for obvious changes
-            'osc_waveform': 0,          # 0 to 3 (discrete)
-            'lfo_waveform': 0,          # 0 to 3 (discrete)
+            'release': 0.5,             # Envelope release time (500ms default)
+            'delay_time': 0.2,          # Delay time in seconds
+            'reverb_size': 0.5,         # Reverb room size
+            'osc_waveform': 0,          # Oscillator waveform (0-3: sine/square/saw/triangle)
+            'lfo_waveform': 0,          # LFO waveform (0-3)
+            
+            # Fixed/internal parameters
+            'attack': 0.01,             # Envelope attack (10ms - fast)
+            'waveform_morph': 0.0,      # Internal: discrete waveform switching
+            'lfo_depth': 0.5,           # LFO modulation depth (50%)
+            'lfo_rate': 3.0,            # LFO rate (3Hz)
+            'delay_mix': 0.3,           # Delay wet mix (30%)
         }
 
         if GPIO_AVAILABLE:
@@ -553,25 +554,31 @@ class ControlSurface:
         self.running = True
         
         # Apply initial settings
-        self.synth.set_frequency(self.param_values['pitch_freq'])
         self.synth.set_volume(self.param_values['volume'])
         self.synth.set_attack_time(self.param_values['attack'])
         self.synth.set_release_time(self.param_values['release'])
         self.synth.lfo.depth = self.param_values['lfo_depth']
         self.synth.lfo.frequency = self.param_values['lfo_rate']
         self.synth._waveform_morph = self.param_values['waveform_morph']
-        # Pitch envelope not feasible on Pi Zero 2 - use pitch encoder instead
-        print(f"Delay Time: encoder_1 (starting at {self.param_values['delay_time']*1000:.0f}ms)")
-        print(f"Delay Feedback: encoder_2 (starting at {self.param_values['delay_feedback']:.2f})")
-        print(f"Delay Mix: {self.param_values['delay_mix']:.2f} (30% wet)")
-        print(f"Attack/Release locked: {self.param_values['attack']*1000:.0f}ms / {self.param_values['release']*1000:.0f}ms")
-        print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
-              f"rate={self.param_values['lfo_rate']:.1f}Hz")
-        print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
-              f"mix={self.param_values['reverb_mix']:.2f}")
-        print(f"Waveform locked: {self.param_values['waveform_morph']:.1f} (0=sine, 1=square, 2=saw, 3=triangle)")
         
-        print("Control surface started")
+        print("\n" + "="*60)
+        print("  Control Surface: Build Documentation Mappings")
+        print("="*60)
+        print("\nBank A:")
+        print("  Encoder 1: Volume")
+        print("  Encoder 2: Filter Frequency")
+        print("  Encoder 3: Filter Resonance")
+        print("  Encoder 4: Delay Feedback")
+        print("  Encoder 5: Reverb Mix")
+        print("\nBank B:")
+        print("  Encoder 1: Release Time")
+        print("  Encoder 2: Delay Time")
+        print("  Encoder 3: Reverb Size")
+        print("  Encoder 4: Oscillator Waveform")
+        print("  Encoder 5: LFO Waveform")
+        print("\nButtons: Trigger, Shift (Bank A/B), Shutdown")
+        print("="*60)
+        print("\nControl surface started")
 
     def stop(self):
         """Stop the control surface and cleanup GPIO"""
