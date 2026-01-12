@@ -277,9 +277,9 @@ class ControlSurface:
             'pitch_freq': 440.0,        # TEMP: Testing pitch oscillator (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
-            'delay_feedback': 0.4,      # TEMP: Testing delay
+            'delay_feedback': 0.35,     # TEMP: Testing delay
             'delay_time': 0.3,          # TEMP: Testing delay
-            'delay_mix': 0.5,           # TEMP: Testing delay (50% wet)
+            'delay_mix': 0.3,           # TEMP: Testing delay (30% wet, more distant)
             'reverb_mix': 0.0,          # Reverb off for tone test
             # Bank B parameters
             'release_time': 0.5,        # TEMPORARY TEST - mid-range for obvious changes

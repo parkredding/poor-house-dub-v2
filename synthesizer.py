@@ -912,8 +912,8 @@ class DubSiren:
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
         self._delay_write_pos = 0
         self._delay_time = 0.3  # seconds
-        self._delay_feedback = 0.4  # Multiple fading repeats
-        self._delay_mix = 0.5
+        self._delay_feedback = 0.35  # Multiple fading repeats
+        self._delay_mix = 0.3  # More distant/subtle (30% wet)
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
