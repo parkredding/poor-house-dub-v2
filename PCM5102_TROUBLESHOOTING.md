@@ -73,18 +73,29 @@ Left Side (Odd Numbers):          Right Side (Even Numbers):
 - Does the PCM5102 have a power LED? Is it lit?
 - If no LED is lit, check VIN and GND connections
 
-## Step 4: Verify PCM5102 Configuration Pins
+## Step 4: Verify PCM5102 Configuration Pins ⚠️ CRITICAL
 
 The PCM5102 has several configuration pins that **must** be set correctly. Many PCM5102 boards come with solder jumpers that pre-configure these, but some require manual wiring.
 
 ### Required Configuration:
 
-| PCM5102 Pin | Must Connect To | Purpose |
-|-------------|-----------------|---------|
-| **SCK** | GND | Sets sample rate mode (GND = 48kHz) |
-| **FLT** | GND | Filter select (GND = normal latency) |
-| **FMT** | GND | Format select (GND = I2S standard) |
-| **XMT** | GND (or leave floating) | Soft mute control (GND = normal) |
+| PCM5102 Pin | Must Connect To | Purpose | **If Wrong** |
+|-------------|-----------------|---------|--------------|
+| **XMT** | **GND** | **Soft mute control** | **⚠️ If HIGH = NO AUDIO!** |
+| **SCK** | GND | Sets sample rate mode (GND = 48kHz) | Wrong sample rate |
+| **FLT** | GND | Filter select (GND = normal latency) | Audio quality issues |
+| **FMT** | GND | Format select (GND = I2S standard) | No audio/wrong format |
+
+### ⚠️ XMT Pin is the Most Common Cause of "No Audio"!
+
+**XMT (Soft Mute) behavior:**
+- **XMT = HIGH (3.3V)** → DAC is **MUTED** → **NO AUDIO OUTPUT**
+- **XMT = LOW (GND)** → DAC is **UNMUTED** → Normal operation
+- **XMT = Floating** → Usually unmuted, but not guaranteed
+
+**IMPORTANT:** If XMT is connected to 3.3V or pulled high by a jumper, speaker-test will run successfully but you'll hear no audio because the DAC is muted!
+
+**Fix:** Connect XMT to GND to guarantee unmuted operation.
 
 ### How to check:
 1. Look at your PCM5102 module
@@ -145,9 +156,17 @@ sudo reboot
 
 ## Common Issues and Solutions
 
-### Issue: "No sound but speaker-test runs successfully"
-**Cause:** PCM5102 not wired correctly or headphones on wrong output
-**Solution:** Double-check wiring diagram above, ensure headphones connected to DAC output
+### Issue: "No sound but speaker-test runs successfully" ⚠️ MOST COMMON
+**Possible Causes (in order of likelihood):**
+
+1. **XMT pin is HIGH (muted)** ← **CHECK THIS FIRST!**
+   - Solution: Connect XMT to GND, or check for jumpers pulling it high
+
+2. **Headphones on wrong output**
+   - Solution: Connect to PCM5102 OUT L/R pins, NOT Pi's built-in jack
+
+3. **I2S pins not connected properly**
+   - Solution: Verify LCK→Pin 12, BCK→Pin 35, DIN→Pin 40
 
 ### Issue: "Crackling or distorted audio"
 **Cause:** Poor power supply or loose connections
@@ -172,12 +191,13 @@ sudo reboot
 Follow this order to isolate the problem:
 
 1. ✓ Software working (speaker-test completes) ← **You are here**
-2. ⚠ Check headphones connected to DAC output (not Pi)
-3. ⚠ Verify I2S data pins (LCK, BCK, DIN)
-4. ⚠ Check PCM5102 configuration pins (SCK, FLT, FMT → GND)
-5. ⚠ Verify power connections (VIN → 3.3V, GND → GND)
-6. ⚠ Test with different headphones/speakers
-7. ⚠ Try different PCM5102 module
+2. ⚠ **Check XMT pin → Must be GND (not 3.3V or floating)** ← **CHECK FIRST!**
+3. ⚠ Check headphones connected to DAC output (not Pi's jack)
+4. ⚠ Check other config pins (SCK, FLT, FMT → GND)
+5. ⚠ Verify I2S data pins (LCK→Pin 12, BCK→Pin 35, DIN→Pin 40)
+6. ⚠ Verify power connections (VIN → 3.3V, GND → GND)
+7. ⚠ Test with different headphones/speakers
+8. ⚠ Try different PCM5102 module
 
 ## Additional Resources
 
