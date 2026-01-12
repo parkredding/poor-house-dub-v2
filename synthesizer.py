@@ -936,7 +936,6 @@ class DubSiren:
         self._pitch_env_range = 2.0  # Octaves to sweep (2.0 = 2 octaves)
         self._pitch_env_position = 0.0  # Current position in envelope (0.0 to 1.0)
         self._pitch_env_active = False  # Is pitch envelope currently running?
-        self._pitch_env_frequency = 440.0  # Current pitch envelope frequency (smoothed)
 
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
@@ -1048,38 +1047,29 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # Apply pitch envelope if active (with smooth frequency transitions)
-        if self._pitch_env_active:
+        # Apply pitch envelope if active (simplified to prevent pulsing)
+        target_frequency = self._base_frequency_current
+        
+        if self._pitch_env_active and self._pitch_env_mode == 'up':
             # Calculate pitch envelope position (0.0 to 1.0)
-            samples_per_env = self._pitch_env_time * self.sample_rate
-            increment_per_sample = 1.0 / samples_per_env if samples_per_env > 0 else 1.0
+            samples_per_env = max(self._pitch_env_time * self.sample_rate, 1024)  # Min 1024 samples
+            increment_per_buffer = num_samples / samples_per_env
             
-            # Update position for this buffer
-            self._pitch_env_position += increment_per_sample * num_samples
+            # Update position
+            self._pitch_env_position = min(1.0, self._pitch_env_position + increment_per_buffer)
             
-            # Clamp position
+            # Stop when complete
             if self._pitch_env_position >= 1.0:
-                self._pitch_env_position = 1.0
-                self._pitch_env_active = False  # Envelope complete
+                self._pitch_env_active = False
             
-            # Calculate target frequency using simple log-linear interpolation
-            position = self._pitch_env_position  # Already clamped above
-            
-            if self._pitch_env_mode == 'up':
-                # Start low, sweep up to base frequency
-                octave_shift = -self._pitch_env_range * (1.0 - position)
-                self._pitch_env_frequency = self._base_frequency_current * (2.0 ** octave_shift)
-                
-            elif self._pitch_env_mode == 'down':
-                # Start high, sweep down to base frequency
-                octave_shift = self._pitch_env_range * (1.0 - position)
-                self._pitch_env_frequency = self._base_frequency_current * (2.0 ** octave_shift)
-        else:
-            # No pitch envelope - use base frequency
-            self._pitch_env_frequency = self._base_frequency_current
+            # Calculate frequency: start low, sweep up
+            # position = 0.0 → start at base_freq (steady during hold)
+            # position = 1.0 → end at base_freq * 4 (2 octaves up)
+            octave_shift = self._pitch_env_range * self._pitch_env_position
+            target_frequency = self._base_frequency_current * (2.0 ** octave_shift)
 
-        # Update oscillator frequency (already smooth from pitch smoothing above)
-        self.oscillator.set_frequency(self._pitch_env_frequency)
+        # Update oscillator frequency
+        self.oscillator.set_frequency(target_frequency)
         
         # Waveform selection (discrete switching)
         # Round to nearest integer for clean switching
