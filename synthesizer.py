@@ -980,28 +980,30 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer with filter enabled
+        """Generate audio buffer with filter - matches reference implementation
 
-        Signal chain: Oscillator → Envelope → Filter (gated) → DC Blocker → Volume
+        Signal chain (like reference):
+        Oscillator → Filter → (× Envelope) → DC Blocker → Volume
+
+        This keeps filter stable by always processing signal, then gates with envelope
         """
         with self._env_lock:
             env = self.envelope.generate(num_samples)
 
+        # Generate raw oscillator
         audio = self.oscillator.generate(num_samples)
+
+        # Filter BEFORE envelope (like reference code)
+        # Filter always sees raw signal, stays stable
+        audio = self.filter.process(audio)
+
+        # THEN apply envelope (gates the filtered signal)
         audio = audio * env
 
-        # Phase 3.1: Low-pass filter with gate to prevent self-oscillation
-        # Only process filter when envelope is above threshold to avoid instability
-        max_env = np.max(np.abs(env))
-        if max_env > 0.001:  # Only filter when envelope is significantly active
-            audio = self.filter.process(audio)
-        else:
-            # Reset filter state when envelope is very low to prevent buildup/oscillation
-            self.filter.reset()
-
-        # DC blocker removes any DC offset from filter
+        # DC blocker removes any DC offset
         audio = self.dc_blocker.process(audio)
 
+        # Volume
         audio = audio * self.volume
 
         # Basic NaN protection only
