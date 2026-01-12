@@ -263,11 +263,11 @@ class Envelope:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        # Slightly longer sustain/release to mask micro-gaps from noisy triggers
-        self.attack = 0.01   # seconds (browser preset)
-        self.decay = 0.05    # seconds (short)
-        self.sustain = 1.0   # hold full level
-        self.release = 0.25  # seconds (a bit longer)
+        # Gating envelope: fast attack/decay, full sustain, short release
+        self.attack = 0.01
+        self.decay = 0.05
+        self.sustain = 1.0
+        self.release = 0.3
         self.current_sample = 0
         self.is_active = False
         self.is_releasing = False
@@ -989,17 +989,17 @@ class DubSiren:
         clamping to prevent values from growing unbounded. This makes NaN impossible
         under normal operation, ensuring audio always respects volume control.
         """
-        # Bypass pitch envelope and FX for stable dry tone
+        # No pitch envelope or FX for now; re-enable envelope gating
         audio = self.oscillator.generate(num_samples)
-        # Unity envelope (always on)
-        audio = audio  # no envelope multiplication
-        # Skip filter/delay/reverb for now (dry path)
-        # Remove DC offset to prevent headroom waste and asymmetric clipping
+
+        # Apply amplitude envelope for gating
+        env = self.envelope.generate(num_samples)
+        audio = audio * env
+
+        # Dry path: skip filter/delay/reverb
         audio = self.dc_blocker.process(audio)
-        # Apply volume
         audio = audio * self.volume
 
-        # Final safety check
         if not np.all(np.isfinite(audio)):
             self._nan_events += 1
             audio = sanitize_audio(audio)
