@@ -907,6 +907,14 @@ class DubSiren:
 
         # Frequency control
         self.base_frequency = 440.0  # A4 - good test tone for pitch oscillator
+        
+        # Disable delay tape effects for clean digital delay (like browser test)
+        self.delay.repitch_rate = 0.0      # Digital mode: no pitch shifting
+        self.delay.mod_depth = 0.0         # No wobble modulation
+        self.delay.flutter_depth = 0.0     # No flutter
+        self.delay.tape_saturation = 0.0   # No saturation
+        self.delay.filter_lp_freq = 20000.0  # No high-frequency damping
+        self.delay.filter_hp_freq = 20.0     # No low-frequency filtering
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
@@ -1021,9 +1029,8 @@ class DubSiren:
             else:
                 output[i] = filtered_sample * env
 
-        # === Simple Delay Effect (clean, like browser test) ===
-        # TEMP: Bypass delay to test if it's causing pulsing
-        # output = self._process_simple_delay(output)
+        # === Delay Effect (all tape effects disabled for clean sound) ===
+        output = self.delay.process(output)
 
         # === Volume ===
         output = output * self.volume
@@ -1044,45 +1051,6 @@ class DubSiren:
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)
-
-    def _process_simple_delay(self, input_signal: np.ndarray) -> np.ndarray:
-        """Simple clean delay without tape effects (matches browser test)
-        
-        Just basic delay: time, feedback, dry/wet mix
-        No filters, no modulation, no saturation
-        """
-        # Initialize simple delay buffer if needed
-        if not hasattr(self, '_simple_delay_buffer'):
-            max_delay_samples = int(2.0 * self.sample_rate)  # 2 second max
-            self._simple_delay_buffer = np.zeros(max_delay_samples)
-            self._simple_delay_write_pos = 0
-        
-        # Get delay parameters from the DelayEffect object
-        delay_time = self.delay.delay_time
-        feedback = self.delay.feedback
-        dry_wet = self.delay.dry_wet
-        
-        # Skip processing if delay is off
-        if dry_wet < 0.001:
-            return input_signal
-        
-        output = np.zeros_like(input_signal)
-        delay_samples = int(delay_time * self.sample_rate)
-        delay_samples = max(1, min(delay_samples, len(self._simple_delay_buffer) - 1))
-        
-        for i in range(len(input_signal)):
-            # Read from delay buffer
-            read_pos = (self._simple_delay_write_pos - delay_samples) % len(self._simple_delay_buffer)
-            delayed = self._simple_delay_buffer[read_pos]
-            
-            # Write to buffer: input + feedback
-            self._simple_delay_buffer[self._simple_delay_write_pos] = input_signal[i] + delayed * feedback
-            self._simple_delay_write_pos = (self._simple_delay_write_pos + 1) % len(self._simple_delay_buffer)
-            
-            # Mix dry and wet
-            output[i] = input_signal[i] * (1.0 - dry_wet) + delayed * dry_wet
-        
-        return output
 
     # Control setters
     def set_volume(self, volume: float):
