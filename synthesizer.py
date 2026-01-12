@@ -902,6 +902,7 @@ class DubSiren:
         self.lfo = LFO(sample_rate)
         self.envelope = Envelope(sample_rate)
         self._env_lock = threading.Lock()
+        self._last_sample = 0.0  # for edge crossfade
         self.filter = LowPassFilter(sample_rate)
         self.delay = DelayEffect(sample_rate)
         self.reverb = ReverbEffect(sample_rate)
@@ -998,8 +999,20 @@ class DubSiren:
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
 
-        # Dry path: skip filter/delay/reverb and DC blocker to avoid tail discontinuity
+        # Dry path: skip filter/delay/reverb; apply volume
         audio = audio * self.volume
+
+        # Edge crossfade to avoid clicks when envelope starts/stops mid-buffer
+        fade = min(64, len(audio))  # ~1.3 ms at 48k
+        if fade > 1:
+            # Fade-in from last sample to current buffer start
+            audio[:fade] *= np.linspace(0.0, 1.0, fade)
+            # Fade-out if envelope ended within/at this buffer
+            if not self.envelope.is_active:
+                audio[-fade:] *= np.linspace(1.0, 0.0, fade)
+
+        # Track last sample for potential future use
+        self._last_sample = float(audio[-1]) if len(audio) else 0.0
 
         if not np.all(np.isfinite(audio)):
             self._nan_events += 1
