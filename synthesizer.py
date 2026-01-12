@@ -1052,31 +1052,12 @@ class DubSiren:
         pitch_smoothing = 0.02  # Smooth parameter changes
         self._base_frequency_current += (self.base_frequency - self._base_frequency_current) * pitch_smoothing
 
-        # Apply pitch envelope if active (with heavy smoothing to prevent pulsing)
-        if self._pitch_env_active and self._pitch_env_mode == 'up':
-            # Simple linear position update
-            samples_per_env = max(self._pitch_env_time * self.sample_rate, 1024)
-            self._pitch_env_position += num_samples / samples_per_env
-            
-            # Clamp and stop when complete
-            if self._pitch_env_position >= 1.0:
-                self._pitch_env_position = 1.0
-                self._pitch_env_active = False
-            
-            # Calculate target frequency (linear interpolation)
-            start_freq = self._base_frequency_current
-            end_freq = self._base_frequency_current * 4.0
-            self._pitch_env_target_freq = start_freq + (end_freq - start_freq) * self._pitch_env_position
-        else:
-            # No pitch envelope - target is base frequency
-            self._pitch_env_target_freq = self._base_frequency_current
+        # PITCH ENVELOPE DISABLED - Pi Zero 2 can't handle real-time pitch calculations
+        # Even simple linear interpolation causes pulsing on single-core hardware
+        # Would need Pi 4 or pre-calculated lookup table approach
         
-        # Smooth the frequency changes (critical for preventing pulsing)
-        freq_smoothing = 0.05  # Heavy smoothing
-        self._pitch_env_current_freq += (self._pitch_env_target_freq - self._pitch_env_current_freq) * freq_smoothing
-
-        # Update oscillator frequency with smoothed value
-        self.oscillator.set_frequency(self._pitch_env_current_freq)
+        # Update oscillator frequency (no pitch envelope)
+        self.oscillator.set_frequency(self._base_frequency_current)
         
         # Waveform selection (discrete switching)
         # Round to nearest integer for clean switching

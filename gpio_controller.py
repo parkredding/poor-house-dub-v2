@@ -560,10 +560,10 @@ class ControlSurface:
         self.synth.lfo.depth = self.param_values['lfo_depth']
         self.synth.lfo.frequency = self.param_values['lfo_rate']
         self.synth._waveform_morph = self.param_values['waveform_morph']
-        self.synth.set_pitch_envelope('up')  # Linear interpolation - fast!
+        # self.synth.set_pitch_envelope('up')  # DISABLED - Pi Zero 2 can't handle it
         print(f"Attack control: encoder_1 (starting at {self.param_values['attack']*1000:.1f}ms)")
         print(f"Release control: encoder_2 (starting at {self.param_values['release']*1000:.1f}ms)")
-        print(f"Pitch Envelope: UP (linear sweep, 2 octaves during release)")
+        print(f"Pitch Envelope: DISABLED (Pi Zero 2 hardware limitation)")
         print(f"LFO→Filter locked: depth={self.param_values['lfo_depth']:.2f}, "
               f"rate={self.param_values['lfo_rate']:.1f}Hz")
         print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
