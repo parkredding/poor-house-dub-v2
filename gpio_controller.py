@@ -244,9 +244,10 @@ class ControlSurface:
     }
 
     # Bank mapping - which parameter each encoder controls in each bank
+    # TEMPORARY: Encoder 2 remapped to release_time for testing Phase 2.1
     BANK_A_PARAMS = {
         'encoder_1': 'volume',
-        'encoder_2': 'filter_freq',
+        'encoder_2': 'release_time',  # TEMPORARY TEST - normally 'filter_freq'
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -279,7 +280,7 @@ class ControlSurface:
             'delay_feedback': 0.0,      # Delay off for tone test
             'reverb_mix': 0.0,          # Reverb off for tone test
             # Bank B parameters
-            'release_time': 0.3,        # Browser preset match
+            'release_time': 0.5,        # TEMPORARY TEST - mid-range for obvious changes
             'delay_time': 0.3,          # Browser preset match
             'reverb_size': 0.5,         # Browser preset match
             'osc_waveform': 0,          # 0 to 3 (discrete)
