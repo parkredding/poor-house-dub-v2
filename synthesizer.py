@@ -1011,17 +1011,60 @@ class DubSiren:
             self._simple_filter_state += alpha * (raw_buffer[i] - self._simple_filter_state)
             filtered_sample = self._simple_filter_state
 
-            # Apply envelope
-            output[i] = filtered_sample * env
+            # Apply envelope with hard gate at very low levels (prevents delay noise)
+            if env < 0.001:
+                output[i] = 0.0
+            else:
+                output[i] = filtered_sample * env
 
-        # === Delay Effect ===
-        output = self.delay.process(output)
+        # === Simple Delay Effect (clean, like browser test) ===
+        # Using a simple delay without tape effects to avoid instability
+        output = self._process_simple_delay(output)
 
         # === Volume ===
         output = output * self.volume
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)
+
+    def _process_simple_delay(self, input_signal: np.ndarray) -> np.ndarray:
+        """Simple clean delay without tape effects (matches browser test)
+        
+        Just basic delay: time, feedback, dry/wet mix
+        No filters, no modulation, no saturation
+        """
+        # Initialize simple delay buffer if needed
+        if not hasattr(self, '_simple_delay_buffer'):
+            max_delay_samples = int(2.0 * self.sample_rate)  # 2 second max
+            self._simple_delay_buffer = np.zeros(max_delay_samples)
+            self._simple_delay_write_pos = 0
+        
+        # Get delay parameters from the DelayEffect object
+        delay_time = self.delay.delay_time
+        feedback = self.delay.feedback
+        dry_wet = self.delay.dry_wet
+        
+        # Skip processing if delay is off
+        if dry_wet < 0.001:
+            return input_signal
+        
+        output = np.zeros_like(input_signal)
+        delay_samples = int(delay_time * self.sample_rate)
+        delay_samples = max(1, min(delay_samples, len(self._simple_delay_buffer) - 1))
+        
+        for i in range(len(input_signal)):
+            # Read from delay buffer
+            read_pos = (self._simple_delay_write_pos - delay_samples) % len(self._simple_delay_buffer)
+            delayed = self._simple_delay_buffer[read_pos]
+            
+            # Write to buffer: input + feedback
+            self._simple_delay_buffer[self._simple_delay_write_pos] = input_signal[i] + delayed * feedback
+            self._simple_delay_write_pos = (self._simple_delay_write_pos + 1) % len(self._simple_delay_buffer)
+            
+            # Mix dry and wet
+            output[i] = input_signal[i] * (1.0 - dry_wet) + delayed * dry_wet
+        
+        return output
 
     # Control setters
     def set_volume(self, volume: float):
