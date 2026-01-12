@@ -263,11 +263,11 @@ class LFO:
 
 
 class Envelope:
-    """ADSR Envelope Generator"""
+    """ADSR Envelope Generator - MINIMAL VERSION FOR DEBUGGING"""
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        # Gating envelope tuned to avoid pops: fast attack, short decay, moderate sustain, long release
+        # Simple linear envelope
         self.attack = 0.01
         self.decay = 0.01
         self.sustain = 0.7
@@ -276,26 +276,18 @@ class Envelope:
         self.is_active = False
         self.is_releasing = False
         self.release_level = 0.0
-        self.current_level = 0.0  # Track current envelope output for smooth retriggering
-        self.attack_start_level = 0.0  # Level to start attack from (for soft retrigger)
 
     def trigger(self):
-        """Trigger the envelope with soft retriggering to prevent pops"""
-        # If already active, capture current level for smooth retrigger
-        if self.is_active:
-            self.attack_start_level = self.current_level
-        else:
-            self.attack_start_level = 0.0
-
+        """Trigger the envelope - SIMPLE VERSION"""
         self.current_sample = 0
         self.is_active = True
         self.is_releasing = False
 
     def release_trigger(self):
-        """Release the envelope"""
+        """Release the envelope - SIMPLE VERSION"""
         if self.is_active:
             self.is_releasing = True
-            # Capture current level for smooth release
+            # Capture current level for release
             attack_samples = int(self.attack * self.sample_rate)
             decay_samples = int(self.decay * self.sample_rate)
 
@@ -310,9 +302,8 @@ class Envelope:
             self.current_sample = 0
 
     def generate(self, num_samples: int) -> np.ndarray:
-        """Generate envelope values with smooth retriggering support"""
+        """Generate envelope values - SIMPLE LINEAR VERSION"""
         if not self.is_active:
-            self.current_level = 0.0
             return np.zeros(num_samples)
 
         output = np.zeros(num_samples)
@@ -323,25 +314,20 @@ class Envelope:
 
         for i in range(num_samples):
             if self.is_releasing:
-                # Release phase - exponential decay to zero
+                # Release phase - SIMPLE LINEAR
                 if self.current_sample < release_samples:
                     progress = self.current_sample / release_samples
-                    # Use exponential curve for smoother decay: (1-x)^2 instead of (1-x)
-                    output[i] = self.release_level * (1.0 - progress) * (1.0 - progress)
+                    output[i] = self.release_level * (1.0 - progress)
                     self.current_sample += 1
                 else:
-                    # Release complete - deactivate envelope
+                    # Release complete
                     output[i] = 0.0
                     self.is_active = False
                     self.is_releasing = False
             else:
-                # Attack phase - interpolate from attack_start_level to 1.0
+                # Attack phase - SIMPLE LINEAR
                 if self.current_sample < attack_samples:
-                    if attack_samples > 0:
-                        progress = self.current_sample / attack_samples
-                        output[i] = self.attack_start_level + (1.0 - self.attack_start_level) * progress
-                    else:
-                        output[i] = 1.0
+                    output[i] = self.current_sample / attack_samples
                 # Decay phase
                 elif self.current_sample < attack_samples + decay_samples:
                     progress = (self.current_sample - attack_samples) / decay_samples
@@ -351,9 +337,6 @@ class Envelope:
                     output[i] = self.sustain
 
                 self.current_sample += 1
-
-            # Track current level for smooth retriggering
-            self.current_level = output[i]
 
         return output
 
@@ -1008,42 +991,19 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer with NaN prevention
+        """Generate audio buffer - MINIMAL VERSION FOR DEBUGGING
 
-        All DSP components (filters, delay, reverb) use internal state and buffer
-        clamping to prevent values from growing unbounded. This makes NaN impossible
-        under normal operation, ensuring audio always respects volume control.
+        Stripped down to basics: oscillator → envelope → volume
+        No DC blocker, no noise gate, no phase reset - just the essentials
         """
-        # No pitch envelope or FX for now; re-enable envelope gating
-        # Track if envelope was active before this buffer
-        was_active = self.envelope.is_active
-
         with self._env_lock:
             env = self.envelope.generate(num_samples)
+
         audio = self.oscillator.generate(num_samples)
-
-        # Apply envelope to audio
         audio = audio * env
-
-        # Apply final audio-level gate when envelope is very quiet to ensure smooth zero crossing
-        # This prevents clicks from oscillator being at arbitrary phase when envelope ends
-        gate_threshold = 0.01  # When envelope is below this, apply additional smoothing
-        for i in range(len(env)):
-            if 0.0 < env[i] < gate_threshold:
-                # Envelope is very quiet - apply additional exponential smoothing
-                gate_amount = (env[i] / gate_threshold) ** 2  # Quadratic curve for smooth tail
-                audio[i] *= gate_amount
-
-        # If envelope just became inactive, reset oscillator phase to prevent clicks on next trigger
-        if was_active and not self.envelope.is_active:
-            self.oscillator.reset_phase()
-
-        # Apply DC blocker to remove any remaining DC offset
-        audio = self.dc_blocker.process(audio)
-
-        # Dry path: skip filter/delay/reverb; apply volume
         audio = audio * self.volume
 
+        # Basic NaN protection only
         if not np.all(np.isfinite(audio)):
             self._nan_events += 1
             audio = sanitize_audio(audio)
