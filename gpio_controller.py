@@ -111,7 +111,7 @@ class MomentarySwitch:
         pin: int,
         press_callback: Optional[Callable[[], None]] = None,
         release_callback: Optional[Callable[[], None]] = None,
-        debounce_ms: int = 50
+        debounce_ms: int = 15
     ):
         self.pin = pin
         self.press_callback = press_callback
@@ -159,7 +159,7 @@ class MomentarySwitch:
         """Polling loop for button state (runs in separate thread)"""
         while self.running:
             self._handle_event(None)
-            time.sleep(0.01)  # Poll every 10ms
+            time.sleep(0.005)  # Faster poll for better responsiveness
 
     def _handle_event(self, channel):
         """Handle button press/release events with software debouncing"""
@@ -265,11 +265,11 @@ class ControlSurface:
         # Parameter ranges for all parameters (both banks)
         self.param_values = {
             # Bank A parameters
-            'volume': 0.5,              # 0.0 to 1.0
-            'filter_freq': 2000.0,      # 20 to 20000 Hz
-            'filter_res': 0.3,          # 0.0 to 0.95
-            'delay_feedback': 0.3,      # 0.0 to 0.95
-            'reverb_mix': 0.3,          # 0.0 to 1.0
+            'volume': 0.9,              # Start loud
+            'filter_freq': 12000.0,     # Start bright
+            'filter_res': 0.2,          # Lower Q by default
+            'delay_feedback': 0.0,      # Start dry
+            'reverb_mix': 0.0,          # Start dry
             # Bank B parameters
             'release_time': 0.5,        # 0.001 to 5.0 seconds
             'delay_time': 0.5,          # 0.001 to 2.0 seconds

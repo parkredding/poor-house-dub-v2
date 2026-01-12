@@ -348,10 +348,10 @@ class LowPassFilter:
 
     def __init__(self, sample_rate: int = 48000):
         self.sample_rate = sample_rate
-        self.cutoff = 2000.0  # Hz (target value - matches browser test default)
-        self.cutoff_current = 2000.0  # Current smoothed value
-        self.resonance = 1.0  # Q value (matches browser test default)
-        self.resonance_current = 1.0  # Current smoothed value
+        self.cutoff = 12000.0  # Hz (brighter default)
+        self.cutoff_current = 12000.0  # Current smoothed value
+        self.resonance = 0.3  # Q value (less peaky by default)
+        self.resonance_current = 0.3  # Current smoothed value
         self.prev_output = 0.0
         # Smoothing coefficient: larger = smoother but slower response
         # 0.001 = smooth over ~1ms, good balance for real-time control
@@ -906,7 +906,7 @@ class DubSiren:
         self.dc_blocker = DCBlocker()  # Removes DC offset before output
 
         # Control parameters (match browser test defaults)
-        self.volume = 0.7  # Matches browser test default
+        self.volume = 0.9  # Start louder for clearer response
         self.is_running = False
 
         # Frequency control
