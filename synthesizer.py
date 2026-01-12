@@ -1034,6 +1034,19 @@ class DubSiren:
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
 
+        # Find where envelope reaches zero and apply final fade to prevent oscillator discontinuity
+        # When envelope ends, oscillator could be at any phase, causing a click
+        threshold = 0.001  # When envelope drops below this, apply final fade
+        for i in range(len(env)):
+            if env[i] < threshold and (i == 0 or env[i-1] >= threshold):
+                # Found the point where envelope drops below threshold
+                # Apply short fade from this point forward
+                fade_len = min(32, len(env) - i)  # ~0.67ms at 48kHz
+                for j in range(fade_len):
+                    fade = 1.0 - (j / fade_len)
+                    audio[i + j] *= fade
+                break
+
         # Dry path: skip filter/delay/reverb; apply volume
         audio = audio * self.volume
 
