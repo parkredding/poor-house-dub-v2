@@ -991,16 +991,29 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer - MINIMAL VERSION FOR DEBUGGING
+        """Generate audio buffer - MINIMAL VERSION with envelope zero-point fade
 
-        Stripped down to basics: oscillator → envelope → volume
-        No DC blocker, no noise gate, no phase reset - just the essentials
+        When envelope reaches zero, apply a short fade to prevent oscillator click
         """
         with self._env_lock:
             env = self.envelope.generate(num_samples)
 
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
+
+        # Find where envelope hits zero and apply short fade to prevent click
+        # The click happens because oscillator could be at any phase when env=0
+        for i in range(len(env)):
+            if env[i] == 0.0 and (i == 0 or env[i-1] > 0.0):
+                # Found transition to zero - apply fade to previous samples
+                fade_len = min(32, i)  # Fade last 32 samples (~0.67ms at 48kHz)
+                for j in range(fade_len):
+                    idx = i - fade_len + j
+                    if idx >= 0:
+                        fade_mult = 1.0 - (j / fade_len)  # 1.0 down to 0.0
+                        audio[idx] *= fade_mult
+                break
+
         audio = audio * self.volume
 
         # Basic NaN protection only
