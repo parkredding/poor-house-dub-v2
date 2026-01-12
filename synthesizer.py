@@ -1028,25 +1028,29 @@ class DubSiren:
             else:
                 output[i] = filtered_sample * env
 
-        # === Ultra-Simple Delay (minimal circular buffer) ===
+        # === Ultra-Simple Delay (vectorized numpy implementation) ===
         if self._delay_mix > 0.001:
             delay_samples = int(self._delay_time * self.sample_rate)
             delay_samples = max(1, min(delay_samples, len(self._delay_buffer) - 1))
             
-            output_with_delay = np.zeros_like(output)
-            for i in range(len(output)):
-                # Read from delay
-                read_pos = (self._delay_write_pos - delay_samples) % len(self._delay_buffer)
-                delayed = self._delay_buffer[read_pos]
-                
-                # Write: input + feedback
-                self._delay_buffer[self._delay_write_pos] = output[i] + delayed * self._delay_feedback
-                self._delay_write_pos = (self._delay_write_pos + 1) % len(self._delay_buffer)
-                
-                # Mix
-                output_with_delay[i] = output[i] * (1.0 - self._delay_mix) + delayed * self._delay_mix
+            buffer_len = len(self._delay_buffer)
+            num_samples = len(output)
             
-            output = output_with_delay
+            # Calculate all read positions at once
+            write_positions = (self._delay_write_pos + np.arange(num_samples)) % buffer_len
+            read_positions = (write_positions - delay_samples) % buffer_len
+            
+            # Read delayed samples
+            delayed_output = self._delay_buffer[read_positions]
+            
+            # Write to buffer (without feedback for now)
+            self._delay_buffer[write_positions] = output
+            
+            # Update write position
+            self._delay_write_pos = (self._delay_write_pos + num_samples) % buffer_len
+            
+            # Mix dry and wet
+            output = output * (1.0 - self._delay_mix) + delayed_output * self._delay_mix
 
         # === Volume ===
         output = output * self.volume
