@@ -995,19 +995,30 @@ class DubSiren:
         self.oscillator.waveform = 'square'
         raw_buffer = self.oscillator.generate(num_samples)
 
-        # Process through stable low-pass filter (vectorized)
-        filtered = self.filter.process(raw_buffer)
+        # Simple inline one-pole low-pass filter
+        # No smoothing, no resonance - just basic filtering
+        if not hasattr(self, '_simple_filter_state'):
+            self._simple_filter_state = 0.0
+        
+        # Calculate coefficient once per buffer (not per sample)
+        cutoff = self.filter.cutoff
+        cutoff = max(20.0, min(cutoff, 20000.0))
+        # One-pole coefficient: alpha = 1 - e^(-2*pi*fc/fs)
+        alpha = 1.0 - np.exp(-2.0 * np.pi * cutoff / self.sample_rate)
 
-        # Sample-by-sample envelope, DC blocking, and volume
+        # Sample-by-sample envelope and filtering
         for i in range(num_samples):
             # === Envelope ===
             self.envelope.current_value += (env_target - self.envelope.current_value) * env_coeff
             env = self.envelope.current_value
 
-            # Apply envelope to filtered signal
-            voice = filtered[i] * env
+            # === Simple one-pole filter ===
+            self._simple_filter_state += alpha * (raw_buffer[i] - self._simple_filter_state)
+            filtered_sample = self._simple_filter_state
 
-            # TEMP: Bypass DC blocker to test if it's causing pulsing
+            # Apply envelope
+            voice = filtered_sample * env
+
             # === Volume ===
             output[i] = voice * self.volume
 
@@ -1016,13 +1027,11 @@ class DubSiren:
         if self._buffer_count % 100 == 0:
             current_time = time.time()
             if current_time - self._last_log_time >= 2.0:
-                filtered_rms = np.sqrt(np.mean(filtered**2))
                 output_rms = np.sqrt(np.mean(output**2))
                 print(f"[DEBUG] env={self.envelope.current_value:.4f}, "
-                      f"filter_state={self.filter.prev_output:.4f}, "
-                      f"filtered_rms={filtered_rms:.4f}, "
+                      f"filter_state={self._simple_filter_state:.4f}, "
                       f"output_rms={output_rms:.4f}, "
-                      f"cutoff={self.filter.cutoff:.1f}Hz")
+                      f"cutoff={cutoff:.1f}Hz, alpha={alpha:.6f}")
                 self._last_log_time = current_time
 
         # Final clipping
