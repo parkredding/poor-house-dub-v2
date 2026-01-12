@@ -911,9 +911,11 @@ class DubSiren:
         # Ultra-simple delay buffer (bypassing DelayEffect complexity)
         self._delay_buffer = np.zeros(int(2.0 * sample_rate))  # 2 second max
         self._delay_write_pos = 0
-        self._delay_time = 0.3  # seconds
+        self._delay_time = 0.3  # seconds (target)
+        self._delay_time_current = 0.3  # seconds (actual, smoothed)
         self._delay_feedback = 0.35  # Multiple fading repeats
         self._delay_mix = 0.3  # More distant/subtle (30% wet)
+        self._delay_slew_rate = 0.02  # Analog-style smooth ramping
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
@@ -1024,22 +1026,36 @@ class DubSiren:
             else:
                 output[i] = filtered_sample * env
 
-        # === Ultra-Simple Delay (vectorized numpy implementation) ===
+        # === Analog-Style Delay (smooth time changes with pitch shifting) ===
         if self._delay_mix > 0.001:
-            delay_samples = int(self._delay_time * self.sample_rate)
-            delay_samples = max(1, min(delay_samples, len(self._delay_buffer) - 1))
-            
             buffer_len = len(self._delay_buffer)
             num_samples = len(output)
             
-            # Calculate all read positions at once
+            # Smooth delay time transition (analog repitch behavior)
+            delay_time_start = self._delay_time_current
+            delay_time_diff = self._delay_time - self._delay_time_current
+            
+            # Slew toward target (creates pitch shifting)
+            max_change = self._delay_slew_rate * num_samples / self.sample_rate
+            if abs(delay_time_diff) > max_change:
+                delay_time_diff = max_change if delay_time_diff > 0 else -max_change
+            
+            delay_time_end = delay_time_start + delay_time_diff
+            self._delay_time_current = delay_time_end
+            
+            # Create smooth ramp of delay times across the buffer
+            delay_times = np.linspace(delay_time_start, delay_time_end, num_samples)
+            delay_samples_array = (delay_times * self.sample_rate).astype(int)
+            delay_samples_array = np.clip(delay_samples_array, 1, buffer_len - 1)
+            
+            # Calculate positions
             write_positions = (self._delay_write_pos + np.arange(num_samples)) % buffer_len
-            read_positions = (write_positions - delay_samples) % buffer_len
+            read_positions = (write_positions - delay_samples_array) % buffer_len
             
             # Read delayed samples
             delayed_output = self._delay_buffer[read_positions]
             
-            # Write to buffer WITH feedback (creates multiple fading repeats)
+            # Write to buffer WITH feedback
             self._delay_buffer[write_positions] = output + delayed_output * self._delay_feedback
             
             # Update write position
