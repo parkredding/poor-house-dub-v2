@@ -1024,9 +1024,9 @@ class DubSiren:
         base_cutoff = max(200.0, min(base_cutoff, 3500.0))
         
         # Pre-calculate all filter coefficients with LFO modulation (vectorized)
-        # LFO modulates filter cutoff: ±1 octave around base
-        cutoff_array = base_cutoff * (2.0 ** lfo_signal)  # Exponential for musical intervals
-        cutoff_array = np.clip(cutoff_array, 100.0, 5000.0)
+        # LFO modulates filter cutoff: ±2 octaves around base (wider range)
+        cutoff_array = base_cutoff * (2.0 ** (lfo_signal * 2.0))  # ±2 octaves
+        cutoff_array = np.clip(cutoff_array, 100.0, 8000.0)
         
         # Vectorized alpha calculation (much faster than per-sample)
         alpha_array = 1.0 - np.exp(-2.0 * np.pi * cutoff_array / self.sample_rate)
