@@ -245,8 +245,8 @@ class ControlSurface:
 
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
-        'encoder_1': 'reverb_mix',      # Reverb wet/dry mix
-        'encoder_2': 'reverb_size',     # Reverb size/decay
+        'encoder_1': 'pitch_freq',      # TEMP: Testing pitch control
+        'encoder_2': 'volume',          # TEMP: Testing volume
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -273,15 +273,15 @@ class ControlSurface:
         # Parameter ranges for all parameters (both banks)
         self.param_values = {
             # Bank A parameters
-            'volume': 0.7,              # Browser preset match
-            'pitch_freq': 440.0,        # TEMP: Testing pitch oscillator (A4)
+            'volume': 0.7,              # Starting volume
+            'pitch_freq': 440.0,        # Starting pitch (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
             'delay_feedback': 0.5,      # Locked - good repeats
             'delay_time': 0.2,          # Locked - faster echoes
             'delay_mix': 0.3,           # Locked - 30% wet
-            'reverb_mix': 0.35,         # Middle-of-the-road (35% wet)
-            'reverb_size': 0.5,         # Middle-of-the-road room size
+            'reverb_mix': 0.35,         # Locked - 35% wet
+            'reverb_size': 0.5,         # Locked - medium room
             # Bank B parameters
             'release_time': 0.5,        # TEMPORARY TEST - mid-range for obvious changes
             'osc_waveform': 0,          # 0 to 3 (discrete)
@@ -511,10 +511,12 @@ class ControlSurface:
         """Start the control surface"""
         self.running = True
         
-        # Apply reverb settings
-        self.synth.set_reverb_size(self.param_values['reverb_size'])
-        self.synth.set_reverb_dry_wet(self.param_values['reverb_mix'])
-        print(f"Reverb enabled: size={self.param_values['reverb_size']:.2f}, "
+        # Apply initial settings
+        self.synth.set_frequency(self.param_values['pitch_freq'])
+        self.synth.set_volume(self.param_values['volume'])
+        print(f"Pitch control: encoder_1 (starting at {self.param_values['pitch_freq']:.0f}Hz)")
+        print(f"Volume control: encoder_2 (starting at {self.param_values['volume']:.2f})")
+        print(f"Reverb locked: size={self.param_values['reverb_size']:.2f}, "
               f"mix={self.param_values['reverb_mix']:.2f}")
         print(f"Delay locked: time={self.param_values['delay_time']:.2f}s, "
               f"feedback={self.param_values['delay_feedback']:.2f}")
