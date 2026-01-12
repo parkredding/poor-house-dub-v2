@@ -8,6 +8,7 @@ import numpy as np
 import threading
 import queue
 import time
+import itertools
 
 try:
     import sounddevice as sd
@@ -15,6 +16,12 @@ try:
 except ImportError:
     print("WARNING: sounddevice not available. Audio output disabled.")
     SOUNDDEVICE_AVAILABLE = False
+
+try:
+    import alsaaudio
+    ALSA_AVAILABLE = True
+except ImportError:
+    ALSA_AVAILABLE = False
 
 
 class AudioOutput:
@@ -249,6 +256,120 @@ def find_pcm5102_device():
                 return idx
 
     return None
+
+
+class AlsaAudioOutput:
+    """
+    ALSA-native audio output using pyalsaaudio.
+    Useful on Raspberry Pi when PortAudio/sounddevice underruns.
+    """
+
+    def __init__(self, synth, sample_rate=48000, buffer_size=512, channels=2, device=None):
+        self.synth = synth
+        self.sample_rate = sample_rate
+        self.buffer_size = buffer_size
+        self.channels = channels
+        # device: string like 'hw:0,0' or None for default
+        self.device = device
+        self.running = False
+        self.thread = None
+
+        # Performance stats
+        self.buffer_underruns = 0
+        self.total_buffers = 0
+        self.nan_buffers = 0
+
+    def _audio_loop(self):
+        """Blocking write loop"""
+        # Configure PCM
+        pcm = alsaaudio.PCM(
+            type=alsaaudio.PCM_PLAYBACK,
+            mode=alsaaudio.PCM_NORMAL,
+            device=self.device if self.device else 'default'
+        )
+        pcm.setchannels(self.channels)
+        pcm.setrate(self.sample_rate)
+        pcm.setformat(alsaaudio.PCM_FORMAT_S16_LE)
+        pcm.setperiodsize(self.buffer_size)
+
+        try:
+            while self.running:
+                try:
+                    audio = self.synth.generate_audio(self.buffer_size)
+
+                    # NaN guard
+                    if not np.all(np.isfinite(audio)):
+                        self.nan_buffers += 1
+                        audio = np.where(np.isfinite(audio), audio, 0.0)
+
+                    # Stereo interleave
+                    if self.channels == 2:
+                        audio = np.column_stack([audio, audio]).reshape(-1)
+                    else:
+                        audio = audio.reshape(-1)
+
+                    # Convert to int16
+                    audio_int16 = np.clip(audio, -1.0, 1.0)
+                    audio_int16 = (audio_int16 * 32767.0).astype(np.int16)
+                    pcm.write(audio_int16.tobytes())
+                    self.total_buffers += 1
+                except Exception as e:
+                    print(f"ALSA audio error: {e}")
+                    self.buffer_underruns += 1
+                    # Write silence to keep clocking
+                    silence = np.zeros(self.buffer_size * self.channels, dtype=np.int16)
+                    pcm.write(silence.tobytes())
+        finally:
+            try:
+                pcm.close()
+            except Exception:
+                pass
+
+    def start(self):
+        if not ALSA_AVAILABLE:
+            print("ALSA output unavailable (pyalsaaudio not installed)")
+            return False
+        if self.running:
+            print("ALSA audio already running")
+            return True
+        self.running = True
+        self.thread = threading.Thread(target=self._audio_loop, daemon=True)
+        self.thread.start()
+        print(f"ALSA audio started: {self.sample_rate}Hz, {self.buffer_size} samples, {self.channels} channels, device={self.device or 'default'}")
+        return True
+
+    def stop(self):
+        if not self.running:
+            return
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=1.0)
+
+        if self.total_buffers > 0:
+            underrun_rate = (self.buffer_underruns / self.total_buffers) * 100
+            nan_rate = (self.nan_buffers / self.total_buffers) * 100
+            print(f"\nAudio performance (ALSA):")
+            print(f"  Total buffers: {self.total_buffers}")
+            print(f"  Buffer underruns: {self.buffer_underruns} ({underrun_rate:.2f}%)")
+            print(f"  NaN buffers sanitized: {self.nan_buffers} ({nan_rate:.2f}%)")
+            if hasattr(self.synth, 'get_nan_events'):
+                print(f"  Synth NaN events: {self.synth.get_nan_events()}")
+
+        print("Audio output stopped")
+
+    def get_stats(self) -> dict:
+        stats = {
+            'running': self.running,
+            'sample_rate': self.sample_rate,
+            'buffer_size': self.buffer_size,
+            'channels': self.channels,
+            'total_buffers': self.total_buffers,
+            'buffer_underruns': self.buffer_underruns,
+            'nan_buffers': self.nan_buffers,
+        }
+        if hasattr(self.synth, 'get_nan_events'):
+            stats['synth_nan_events'] = self.synth.get_nan_events()
+        return stats
 
 
 if __name__ == "__main__":

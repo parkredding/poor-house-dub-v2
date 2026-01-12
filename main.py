@@ -9,7 +9,14 @@ import time
 import signal
 import argparse
 from synthesizer import DubSiren
-from audio_output import AudioOutput, SimulatedAudioOutput, SOUNDDEVICE_AVAILABLE, find_pcm5102_device
+from audio_output import (
+    AudioOutput,
+    AlsaAudioOutput,
+    SimulatedAudioOutput,
+    SOUNDDEVICE_AVAILABLE,
+    ALSA_AVAILABLE,
+    find_pcm5102_device
+)
 from gpio_controller import ControlSurface, SimulatedControlSurface, GPIO_AVAILABLE
 
 
@@ -21,12 +28,14 @@ class DubSirenApp:
         sample_rate: int = 48000,
         buffer_size: int = 256,
         audio_device: int = None,
-        simulate: bool = False
+        simulate: bool = False,
+        audio_backend: str = 'sounddevice'
     ):
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
         self.audio_device = audio_device
         self.simulate = simulate
+        self.audio_backend = audio_backend
         self.running = False
 
         # Create synthesizer
@@ -34,8 +43,20 @@ class DubSirenApp:
         self.synth = DubSiren(sample_rate=sample_rate, buffer_size=buffer_size)
 
         # Create audio output
-        if simulate or not SOUNDDEVICE_AVAILABLE:
+        if simulate or (self.audio_backend == 'sounddevice' and not SOUNDDEVICE_AVAILABLE):
             self.audio = SimulatedAudioOutput(self.synth)
+        elif self.audio_backend == 'alsa':
+            # Map numeric device index to hw string if provided
+            alsa_device = None
+            if audio_device is not None:
+                alsa_device = f"hw:{audio_device},0"
+            self.audio = AlsaAudioOutput(
+                self.synth,
+                sample_rate=sample_rate,
+                buffer_size=buffer_size,
+                channels=2,
+                device=alsa_device
+            )
         else:
             self.audio = AudioOutput(
                 self.synth,
@@ -223,6 +244,12 @@ def main():
         help='Audio device index (default: auto-detect PCM5102)'
     )
     parser.add_argument(
+        '--audio-backend',
+        choices=['sounddevice', 'alsa'],
+        default='sounddevice',
+        help='Audio backend: sounddevice (PortAudio) or alsa (pyalsaaudio)'
+    )
+    parser.add_argument(
         '--list-devices',
         action='store_true',
         help='List available audio devices and exit'
@@ -254,9 +281,9 @@ def main():
             print("sounddevice not available")
         return
 
-    # Auto-detect audio device if not specified
+    # Auto-detect audio device if not specified (sounddevice backend only)
     audio_device = args.audio_device
-    if audio_device is None and not args.simulate:
+    if audio_device is None and not args.simulate and args.audio_backend == 'sounddevice':
         audio_device = find_pcm5102_device()
         if audio_device is not None:
             print(f"Auto-detected audio device: {audio_device}")
@@ -266,7 +293,8 @@ def main():
         sample_rate=args.sample_rate,
         buffer_size=args.buffer_size,
         audio_device=audio_device,
-        simulate=args.simulate
+        simulate=args.simulate,
+        audio_backend=args.audio_backend
     )
 
     if args.interactive or args.simulate:
