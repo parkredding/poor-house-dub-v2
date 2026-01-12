@@ -950,17 +950,9 @@ class DubSiren:
         The pitch envelope (if active) will be applied as a multiplier on top of this.
         """
         self.base_frequency = max(20.0, min(freq, 20000.0))
-        # Update live oscillator frequency if currently playing (including during release)
-        # The pitch envelope will be applied on top of this in generate_audio()
-        if self.envelope.is_active:
-            if self.envelope.is_releasing and self.pitch_envelope != 'none':
-                # During release with pitch envelope, apply the envelope multiplier
-                # This is handled in generate_audio(), so we don't update here
-                # to avoid fighting with the envelope calculation
-                pass
-            else:
-                # During sustain or release without envelope, update directly
-                self.oscillator.set_frequency(self.base_frequency)
+        # Update live oscillator frequency directly
+        # This gives real-time pitch control via encoder
+        self.oscillator.set_frequency(self.base_frequency)
 
     # Legacy methods for backwards compatibility with gpio_controller
     def trigger_airhorn(self):
