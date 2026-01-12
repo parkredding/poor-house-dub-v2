@@ -981,7 +981,8 @@ class DubSiren:
         1. Generate anti-aliased oscillator (PolyBLEP square wave)
         2. Process through stable one-pole low-pass filter
         3. Apply envelope
-        4. Volume control
+        4. Process through delay effect
+        5. Volume control
         """
         output = np.zeros(num_samples, dtype=np.float32)
 
@@ -1011,10 +1012,13 @@ class DubSiren:
             filtered_sample = self._simple_filter_state
 
             # Apply envelope
-            voice = filtered_sample * env
+            output[i] = filtered_sample * env
 
-            # === Volume ===
-            output[i] = voice * self.volume
+        # === Delay Effect ===
+        output = self.delay.process(output)
+
+        # === Volume ===
+        output = output * self.volume
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)

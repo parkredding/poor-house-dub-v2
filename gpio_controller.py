@@ -245,8 +245,8 @@ class ControlSurface:
 
     # Bank mapping - which parameter each encoder controls in each bank
     BANK_A_PARAMS = {
-        'encoder_1': 'volume',
-        'encoder_2': 'filter_freq',  # Low-pass filter cutoff
+        'encoder_1': 'delay_feedback',  # TEMP: Testing delay
+        'encoder_2': 'delay_time',      # TEMP: Testing delay
         'encoder_3': 'filter_res',
         'encoder_4': 'delay_feedback',
         'encoder_5': 'reverb_mix',
@@ -277,11 +277,12 @@ class ControlSurface:
             'pitch_freq': 440.0,        # TEMP: Testing pitch oscillator (A4)
             'filter_freq': 2000.0,      # Browser preset match
             'filter_res': 1.0,          # Browser preset match
-            'delay_feedback': 0.0,      # Delay off for tone test
+            'delay_feedback': 0.4,      # TEMP: Testing delay
+            'delay_time': 0.3,          # TEMP: Testing delay
+            'delay_mix': 0.5,           # TEMP: Testing delay (50% wet)
             'reverb_mix': 0.0,          # Reverb off for tone test
             # Bank B parameters
             'release_time': 0.5,        # TEMPORARY TEST - mid-range for obvious changes
-            'delay_time': 0.3,          # Browser preset match
             'reverb_size': 0.5,         # Browser preset match
             'osc_waveform': 0,          # 0 to 3 (discrete)
             'lfo_waveform': 0,          # 0 to 3 (discrete)
@@ -509,6 +510,15 @@ class ControlSurface:
     def start(self):
         """Start the control surface"""
         self.running = True
+        
+        # Apply delay settings for testing
+        self.synth.set_delay_time(self.param_values['delay_time'])
+        self.synth.set_delay_feedback(self.param_values['delay_feedback'])
+        self.synth.set_delay_dry_wet(self.param_values['delay_mix'])
+        print(f"Delay enabled: time={self.param_values['delay_time']:.2f}s, "
+              f"feedback={self.param_values['delay_feedback']:.2f}, "
+              f"mix={self.param_values['delay_mix']:.2f}")
+        
         print("Control surface started")
 
     def stop(self):
