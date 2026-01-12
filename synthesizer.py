@@ -1005,11 +1005,13 @@ class DubSiren:
         audio = audio * env
         audio = audio * self.volume
 
-        # Add quiet dither/noise floor to prevent DAC auto-mute
-        # PCM5102 and similar DACs can have auto-mute circuits that engage
-        # when signal drops below a threshold, causing clicks
-        # Dither at -80dB should be inaudible but keep DAC active
-        dither = np.random.uniform(-0.0001, 0.0001, num_samples)
+        # Add noise floor to prevent PCM5102 DAC auto-mute click
+        # PCM5102 has hardware auto-mute that engages when signal is very quiet
+        # Noise floor at -60dB keeps DAC active without being audible
+        # Using triangular dither (TPDF) for better psychoacoustic masking
+        dither1 = np.random.uniform(-0.001, 0.001, num_samples)
+        dither2 = np.random.uniform(-0.001, 0.001, num_samples)
+        dither = (dither1 + dither2) / 2.0  # TPDF has better spectral properties
         audio = audio + dither
 
         # Basic NaN protection only
