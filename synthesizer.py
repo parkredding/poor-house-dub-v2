@@ -1008,27 +1008,9 @@ class DubSiren:
             # === Oscillator ===
             raw = raw_buffer[i]
 
-            # === State Variable Filter (processes RAW oscillator) ===
-            # Filter cutoff (using current filter settings)
-            fc = self.filter.cutoff_current
-            fc = max(100.0, min(fc, 3500.0))  # Clamp like reference
-
-            # Calculate filter coefficient
-            f = 2.0 * np.sin(np.pi * fc / self.sample_rate)
-            q = 0.15  # Fixed Q like reference
-
-            # State variable filter algorithm (Chamberlin)
-            self.filt_low += f * self.filt_band
-            high = raw - self.filt_low - (q * self.filt_band)
-            self.filt_band += f * high
-
-            # NaN protection
-            if not (np.isfinite(self.filt_low) and np.isfinite(self.filt_band)):
-                self.filt_low = 0.0
-                self.filt_band = 0.0
-
-            # THEN apply envelope to filtered signal (like reference)
-            voice = self.filt_low * env
+            # TEMPORARY: Bypass filter to test if it's causing pulsing
+            # Just apply envelope directly to raw oscillator
+            voice = raw * env
 
             # === DC Blocker ===
             dc_out = voice - self.dc_blocker.x_prev + self.dc_blocker.coeff * self.dc_blocker.y_prev
