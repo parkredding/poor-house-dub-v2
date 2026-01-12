@@ -920,9 +920,8 @@ class DubSiren:
         # NaN protection monitoring
         self._nan_events = 0  # Count of NaN occurrences for debugging
         
-        # Diagnostic monitoring
-        self._buffer_count = 0
-        self._last_log_time = 0.0
+        # Simple one-pole filter state (stable, no pulsing)
+        self._simple_filter_state = 0.0
 
     def trigger(self):
         """Trigger sound at current base_frequency"""
@@ -982,8 +981,7 @@ class DubSiren:
         1. Generate anti-aliased oscillator (PolyBLEP square wave)
         2. Process through stable one-pole low-pass filter
         3. Apply envelope
-        4. DC blocker
-        5. Volume control
+        4. Volume control
         """
         output = np.zeros(num_samples, dtype=np.float32)
 
@@ -996,10 +994,6 @@ class DubSiren:
         raw_buffer = self.oscillator.generate(num_samples)
 
         # Simple inline one-pole low-pass filter
-        # No smoothing, no resonance - just basic filtering
-        if not hasattr(self, '_simple_filter_state'):
-            self._simple_filter_state = 0.0
-        
         # Calculate coefficient once per buffer (not per sample)
         cutoff = self.filter.cutoff
         cutoff = max(20.0, min(cutoff, 20000.0))
@@ -1021,18 +1015,6 @@ class DubSiren:
 
             # === Volume ===
             output[i] = voice * self.volume
-
-        # Diagnostic logging
-        self._buffer_count += 1
-        if self._buffer_count % 100 == 0:
-            current_time = time.time()
-            if current_time - self._last_log_time >= 2.0:
-                output_rms = np.sqrt(np.mean(output**2))
-                print(f"[DEBUG] env={self.envelope.current_value:.4f}, "
-                      f"filter_state={self._simple_filter_state:.4f}, "
-                      f"output_rms={output_rms:.4f}, "
-                      f"cutoff={cutoff:.1f}Hz, alpha={alpha:.6f}")
-                self._last_log_time = current_time
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)
