@@ -10,6 +10,19 @@ echo "  Raspberry Pi Zero 2 + PCM5102 DAC"
 echo "========================================"
 echo ""
 
+# Detect the actual user (not root if running via sudo)
+if [ -n "$SUDO_USER" ]; then
+    INSTALL_USER="$SUDO_USER"
+    USER_HOME=$(eval echo ~$SUDO_USER)
+else
+    INSTALL_USER=$(whoami)
+    USER_HOME="$HOME"
+fi
+
+echo "Installing for user: $INSTALL_USER"
+echo "Home directory: $USER_HOME"
+echo ""
+
 # Check if running on Raspberry Pi
 if [ ! -f /proc/device-tree/model ]; then
     echo "WARNING: Not running on Raspberry Pi?"
@@ -32,19 +45,19 @@ sudo apt-get install -y \
     libportaudio2 \
     git
 
-# Create virtual environment
+# Create virtual environment (as actual user, not root)
 echo "Creating Python virtual environment..."
-VENV_DIR="$HOME/poor-house-dub-v2-venv"
+VENV_DIR="$USER_HOME/poor-house-dub-v2-venv"
 if [ -d "$VENV_DIR" ]; then
     echo "Virtual environment already exists, removing..."
-    rm -rf "$VENV_DIR"
+    sudo -u "$INSTALL_USER" rm -rf "$VENV_DIR"
 fi
-python3 -m venv "$VENV_DIR"
+sudo -u "$INSTALL_USER" python3 -m venv "$VENV_DIR"
 
 # Install Python packages in virtual environment
 echo "Installing Python packages..."
-"$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install -r requirements.txt
+sudo -u "$INSTALL_USER" "$VENV_DIR/bin/pip" install --upgrade pip
+sudo -u "$INSTALL_USER" "$VENV_DIR/bin/pip" install -r requirements.txt
 
 # Configure I2S for PCM5102
 echo "Configuring I2S audio interface for PCM5102..."
@@ -158,14 +171,6 @@ chmod +x gpio_cleanup.py
 
 # Create systemd service
 echo "Creating systemd service..."
-# Detect the actual user (not root if running via sudo)
-if [ -n "$SUDO_USER" ]; then
-    INSTALL_USER="$SUDO_USER"
-    USER_HOME=$(eval echo ~$SUDO_USER)
-else
-    INSTALL_USER=$(whoami)
-    USER_HOME="$HOME"
-fi
 
 cat > /tmp/dubsiren.service << EOF
 [Unit]
