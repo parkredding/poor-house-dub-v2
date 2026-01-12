@@ -916,6 +916,14 @@ class DubSiren:
         self._delay_feedback = 0.5  # Multiple fading repeats (locked)
         self._delay_mix = 0.3  # More distant/subtle (30% wet)
         self._delay_slew_rate = 0.02  # Analog-style smooth ramping
+        
+        # Simple reverb (multiple short delays for spatial effect)
+        self._reverb_size = 0.5  # 0.0 to 1.0
+        self._reverb_mix = 0.35  # 0.0 to 1.0
+        # Multiple delay lines for early reflections and diffusion
+        self._reverb_times = [0.029, 0.037, 0.041, 0.043, 0.053, 0.061]  # seconds
+        self._reverb_buffers = [np.zeros(int(t * 1.5 * sample_rate)) for t in self._reverb_times]
+        self._reverb_write_positions = [0] * len(self._reverb_times)
 
         # LFO defaults (disabled for stable pitch; browser-style wobble can be re-enabled via UI)
         self.lfo.set_waveform('sine')
@@ -1064,9 +1072,35 @@ class DubSiren:
             # Mix dry and wet
             output = output * (1.0 - self._delay_mix) + delayed_output * self._delay_mix
 
-        # === Reverb Effect ===
-        # TEMP: Bypass reverb to test if it causes pulsing
-        # output = self.reverb.process(output)
+        # === Simple Reverb (multiple delays for spatial effect) ===
+        if self._reverb_mix > 0.001:
+            reverb_output = np.zeros_like(output)
+            num_samples = len(output)
+            
+            for tap_idx, base_time in enumerate(self._reverb_times):
+                # Scale delay time by size parameter
+                delay_time = base_time * (0.5 + self._reverb_size * 0.5)  # 0.5x to 1.0x
+                delay_samples = int(delay_time * self.sample_rate)
+                
+                buffer = self._reverb_buffers[tap_idx]
+                buffer_len = len(buffer)
+                write_pos = self._reverb_write_positions[tap_idx]
+                
+                # Vectorized read/write
+                write_positions = (write_pos + np.arange(num_samples)) % buffer_len
+                read_positions = (write_positions - delay_samples) % buffer_len
+                
+                # Read and accumulate
+                reverb_output += buffer[read_positions] * (0.6 / len(self._reverb_times))
+                
+                # Write with slight decay
+                buffer[write_positions] = output * 0.7
+                
+                # Update write position
+                self._reverb_write_positions[tap_idx] = (write_pos + num_samples) % buffer_len
+            
+            # Mix dry and wet
+            output = output * (1.0 - self._reverb_mix) + reverb_output * self._reverb_mix
 
         # === Volume ===
         output = output * self.volume
@@ -1119,11 +1153,11 @@ class DubSiren:
 
     def set_reverb_size(self, size: float):
         """Set reverb size"""
-        self.reverb.set_size(size)
+        self._reverb_size = max(0.0, min(size, 1.0))
 
     def set_reverb_dry_wet(self, dry_wet: float):
         """Set reverb dry/wet mix"""
-        self.reverb.set_dry_wet(dry_wet)
+        self._reverb_mix = max(0.0, min(dry_wet, 1.0))
 
     def set_release_time(self, release: float):
         """Set oscillator envelope release time"""
