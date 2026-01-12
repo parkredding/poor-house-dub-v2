@@ -312,12 +312,22 @@ class Envelope:
         decay_samples = int(self.decay * self.sample_rate)
         release_samples = int(self.release * self.sample_rate)
 
+        # Add tail-out period: envelope gets very quiet but doesn't instantly cut
+        tail_samples = 960  # ~20ms at 48kHz - hold at near-zero before final cutoff
+
         for i in range(num_samples):
             if self.is_releasing:
-                # Release phase - SIMPLE LINEAR
+                # Release phase - LINEAR to 5% of release_level
                 if self.current_sample < release_samples:
                     progress = self.current_sample / release_samples
-                    output[i] = self.release_level * (1.0 - progress)
+                    # Only decay to 5% of release level, not to zero
+                    output[i] = self.release_level * (1.0 - 0.95 * progress)
+                    self.current_sample += 1
+                # Tail-out phase - hold at 5% for a bit, then final fade
+                elif self.current_sample < release_samples + tail_samples:
+                    tail_progress = (self.current_sample - release_samples) / tail_samples
+                    # Fade from 5% to 0% over tail period
+                    output[i] = self.release_level * 0.05 * (1.0 - tail_progress)
                     self.current_sample += 1
                 else:
                     # Release complete
@@ -991,29 +1001,15 @@ class DubSiren:
         self.release()
 
     def generate_audio(self, num_samples: int) -> np.ndarray:
-        """Generate audio buffer - MINIMAL VERSION with envelope zero-point fade
+        """Generate audio buffer - MINIMAL VERSION
 
-        When envelope reaches zero, apply a short fade to prevent oscillator click
+        Envelope now has extended tail-out to prevent clicks
         """
         with self._env_lock:
             env = self.envelope.generate(num_samples)
 
         audio = self.oscillator.generate(num_samples)
         audio = audio * env
-
-        # Find where envelope hits zero and apply short fade to prevent click
-        # The click happens because oscillator could be at any phase when env=0
-        for i in range(len(env)):
-            if env[i] == 0.0 and (i == 0 or env[i-1] > 0.0):
-                # Found transition to zero - apply fade to previous samples
-                fade_len = min(32, i)  # Fade last 32 samples (~0.67ms at 48kHz)
-                for j in range(fade_len):
-                    idx = i - fade_len + j
-                    if idx >= 0:
-                        fade_mult = 1.0 - (j / fade_len)  # 1.0 down to 0.0
-                        audio[idx] *= fade_mult
-                break
-
         audio = audio * self.volume
 
         # Basic NaN protection only
