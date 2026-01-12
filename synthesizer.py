@@ -919,10 +919,6 @@ class DubSiren:
 
         # NaN protection monitoring
         self._nan_events = 0  # Count of NaN occurrences for debugging
-        
-        # Diagnostic monitoring for pulsing issue
-        self._buffer_count = 0  # Count buffers for periodic logging
-        self._last_env_log_time = 0.0
 
     def trigger(self):
         """Trigger sound at current base_frequency"""
@@ -998,6 +994,11 @@ class DubSiren:
             self.filt_low = 0.0
             self.filt_band = 0.0
 
+        # Generate anti-aliased square wave using PolyBLEP
+        # This prevents aliasing artifacts that cause filter instability
+        self.oscillator.waveform = 'square'
+        raw_buffer = self.oscillator.generate(num_samples)
+
         # Sample-by-sample processing (like reference)
         for i in range(num_samples):
             # === Envelope ===
@@ -1005,11 +1006,7 @@ class DubSiren:
             env = self.envelope.current_value
 
             # === Oscillator ===
-            # Generate one sample of square wave
-            self.oscillator.phase += self.oscillator.frequency / self.sample_rate
-            if self.oscillator.phase >= 1.0:
-                self.oscillator.phase -= 1.0
-            raw = 1.0 if self.oscillator.phase < 0.5 else -1.0
+            raw = raw_buffer[i]
 
             # === State Variable Filter (processes RAW oscillator) ===
             # Filter cutoff (using current filter settings)
@@ -1040,16 +1037,6 @@ class DubSiren:
 
             # === Volume ===
             output[i] = dc_out * self.volume
-
-        # Diagnostic logging for pulsing issue (every 100 buffers = ~2 seconds)
-        self._buffer_count += 1
-        if self._buffer_count % 100 == 0:
-            current_time = time.time()
-            if current_time - self._last_env_log_time >= 2.0:
-                print(f"[DEBUG] env={self.envelope.current_value:.4f}, is_active={self.envelope.is_active}, "
-                      f"filt_low={self.filt_low:.4f}, filt_band={self.filt_band:.4f}, "
-                      f"output_rms={np.sqrt(np.mean(output**2)):.4f}")
-                self._last_env_log_time = current_time
 
         # Final clipping
         return np.clip(output, -1.0, 1.0)
