@@ -3,6 +3,7 @@
 #include "Common.h"
 #include <vector>
 #include <array>
+#include <memory>
 
 namespace DubSiren {
 
