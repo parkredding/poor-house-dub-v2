@@ -21,26 +21,28 @@ Additional PCM5102 configuration pins (if available):
 - SCK → GND
 - FLT → GND
 - FMT → GND
+- XSMT → GND (soft mute OFF)
 
 ## Step 2: Software Installation (5 minutes)
 
 ### On your Raspberry Pi:
 
 ```bash
+# One-line installer (recommended)
+curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/cpp/install.sh | bash
+```
+
+Or manually:
+
+```bash
 # Clone repository
 cd ~
-git clone https://github.com/yourusername/poor-house-dub-v2.git
+git clone https://github.com/parkredding/poor-house-dub-v2.git
 cd poor-house-dub-v2
 
-# Run setup
+# Run setup (builds C++ and configures service)
 chmod +x setup.sh
 ./setup.sh
-
-# This will:
-# - Install dependencies
-# - Configure I2S audio
-# - Setup systemd service
-# - Create ALSA configuration
 ```
 
 ### Reboot Required
@@ -54,27 +56,16 @@ sudo reboot
 ### After reboot, test the audio output:
 
 ```bash
-cd ~/poor-house-dub-v2
-
 # List audio devices
-~/poor-house-dub-v2-venv/bin/python3 main.py --list-devices
-
-# Test audio output
-~/poor-house-dub-v2-venv/bin/python3 audio_output.py
-```
-
-You should hear a test tone for 5 seconds.
-
-### If no audio:
-
-```bash
-# Check ALSA devices
 aplay -l
 
 # You should see something like:
 # card 0: sndrpihifiberry [snd_rpi_hifiberry_dac]
+```
 
-# Test with ALSA
+### Test with ALSA:
+
+```bash
 speaker-test -t wav -c 2 -D hw:0,0
 ```
 
@@ -83,11 +74,11 @@ speaker-test -t wav -c 2 -D hw:0,0
 Run in simulation mode to test the synthesizer:
 
 ```bash
-~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive
+~/poor-house-dub-v2/cpp/build/dubsiren --simulate --interactive
 ```
 
 Commands in interactive mode:
-- `t` - Trigger siren (press/release)
+- `t` - Toggle trigger (start/stop siren)
 - `p` - Cycle pitch envelope mode
 - `s` - Show status
 - `q` - Quit
@@ -102,18 +93,10 @@ The control surface uses **5 rotary encoders** with a **shift button** for bank 
 
 See [GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md) for complete wiring instructions.
 
-### Test GPIO:
-
-```bash
-~/poor-house-dub-v2-venv/bin/python3 gpio_controller.py
-```
-
-Rotate encoders and press buttons to see output.
-
 ### Run full system:
 
 ```bash
-~/poor-house-dub-v2-venv/bin/python3 main.py
+~/poor-house-dub-v2/cpp/build/dubsiren
 ```
 
 ## Step 6: Run at Startup (Optional)
@@ -121,14 +104,14 @@ Rotate encoders and press buttons to see output.
 Enable the systemd service to start on boot:
 
 ```bash
-sudo systemctl enable dubsiren.service
-sudo systemctl start dubsiren.service
+sudo systemctl enable dubsiren-cpp.service
+sudo systemctl start dubsiren-cpp.service
 
 # Check status
-sudo systemctl status dubsiren.service
+sudo systemctl status dubsiren-cpp.service
 
 # View logs
-journalctl -u dubsiren.service -f
+journalctl -u dubsiren-cpp.service -f
 ```
 
 ## Step 7: Enable Appliance Mode (Recommended)
@@ -184,11 +167,14 @@ sudo usermod -a -G gpio,audio $USER
 # Log out and back in
 ```
 
-### Import errors?
+### Service not starting?
 
 ```bash
-# Reinstall dependencies using the virtual environment
-~/poor-house-dub-v2-venv/bin/pip install -r requirements.txt
+# Check service status
+sudo systemctl status dubsiren-cpp.service
+
+# View detailed logs
+journalctl -u dubsiren-cpp.service -n 50
 ```
 
 ## Basic Usage
@@ -197,26 +183,23 @@ sudo usermod -a -G gpio,audio $USER
 
 ```bash
 # Default mode (hardware)
-~/poor-house-dub-v2-venv/bin/python3 main.py
+~/poor-house-dub-v2/cpp/build/dubsiren
 
 # Simulation mode (no hardware)
-~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive
+~/poor-house-dub-v2/cpp/build/dubsiren --simulate --interactive
 
-# Custom sample rate
-~/poor-house-dub-v2-venv/bin/python3 main.py --sample-rate 44100
+# Specify audio device
+~/poor-house-dub-v2/cpp/build/dubsiren --device hw:0,0
 
 # Larger buffer for stability
-~/poor-house-dub-v2-venv/bin/python3 main.py --buffer-size 512
-
-# List available audio devices
-~/poor-house-dub-v2-venv/bin/python3 main.py --list-devices
+~/poor-house-dub-v2/cpp/build/dubsiren --buffer-size 512
 ```
 
 ## What's Next?
 
 1. **Wire up controls** - See [HARDWARE.md](HARDWARE.md) for GPIO pin assignments
-2. **Customize sounds** - Edit preset frequencies in `synthesizer.py`
-3. **Add effects** - Modify DSP parameters in the synth engine
+2. **Customize sounds** - Adjust parameters with encoders
+3. **Add effects** - Use Bank B for advanced parameters
 4. **Create enclosure** - Design a case for your dub siren
 5. **Go dub!** - Connect to speakers and make some noise!
 
@@ -257,8 +240,7 @@ gpu_mem=16
 
 - Read the full [README.md](README.md) for detailed information
 - Check [HARDWARE.md](HARDWARE.md) for complete wiring guide
-- Join the community (add link)
-- Share your build!
+- See [cpp/README.md](cpp/README.md) for C++ specific details
 
 ---
 

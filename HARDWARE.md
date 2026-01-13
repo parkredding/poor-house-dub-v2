@@ -198,13 +198,13 @@ When you hold the shift button, all 5 encoders immediately control their Bank B 
 
 2. **Test individual encoders**
    ```bash
-   python3 gpio_controller.py
+   # Encoders and buttons are tested automatically on startup
    ```
 
 3. **Test complete system**
    ```bash
-   python3 main.py --simulate
-   python3 main.py
+   ~/poor-house-dub-v2/cpp/build/dubsiren --simulate --interactive
+   ~/poor-house-dub-v2/cpp/build/dubsiren
    ```
 
 ## Troubleshooting

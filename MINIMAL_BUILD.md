@@ -24,11 +24,12 @@ Connect only the PCM5102 DAC (see [HARDWARE.md](HARDWARE.md) for details).
 ### Testing:
 ```bash
 # Run in simulation mode
-~/poor-house-dub-v2-venv/bin/python3 main.py --simulate --interactive
+~/poor-house-dub-v2/cpp/build/dubsiren --simulate --interactive
 
 # Commands:
-# t - Trigger siren
+# t - Toggle trigger (start/stop siren)
 # p - Cycle pitch envelope
+# s - Show status
 # q - Quit
 ```
 
@@ -58,25 +59,10 @@ Switch Pin 2 → GND
 
 ### Testing:
 ```bash
-~/poor-house-dub-v2-venv/bin/python3 main.py
+~/poor-house-dub-v2/cpp/build/dubsiren
 ```
 
-You should see:
-```
-Initializing control surface...
-  ✓ encoder_1 initialized (GPIO 17, 2)
-  ✗ encoder_2 failed to initialize (GPIO 27, 22): ...
-  ✗ encoder_3 failed to initialize (GPIO 23, 24): ...
-  ✗ encoder_4 failed to initialize (GPIO 20, 26): ...
-  ✗ encoder_5 failed to initialize (GPIO 14, 13): ...
-  ✓ trigger button initialized (GPIO 4)
-  ✗ pitch_env button failed (GPIO 10): ...
-  ✗ shift button failed (GPIO 15): ...
-  ✗ shutdown button failed (GPIO 3): ...
-
-Control surface ready: 1/5 encoders, 1/4 buttons
-```
-
+You should see the siren start up with partial hardware detected.
 **Controls:**
 - Rotate encoder 1 to adjust volume
 - Press trigger button to start siren
@@ -101,7 +87,7 @@ Encoder GND → GND
 
 ### Testing:
 ```bash
-~/poor-house-dub-v2-venv/bin/python3 main.py
+~/poor-house-dub-v2/cpp/build/dubsiren
 ```
 
 **Controls:**
