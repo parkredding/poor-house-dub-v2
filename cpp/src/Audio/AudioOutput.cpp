@@ -104,7 +104,7 @@ void AudioOutput::audioLoop() {
                               channels,
                               sampleRate,
                               1,  // allow resampling
-                              50000);   // latency in us (50ms)
+                              100000);  // latency in us (100ms)
     if (err < 0) {
         std::cerr << "Cannot set PCM parameters: " << snd_strerror(err) << std::endl;
         snd_pcm_close(pcm);
