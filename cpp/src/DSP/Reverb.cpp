@@ -117,6 +117,13 @@ ReverbEffect::ReverbEffect(int sampleRate)
         combFilters[i] = std::make_unique<DampedCombFilter>(sampleRate, combDelayTimes[i]);
     }
     
+    // Pre-allocate work buffers (avoid allocation in audio thread!)
+    // Use a reasonable max buffer size
+    const int maxBufferSize = 1024;
+    earlyBuffer.resize(maxBufferSize, 0.0f);
+    diffusedBuffer.resize(maxBufferSize, 0.0f);
+    combOutputBuffer.resize(maxBufferSize, 0.0f);
+    
     updateParameters();
 }
 
@@ -154,41 +161,43 @@ void ReverbEffect::processEarlyReflections(const float* input, float* output, in
 }
 
 void ReverbEffect::process(const float* input, float* output, int numSamples) {
-    // Temporary buffers
-    std::vector<float> early(numSamples);
-    std::vector<float> diffused(numSamples);
+    // Resize work buffers if needed (rare, only on buffer size change)
+    if (static_cast<size_t>(numSamples) > earlyBuffer.size()) {
+        earlyBuffer.resize(numSamples);
+        diffusedBuffer.resize(numSamples);
+        combOutputBuffer.resize(numSamples);
+    }
     
     // Early reflections
-    processEarlyReflections(input, early.data(), numSamples);
+    processEarlyReflections(input, earlyBuffer.data(), numSamples);
     
     // Copy input for diffusion processing
-    std::copy(input, input + numSamples, diffused.begin());
+    std::copy(input, input + numSamples, diffusedBuffer.begin());
     
     // Process through input diffusion (allpass filters)
     for (int i = 0; i < numSamples; ++i) {
         for (auto& allpass : inputDiffusion) {
-            diffused[i] = allpass.process(diffused[i]);
+            diffusedBuffer[i] = allpass.process(diffusedBuffer[i]);
         }
     }
     
     // Process through parallel comb filters
-    std::vector<float> combOutput(numSamples, 0.0f);
     for (int i = 0; i < numSamples; ++i) {
         float combSum = 0.0f;
         for (auto& comb : combFilters) {
-            combSum += comb->process(diffused[i]);
+            combSum += comb->process(diffusedBuffer[i]);
         }
-        combOutput[i] = combSum / static_cast<float>(NUM_COMB_FILTERS);
+        combOutputBuffer[i] = combSum / static_cast<float>(NUM_COMB_FILTERS);
     }
     
     // Output diffusion
     for (int i = 0; i < numSamples; ++i) {
-        combOutput[i] = outputDiffusion.process(combOutput[i]);
+        combOutputBuffer[i] = outputDiffusion.process(combOutputBuffer[i]);
     }
     
     // Combine early reflections and reverb tail, mix with dry
     for (int i = 0; i < numSamples; ++i) {
-        float wet = early[i] * earlyLevel + combOutput[i];
+        float wet = earlyBuffer[i] * earlyLevel + combOutputBuffer[i];
         output[i] = input[i] * (1.0f - dryWet) + wet * dryWet;
     }
 }

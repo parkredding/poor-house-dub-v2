@@ -105,6 +105,11 @@ private:
     float dryWet;   // Mix (0.0 = dry, 1.0 = wet)
     float damping;  // High-frequency damping
     
+    // Pre-allocated work buffers (avoid allocation in audio thread!)
+    std::vector<float> earlyBuffer;
+    std::vector<float> diffusedBuffer;
+    std::vector<float> combOutputBuffer;
+    
     void updateParameters();
     void processEarlyReflections(const float* input, float* output, int numSamples);
 };
