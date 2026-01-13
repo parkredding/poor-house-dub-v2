@@ -79,7 +79,9 @@ int readPin(int pin) {
     gpiod_line_config_free(config);
     gpiod_line_settings_free(settings);
     
-    return value == GPIOD_LINE_VALUE_ACTIVE ? 0 : 1;  // Active = pressed (low), Inactive = not pressed (high)
+    // With pull-up bias: ACTIVE = HIGH (not pressed), INACTIVE = LOW (pressed/grounded)
+    // Our button logic expects: 0 = pressed, 1 = not pressed
+    return value == GPIOD_LINE_VALUE_ACTIVE ? 1 : 0;
 }
 
 void setupInputPin(int pin) {
