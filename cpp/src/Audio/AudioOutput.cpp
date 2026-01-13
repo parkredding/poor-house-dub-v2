@@ -96,14 +96,15 @@ void AudioOutput::audioLoop() {
         return;
     }
     
-    // Use snd_pcm_set_params for simpler configuration (matches speaker-test behavior)
+    // Use snd_pcm_set_params with larger latency to match speaker-test behavior
+    // speaker-test uses period_size=12000, buffer_size=48000 (1 second latency at 48kHz)
     err = snd_pcm_set_params(pcm,
                               SND_PCM_FORMAT_S16_LE,
                               SND_PCM_ACCESS_RW_INTERLEAVED,
                               channels,
                               sampleRate,
                               1,  // allow resampling
-                              100000);  // latency in us (100ms)
+                              1000000);  // latency in us (1 second - matches speaker-test)
     if (err < 0) {
         std::cerr << "Cannot set PCM parameters: " << snd_strerror(err) << std::endl;
         snd_pcm_close(pcm);
@@ -112,12 +113,6 @@ void AudioOutput::audioLoop() {
     }
     
     std::cout << "[ALSA] PCM configured successfully, state=" << snd_pcm_state_name(snd_pcm_state(pcm)) << std::endl;
-    
-    // Explicitly start the PCM (some devices need this)
-    err = snd_pcm_start(pcm);
-    if (err < 0 && err != -EBADFD) {  // -EBADFD means already running, which is OK
-        std::cerr << "[ALSA] Warning: snd_pcm_start returned " << snd_strerror(err) << std::endl;
-    }
     
     // Allocate buffers
     std::vector<float> floatBuffer(bufferSize * channels);
