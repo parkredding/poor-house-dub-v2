@@ -50,27 +50,36 @@ void AudioEngine::process(float* output, int numFrames) {
         oscBuffer[i] = oscillator.generateSample();
     }
     
-    // Generate LFO modulation
-    lfo.generate(lfoBuffer.data(), numFrames);
-    
     // Generate envelope
     envelope.generate(envBuffer.data(), numFrames);
+    
+    // BYPASS MODE: Just oscillator * envelope, no effects
+    // This helps diagnose if crackling is in effects or base signal
+    float vol = volume.get();
+    for (int i = 0; i < numFrames; ++i) {
+        float sample = oscBuffer[i] * envBuffer[i] * vol;
+        sample = clamp(sample, -1.0f, 1.0f);
+        output[i * 2] = sample;      // Left
+        output[i * 2 + 1] = sample;  // Right
+    }
+    
+    // Full processing (commented out for bypass testing)
+    /*
+    // Generate LFO modulation
+    lfo.generate(lfoBuffer.data(), numFrames);
     
     // Apply LFO to filter cutoff and process
     float baseCutoff = filter.getCutoff();
     for (int i = 0; i < numFrames; ++i) {
-        // LFO modulates filter cutoff by ±2 octaves
         float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 2.0f);
         modCutoff = clamp(modCutoff, 100.0f, 8000.0f);
         filter.setCutoff(modCutoff);
         filterBuffer[i] = filter.processSample(oscBuffer[i]);
     }
-    // Restore base cutoff
     filter.setCutoff(baseCutoff);
     
     // Apply envelope
     for (int i = 0; i < numFrames; ++i) {
-        // Hard gate at very low levels (prevents delay noise)
         if (envBuffer[i] < 0.001f) {
             filterBuffer[i] = 0.0f;
         } else {
@@ -91,9 +100,10 @@ void AudioEngine::process(float* output, int numFrames) {
     float vol = volume.get();
     for (int i = 0; i < numFrames; ++i) {
         float sample = clamp(filterBuffer[i] * vol, -1.0f, 1.0f);
-        output[i * 2] = sample;      // Left
-        output[i * 2 + 1] = sample;  // Right
+        output[i * 2] = sample;
+        output[i * 2 + 1] = sample;
     }
+    */
 }
 
 void AudioEngine::trigger() {
