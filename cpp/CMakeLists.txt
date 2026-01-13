@@ -22,8 +22,16 @@ if(BUILD_FOR_PI)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math")
 endif()
 
-# Find required packages
-find_package(Threads REQUIRED)
+# Find threading support
+# On some newer Debian systems, FindThreads fails due to CMake detection issues
+# We handle this by falling back to manual pthread linking
+find_package(Threads)
+if(NOT Threads_FOUND)
+    message(STATUS "CMake Threads detection failed, using manual pthread linking")
+    set(CMAKE_THREAD_LIBS_INIT "-pthread")
+    set(CMAKE_HAVE_THREADS_LIBRARY 1)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+endif()
 
 # ALSA for standalone build
 if(BUILD_STANDALONE)
@@ -75,9 +83,16 @@ add_executable(dubsiren
 # Link libraries
 target_link_libraries(dubsiren
     PRIVATE
-    Threads::Threads
     m  # math library
 )
+
+# Link pthreads (handle both CMake-detected and manual cases)
+if(Threads_FOUND)
+    target_link_libraries(dubsiren PRIVATE Threads::Threads)
+else()
+    target_link_libraries(dubsiren PRIVATE pthread)
+    target_compile_options(dubsiren PRIVATE -pthread)
+endif()
 
 if(ALSA_FOUND)
     target_link_libraries(dubsiren PRIVATE ${ALSA_LIBRARIES})
