@@ -100,7 +100,6 @@ void AudioEngine::trigger() {
     std::lock_guard<std::mutex> lock(triggerMutex);
     oscillator.resetPhase();
     envelope.trigger();
-    std::cout << "[DEBUG] Trigger called - envelope active: " << envelope.isActive() << std::endl;
 }
 
 void AudioEngine::release() {
