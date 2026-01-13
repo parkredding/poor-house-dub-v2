@@ -348,7 +348,7 @@ After=sound.target
 
 [Service]
 Type=simple
-User=$INSTALL_USER
+# Run as root for GPIO access (pigpio requires direct hardware access)
 WorkingDirectory=$CPP_DIR
 ExecStart=$BINARY_PATH --device hw:$SELECTED_CARD,0
 Restart=on-failure
