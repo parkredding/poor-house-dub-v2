@@ -69,12 +69,58 @@ sudo apt-get install -y \
     build-essential \
     cmake \
     libasound2-dev \
-    git
+    git \
+    wget \
+    unzip
 
 # Install pigpio for GPIO support on Pi
 if [ "$IS_PI" = true ]; then
     echo -e "${GREEN}📦 Installing GPIO library (pigpio)...${NC}"
-    sudo apt-get install -y libpigpio-dev pigpio
+    
+    # Try apt first (works on older Raspberry Pi OS)
+    if apt-cache show libpigpio-dev &>/dev/null && apt-cache show pigpio &>/dev/null; then
+        echo "Installing pigpio from apt..."
+        sudo apt-get install -y libpigpio-dev pigpio
+    else
+        # Build pigpio from source (required on newer Debian Trixie-based OS)
+        echo "pigpio not in apt repositories, building from source..."
+        
+        PIGPIO_DIR="/tmp/pigpio_build_$$"
+        mkdir -p "$PIGPIO_DIR"
+        cd "$PIGPIO_DIR"
+        
+        # Download pigpio source
+        echo "Downloading pigpio source..."
+        wget -q https://github.com/joan2937/pigpio/archive/master.zip -O pigpio.zip
+        
+        if [ ! -f pigpio.zip ]; then
+            echo -e "${RED}✗ Failed to download pigpio source${NC}"
+            exit 1
+        fi
+        
+        unzip -q pigpio.zip
+        cd pigpio-master
+        
+        # Build and install
+        echo "Compiling pigpio (this may take a few minutes)..."
+        make -j2
+        sudo make install
+        
+        # Update library cache
+        sudo ldconfig
+        
+        # Cleanup
+        cd /tmp
+        rm -rf "$PIGPIO_DIR"
+        
+        echo -e "${GREEN}✓ pigpio built and installed from source${NC}"
+    fi
+    
+    # Start pigpiod daemon if not running
+    if ! pgrep -x "pigpiod" > /dev/null; then
+        echo "Starting pigpio daemon..."
+        sudo pigpiod
+    fi
 fi
 
 echo -e "${GREEN}✓ Dependencies installed${NC}"
