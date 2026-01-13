@@ -149,11 +149,40 @@ if [ "$IS_PI" = true ]; then
             fi
             
             echo -e "${GREEN}✓ I2S configured${NC}"
-            echo -e "${YELLOW}⚠️  A reboot is required for I2S changes to take effect${NC}"
             NEEDS_REBOOT=true
         fi
     fi
     echo ""
+fi
+
+# ============================================================================
+# Handle Required Reboot
+# ============================================================================
+if [ "${NEEDS_REBOOT:-false}" = true ]; then
+    echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}  ⚠️  REBOOT REQUIRED${NC}"
+    echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "I2S audio has been configured for the PCM5102 DAC."
+    echo "A reboot is required before the audio device will be available."
+    echo ""
+    echo -e "After reboot, run the installer again to complete setup:"
+    echo -e "  ${CYAN}curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/cpp/install.sh | bash${NC}"
+    echo ""
+    read -p "Reboot now? (Y/n): " REBOOT_CHOICE </dev/tty
+    REBOOT_CHOICE=${REBOOT_CHOICE:-Y}
+    
+    if [[ "$REBOOT_CHOICE" =~ ^[Yy] ]]; then
+        echo ""
+        echo "Rebooting in 3 seconds..."
+        sleep 3
+        sudo reboot
+    else
+        echo ""
+        echo -e "Please reboot manually with: ${CYAN}sudo reboot${NC}"
+        echo "Then run the installer again to complete setup."
+    fi
+    exit 0
 fi
 
 # ============================================================================
@@ -367,16 +396,6 @@ echo -e "${YELLOW}Manual testing:${NC}"
 echo -e "  Simulation:  ${CYAN}$BINARY_PATH --simulate --interactive${NC}"
 echo -e "  Hardware:    ${CYAN}$BINARY_PATH${NC}"
 echo ""
-
-if [ "${NEEDS_REBOOT:-false}" = true ]; then
-    echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
-    echo -e "${YELLOW}  ⚠️  REBOOT REQUIRED${NC}"
-    echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
-    echo ""
-    echo "I2S configuration was changed. Please reboot for audio to work:"
-    echo -e "  ${CYAN}sudo reboot${NC}"
-    echo ""
-fi
 
 echo -e "${YELLOW}Control Surface (GPIO):${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
