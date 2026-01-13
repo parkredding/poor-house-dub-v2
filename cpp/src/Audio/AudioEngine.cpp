@@ -53,30 +53,14 @@ void AudioEngine::process(float* output, int numFrames) {
     // Generate envelope
     envelope.generate(envBuffer.data(), numFrames);
     
-    // BYPASS MODE: Just oscillator * envelope, no effects
-    // This helps diagnose if crackling is in effects or base signal
-    float vol = volume.get();
-    for (int i = 0; i < numFrames; ++i) {
-        float sample = oscBuffer[i] * envBuffer[i] * vol;
-        sample = clamp(sample, -1.0f, 1.0f);
-        output[i * 2] = sample;      // Left
-        output[i * 2 + 1] = sample;  // Right
-    }
+    // ============================================
+    // FEATURE TEST: Uncomment features one by one
+    // ============================================
     
-    // Full processing (commented out for bypass testing)
-    /*
-    // Generate LFO modulation
-    lfo.generate(lfoBuffer.data(), numFrames);
-    
-    // Apply LFO to filter cutoff and process
-    float baseCutoff = filter.getCutoff();
+    // FEATURE 1: Filter (no LFO modulation for now)
     for (int i = 0; i < numFrames; ++i) {
-        float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 2.0f);
-        modCutoff = clamp(modCutoff, 100.0f, 8000.0f);
-        filter.setCutoff(modCutoff);
         filterBuffer[i] = filter.processSample(oscBuffer[i]);
     }
-    filter.setCutoff(baseCutoff);
     
     // Apply envelope
     for (int i = 0; i < numFrames; ++i) {
@@ -87,11 +71,16 @@ void AudioEngine::process(float* output, int numFrames) {
         }
     }
     
-    // Apply delay
-    delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
+    // FEATURE 2: LFO (uncomment to test)
+    // lfo.generate(lfoBuffer.data(), numFrames);
     
-    // Apply reverb
-    reverb.process(delayBuffer.data(), filterBuffer.data(), numFrames);
+    // FEATURE 3: Delay (uncomment to test)
+    // delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
+    // std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
+    
+    // FEATURE 4: Reverb (uncomment to test)
+    // reverb.process(filterBuffer.data(), delayBuffer.data(), numFrames);
+    // std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
     
     // Apply DC blocking
     dcBlocker.process(filterBuffer.data(), filterBuffer.data(), numFrames);
@@ -100,10 +89,9 @@ void AudioEngine::process(float* output, int numFrames) {
     float vol = volume.get();
     for (int i = 0; i < numFrames; ++i) {
         float sample = clamp(filterBuffer[i] * vol, -1.0f, 1.0f);
-        output[i * 2] = sample;
-        output[i * 2 + 1] = sample;
+        output[i * 2] = sample;      // Left
+        output[i * 2 + 1] = sample;  // Right
     }
-    */
 }
 
 void AudioEngine::trigger() {

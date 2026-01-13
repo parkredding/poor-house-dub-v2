@@ -1,5 +1,6 @@
 #include "Audio/AudioOutput.h"
 #include <iostream>
+#include <iomanip>
 #include <chrono>
 #include <cstring>
 #include <algorithm>
@@ -121,6 +122,13 @@ void AudioOutput::audioLoop() {
     // Calculate expected buffer duration for CPU usage estimation
     double bufferDuration = static_cast<double>(bufferSize) / static_cast<double>(sampleRate);
     
+    // CPU logging variables
+    float cpuSum = 0.0f;
+    float cpuMax = 0.0f;
+    int cpuSamples = 0;
+    auto lastLogTime = std::chrono::steady_clock::now();
+    const auto logInterval = std::chrono::seconds(2);
+    
     while (running.load()) {
         auto startTime = std::chrono::high_resolution_clock::now();
         
@@ -141,7 +149,7 @@ void AudioOutput::audioLoop() {
         if (frames < 0) {
             // Handle underrun
             underruns.fetch_add(1);
-            std::cerr << "[ALSA] Write returned " << frames << ": " << snd_strerror(static_cast<int>(frames)) << std::endl;
+            std::cerr << "[ALSA] Underrun! " << snd_strerror(static_cast<int>(frames)) << std::endl;
             frames = snd_pcm_recover(pcm, static_cast<int>(frames), 0);
             if (frames < 0) {
                 std::cerr << "[ALSA] Recovery failed: " << snd_strerror(static_cast<int>(frames)) << std::endl;
@@ -150,11 +158,27 @@ void AudioOutput::audioLoop() {
         
         totalBuffers.fetch_add(1);
         
-        // Calculate CPU usage
-        auto endTime = std::chrono::high_resolution_clock::now();
+        // Calculate CPU usage (processing time vs available time)
         std::chrono::duration<double> processDuration = processTime - startTime;
         float cpuUsage = static_cast<float>(processDuration.count() / bufferDuration * 100.0);
         lastCpuUsage.store(cpuUsage);
+        
+        // Accumulate for logging
+        cpuSum += cpuUsage;
+        if (cpuUsage > cpuMax) cpuMax = cpuUsage;
+        cpuSamples++;
+        
+        // Log CPU usage every 2 seconds
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastLogTime >= logInterval && cpuSamples > 0) {
+            float avgCpu = cpuSum / cpuSamples;
+            std::cout << "[CPU] avg=" << std::fixed << std::setprecision(1) << avgCpu 
+                      << "% max=" << cpuMax << "% (headroom: " << (100.0f - cpuMax) << "%)" << std::endl;
+            cpuSum = 0.0f;
+            cpuMax = 0.0f;
+            cpuSamples = 0;
+            lastLogTime = now;
+        }
     }
     
     // Drain and close
