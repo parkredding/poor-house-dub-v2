@@ -80,13 +80,13 @@ void AudioEngine::process(float* output, int numFrames) {
         }
     }
     
-    // FEATURE 3: Delay ← TESTING NOW
+    // FEATURE 3: Delay ✓ PASSED
     delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
     std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
     
-    // FEATURE 4: Reverb (uncomment to test)
-    // reverb.process(filterBuffer.data(), delayBuffer.data(), numFrames);
-    // std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
+    // FEATURE 4: Reverb ← TESTING NOW
+    reverb.process(filterBuffer.data(), delayBuffer.data(), numFrames);
+    std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
     
     // Apply DC blocking
     dcBlocker.process(filterBuffer.data(), filterBuffer.data(), numFrames);
