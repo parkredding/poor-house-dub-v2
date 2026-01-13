@@ -73,71 +73,15 @@ sudo apt-get install -y \
     wget \
     unzip
 
-# Install pigpio for GPIO support on Pi
+# Install GPIO library for Pi
 if [ "$IS_PI" = true ]; then
-    echo -e "${GREEN}📦 Installing GPIO library (pigpio)...${NC}"
+    echo -e "${GREEN}📦 Installing GPIO library (libgpiod)...${NC}"
     
-    # Try apt first (works on older Raspberry Pi OS)
-    if apt-cache show libpigpio-dev &>/dev/null && apt-cache show pigpio &>/dev/null; then
-        echo "Installing pigpio from apt..."
-        sudo apt-get install -y libpigpio-dev pigpio
-    else
-        # Build pigpio from source (required on newer Debian Trixie-based OS)
-        echo "pigpio not in apt repositories, building from source..."
-        
-        PIGPIO_DIR="/tmp/pigpio_build_$$"
-        mkdir -p "$PIGPIO_DIR"
-        cd "$PIGPIO_DIR"
-        
-        # Download pigpio source
-        echo "Downloading pigpio source..."
-        wget -q https://github.com/joan2937/pigpio/archive/master.zip -O pigpio.zip
-        
-        if [ ! -f pigpio.zip ]; then
-            echo -e "${RED}✗ Failed to download pigpio source${NC}"
-            exit 1
-        fi
-        
-        unzip -q pigpio.zip
-        cd pigpio-master
-        
-        # Build (don't use 'make install' - it tries to install Python bindings which fail on newer Python)
-        echo "Compiling pigpio (this may take a few minutes)..."
-        make -j2
-        
-        # Manually install only the C library components we need (skip Python bindings)
-        echo "Installing C library components..."
-        sudo install -m 0755 -d /usr/local/include
-        sudo install -m 0755 -d /usr/local/lib
-        sudo install -m 0755 -d /usr/local/bin
-        
-        # Headers
-        sudo install -m 0644 pigpio.h /usr/local/include/
-        
-        # Libraries
-        sudo install -m 0755 libpigpio.so.1 /usr/local/lib/
-        sudo ln -fs libpigpio.so.1 /usr/local/lib/libpigpio.so
-        
-        # Binaries (pigpiod daemon)
-        sudo install -m 0755 pigpiod /usr/local/bin/
-        sudo install -m 0755 pigs /usr/local/bin/
-        sudo install -m 0755 pig2vcd /usr/local/bin/
-        
-        # Update library cache
-        sudo ldconfig
-        
-        # Cleanup
-        cd /tmp
-        rm -rf "$PIGPIO_DIR"
-        
-        echo -e "${GREEN}✓ pigpio built and installed from source${NC}"
-    fi
+    # Install libgpiod - the modern Linux GPIO interface
+    # This works on all Raspberry Pi OS versions including newer Debian Trixie
+    sudo apt-get install -y libgpiod-dev gpiod
     
-    # Start pigpiod daemon if not running
-    if ! pgrep -x "pigpiod" > /dev/null; then
-        echo "Starting pigpio daemon..."
-        sudo pigpiod
-    fi
+    echo -e "${GREEN}✓ libgpiod installed${NC}"
 fi
 
 echo -e "${GREEN}✓ Dependencies installed${NC}"

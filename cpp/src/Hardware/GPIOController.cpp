@@ -1,6 +1,11 @@
 #include "Hardware/GPIOController.h"
 #include <iostream>
 #include <cstring>
+#include <vector>
+
+#ifdef HAVE_GPIOD
+#include <gpiod.h>
+#endif
 
 #ifdef HAVE_PIGPIO
 #include <pigpio.h>
@@ -16,8 +21,75 @@ namespace {
 
 bool gpioInitialized = false;
 
+#ifdef HAVE_GPIOD
+struct gpiod_chip* gpioChip = nullptr;
+struct gpiod_line_request* lineRequest = nullptr;
+std::vector<unsigned int> requestedLines;
+
 bool initPlatformGPIO() {
-#ifdef HAVE_PIGPIO
+    if (!gpioInitialized) {
+        gpioChip = gpiod_chip_open("/dev/gpiochip0");
+        if (!gpioChip) {
+            std::cerr << "Failed to open GPIO chip" << std::endl;
+            return false;
+        }
+        gpioInitialized = true;
+        std::cout << "libgpiod initialized successfully" << std::endl;
+    }
+    return true;
+}
+
+void cleanupPlatformGPIO() {
+    if (lineRequest) {
+        gpiod_line_request_release(lineRequest);
+        lineRequest = nullptr;
+    }
+    if (gpioChip) {
+        gpiod_chip_close(gpioChip);
+        gpioChip = nullptr;
+    }
+    gpioInitialized = false;
+    requestedLines.clear();
+}
+
+int readPin(int pin) {
+    if (!gpioChip) return 1;
+    
+    // For libgpiod v2, we need to request lines individually for reading
+    struct gpiod_line_settings* settings = gpiod_line_settings_new();
+    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_INPUT);
+    gpiod_line_settings_set_bias(settings, GPIOD_LINE_BIAS_PULL_UP);
+    
+    struct gpiod_line_config* config = gpiod_line_config_new();
+    unsigned int offset = static_cast<unsigned int>(pin);
+    gpiod_line_config_add_line_settings(config, &offset, 1, settings);
+    
+    struct gpiod_request_config* reqConfig = gpiod_request_config_new();
+    gpiod_request_config_set_consumer(reqConfig, "dubsiren");
+    
+    struct gpiod_line_request* req = gpiod_chip_request_lines(gpioChip, reqConfig, config);
+    
+    int value = 1;  // Default high (pull-up)
+    if (req) {
+        value = gpiod_line_request_get_value(req, offset);
+        gpiod_line_request_release(req);
+    }
+    
+    gpiod_request_config_free(reqConfig);
+    gpiod_line_config_free(config);
+    gpiod_line_settings_free(settings);
+    
+    return value == GPIOD_LINE_VALUE_ACTIVE ? 0 : 1;  // Active = pressed (low), Inactive = not pressed (high)
+}
+
+void setupInputPin(int pin) {
+    // For libgpiod v2, setup happens in readPin
+    (void)pin;
+}
+
+#elif defined(HAVE_PIGPIO)
+
+bool initPlatformGPIO() {
     if (!gpioInitialized) {
         if (gpioInitialise() < 0) {
             std::cerr << "Failed to initialize pigpio" << std::endl;
@@ -26,38 +98,44 @@ bool initPlatformGPIO() {
         gpioInitialized = true;
     }
     return true;
-#else
-    std::cout << "GPIO not available - running in simulation mode" << std::endl;
-    return false;
-#endif
 }
 
 void cleanupPlatformGPIO() {
-#ifdef HAVE_PIGPIO
     if (gpioInitialized) {
         gpioTerminate();
         gpioInitialized = false;
     }
-#endif
 }
 
 int readPin(int pin) {
-#ifdef HAVE_PIGPIO
     return gpioRead(pin);
-#else
-    (void)pin;
-    return 1;  // Simulated: pulled up (not pressed)
-#endif
 }
 
 void setupInputPin(int pin) {
-#ifdef HAVE_PIGPIO
     gpioSetMode(pin, PI_INPUT);
     gpioSetPullUpDown(pin, PI_PUD_UP);
-#else
-    (void)pin;
-#endif
 }
+
+#else
+
+bool initPlatformGPIO() {
+    std::cout << "GPIO not available - running in simulation mode" << std::endl;
+    return false;
+}
+
+void cleanupPlatformGPIO() {
+}
+
+int readPin(int pin) {
+    (void)pin;
+    return 1;  // Simulated: pulled up (not pressed)
+}
+
+void setupInputPin(int pin) {
+    (void)pin;
+}
+
+#endif
 
 } // anonymous namespace
 
