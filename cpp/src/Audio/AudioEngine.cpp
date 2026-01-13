@@ -58,7 +58,7 @@ void AudioEngine::process(float* output, int numFrames) {
     // ============================================
     
     // FEATURE 1: Filter ✓ PASSED
-    // FEATURE 2: LFO modulation on filter ← TESTING NOW
+    // FEATURE 2: LFO modulation ✓ PASSED
     lfo.generate(lfoBuffer.data(), numFrames);
     
     float baseCutoff = filter.getCutoff();
@@ -80,9 +80,9 @@ void AudioEngine::process(float* output, int numFrames) {
         }
     }
     
-    // FEATURE 3: Delay (uncomment to test)
-    // delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
-    // std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
+    // FEATURE 3: Delay ← TESTING NOW
+    delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
+    std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
     
     // FEATURE 4: Reverb (uncomment to test)
     // reverb.process(filterBuffer.data(), delayBuffer.data(), numFrames);
