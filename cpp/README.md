@@ -11,7 +11,38 @@ The Python implementation was hitting CPU limits (~80-100% on a single core), ca
 - **Headroom for new features**
 - **Foundation for future JUCE integration**
 
-## Building
+## Quick Start (Raspberry Pi)
+
+### One-Line Installer (Recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/cpp-juce-rewrite/cpp/install.sh | bash
+```
+
+This will:
+- Install all build dependencies (cmake, ALSA, pigpio)
+- Configure I2S audio for PCM5102 DAC
+- Let you select your audio device
+- Build the C++ application
+- Create and configure the systemd service
+- Optionally enable auto-start on boot
+
+After installation, reboot and the siren will be ready!
+
+### Manual Installation
+
+If you prefer to install manually:
+
+```bash
+# Clone the repository
+git clone -b cpp-juce-rewrite https://github.com/parkredding/poor-house-dub-v2.git
+cd poor-house-dub-v2/cpp
+
+# Run setup (installs deps, configures audio, builds, creates service)
+./setup.sh
+```
+
+## Building (Development)
 
 ### Prerequisites
 
@@ -49,7 +80,7 @@ make -j4
 mkdir -p build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_FOR_PI=ON
-make -j4
+make -j2
 ```
 
 ## Usage
@@ -88,6 +119,30 @@ make -j4
 | `s` | Show status |
 | `h` | Show help |
 | `q` | Quit |
+
+## Service Management
+
+The installer creates a systemd service for auto-start and easy management:
+
+```bash
+# Start the siren
+sudo systemctl start dubsiren-cpp.service
+
+# Stop the siren
+sudo systemctl stop dubsiren-cpp.service
+
+# Check status
+sudo systemctl status dubsiren-cpp.service
+
+# View logs
+journalctl -u dubsiren-cpp.service -f
+
+# Enable auto-start on boot
+sudo systemctl enable dubsiren-cpp.service
+
+# Disable auto-start
+sudo systemctl disable dubsiren-cpp.service
+```
 
 ## Architecture
 

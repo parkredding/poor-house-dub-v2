@@ -1,0 +1,385 @@
+#!/bin/bash
+# Setup script for Dub Siren V2 - C++ Edition
+# Run this on your Raspberry Pi Zero 2W
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo ""
+echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}  Dub Siren V2 - C++ Edition Setup${NC}"
+echo -e "${CYAN}  Raspberry Pi Zero 2W + PCM5102 DAC${NC}"
+echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# Detect the actual user (not root if running via sudo)
+if [ -n "$SUDO_USER" ]; then
+    INSTALL_USER="$SUDO_USER"
+    USER_HOME=$(eval echo ~$SUDO_USER)
+else
+    INSTALL_USER=$(whoami)
+    USER_HOME="$HOME"
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CPP_DIR="$SCRIPT_DIR"
+PROJECT_DIR="$(dirname "$CPP_DIR")"
+
+echo -e "Installing for user: ${CYAN}$INSTALL_USER${NC}"
+echo -e "Home directory: ${CYAN}$USER_HOME${NC}"
+echo -e "C++ source directory: ${CYAN}$CPP_DIR${NC}"
+echo ""
+
+# Check if running on Raspberry Pi
+IS_PI=false
+if [ -f /proc/device-tree/model ]; then
+    if grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then
+        IS_PI=true
+        PI_MODEL=$(cat /proc/device-tree/model | tr -d '\0')
+        echo -e "${GREEN}✓ Detected: $PI_MODEL${NC}"
+    fi
+fi
+
+if [ "$IS_PI" = false ]; then
+    echo -e "${YELLOW}⚠️  WARNING: Not running on Raspberry Pi${NC}"
+    echo "   GPIO and I2S features will be simulated"
+fi
+echo ""
+
+# ============================================================================
+# Install Build Dependencies
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  Installing Build Dependencies${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+echo -e "${GREEN}📦 Updating system packages...${NC}"
+sudo apt-get update -qq
+
+echo -e "${GREEN}📦 Installing build tools and libraries...${NC}"
+sudo apt-get install -y \
+    build-essential \
+    cmake \
+    libasound2-dev \
+    git
+
+# Install pigpio for GPIO support on Pi
+if [ "$IS_PI" = true ]; then
+    echo -e "${GREEN}📦 Installing GPIO library (pigpio)...${NC}"
+    sudo apt-get install -y libpigpio-dev pigpio
+fi
+
+echo -e "${GREEN}✓ Dependencies installed${NC}"
+echo ""
+
+# ============================================================================
+# Configure I2S for PCM5102
+# ============================================================================
+if [ "$IS_PI" = true ]; then
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}  I2S Audio Configuration${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    # Detect correct config.txt location (newer OS uses /boot/firmware/config.txt)
+    if [ -f /boot/firmware/config.txt ]; then
+        CONFIG_FILE="/boot/firmware/config.txt"
+    else
+        CONFIG_FILE="/boot/config.txt"
+    fi
+
+    echo -e "Using config file: ${CYAN}$CONFIG_FILE${NC}"
+
+    # Backup config if not already backed up
+    if [ ! -f "$CONFIG_FILE.backup.dubsiren" ]; then
+        echo "Creating backup of config.txt..."
+        sudo cp "$CONFIG_FILE" "$CONFIG_FILE.backup.dubsiren"
+    fi
+
+    # Check if I2S already configured
+    I2S_CONFIGURED=false
+    if grep -q "dtoverlay=hifiberry-dac" "$CONFIG_FILE" && grep -q "dtparam=i2s=on" "$CONFIG_FILE"; then
+        I2S_CONFIGURED=true
+        echo -e "${GREEN}✓ I2S already configured${NC}"
+    fi
+
+    if [ "$I2S_CONFIGURED" = false ]; then
+        echo ""
+        echo "The PCM5102 DAC requires I2S audio to be enabled."
+        echo "This will add the following to $CONFIG_FILE:"
+        echo "  - dtparam=i2s=on"
+        echo "  - dtoverlay=hifiberry-dac"
+        echo ""
+        read -p "Configure I2S for PCM5102? (Y/n): " -n 1 -r </dev/tty
+        echo ""
+        
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo "Adding I2S configuration..."
+            
+            # Add I2S configuration
+            if ! grep -q "dtparam=i2s=on" "$CONFIG_FILE"; then
+                echo "" | sudo tee -a "$CONFIG_FILE" >/dev/null
+                echo "# I2S Audio for PCM5102 DAC (Dub Siren V2)" | sudo tee -a "$CONFIG_FILE" >/dev/null
+                echo "dtparam=i2s=on" | sudo tee -a "$CONFIG_FILE" >/dev/null
+            fi
+            
+            if ! grep -q "dtoverlay=hifiberry-dac" "$CONFIG_FILE"; then
+                echo "dtoverlay=hifiberry-dac" | sudo tee -a "$CONFIG_FILE" >/dev/null
+            fi
+            
+            # Disable onboard audio
+            if grep -q "dtparam=audio=on" "$CONFIG_FILE"; then
+                echo "Disabling onboard audio..."
+                sudo sed -i 's/dtparam=audio=on/dtparam=audio=off/' "$CONFIG_FILE"
+            fi
+            
+            echo -e "${GREEN}✓ I2S configured${NC}"
+            echo -e "${YELLOW}⚠️  A reboot is required for I2S changes to take effect${NC}"
+            NEEDS_REBOOT=true
+        fi
+    fi
+    echo ""
+fi
+
+# ============================================================================
+# Audio Device Selection
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  Audio Device Selection${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+echo "Available audio output devices:"
+echo ""
+
+# List audio devices and create an array
+declare -a DEVICES
+declare -a CARD_NUMBERS
+INDEX=1
+
+# Parse aplay -l output to get device info
+while IFS= read -r line; do
+    if [[ $line =~ ^card\ ([0-9]+):\ ([^[]+)\[([^\]]+)\] ]]; then
+        CARD_NUM="${BASH_REMATCH[1]}"
+        CARD_NAME="${BASH_REMATCH[2]}"
+        DEVICE_NAME="${BASH_REMATCH[3]}"
+        DEVICES[$INDEX]="$CARD_NAME[$DEVICE_NAME]"
+        CARD_NUMBERS[$INDEX]=$CARD_NUM
+        
+        # Highlight likely PCM5102 devices
+        if [[ "$DEVICE_NAME" =~ hifiberry|HiFiBerry|pcm5102|PCM5102|i2s|I2S ]]; then
+            echo -e "  ${GREEN}$INDEX) Card $CARD_NUM: $CARD_NAME[$DEVICE_NAME] ← Likely PCM5102${NC}"
+        else
+            echo "  $INDEX) Card $CARD_NUM: $CARD_NAME[$DEVICE_NAME]"
+        fi
+        ((INDEX++))
+    fi
+done < <(aplay -l 2>/dev/null)
+
+if [ ${#DEVICES[@]} -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  No audio devices detected!${NC}"
+    echo "   This might be normal if I2S isn't configured yet."
+    echo "   Using default card 0"
+    SELECTED_CARD=0
+else
+    echo ""
+    echo "Which audio device would you like to use?"
+    echo "(For PCM5102 DAC, select the hifiberry-dac or snd_rpi_hifiberry_dac device)"
+    echo ""
+    read -p "Enter number [1]: " DEVICE_CHOICE </dev/tty
+
+    # Default to 1 if empty
+    DEVICE_CHOICE=${DEVICE_CHOICE:-1}
+
+    if [ $DEVICE_CHOICE -ge 1 ] && [ $DEVICE_CHOICE -lt $INDEX ]; then
+        SELECTED_CARD=${CARD_NUMBERS[$DEVICE_CHOICE]}
+        echo -e "${GREEN}✓ Selected: ${DEVICES[$DEVICE_CHOICE]}${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Invalid selection, using default card 0${NC}"
+        SELECTED_CARD=0
+    fi
+fi
+
+echo ""
+echo -e "Configuring ALSA for card ${CYAN}$SELECTED_CARD${NC}..."
+
+# Create ALSA configuration
+cat > /tmp/asound.conf << EOF
+# ALSA configuration for Dub Siren V2
+# Generated by setup.sh
+
+pcm.!default {
+    type hw
+    card $SELECTED_CARD
+}
+
+ctl.!default {
+    type hw
+    card $SELECTED_CARD
+}
+EOF
+
+sudo mv /tmp/asound.conf /etc/asound.conf
+echo -e "${GREEN}✓ ALSA configured${NC}"
+echo ""
+
+# ============================================================================
+# Build the C++ Application
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  Building Dub Siren (C++)${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+cd "$CPP_DIR"
+
+# Create build directory
+mkdir -p build
+cd build
+
+# Configure with CMake
+echo -e "${GREEN}📦 Configuring build...${NC}"
+CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release"
+
+if [ "$IS_PI" = true ]; then
+    CMAKE_ARGS="$CMAKE_ARGS -DBUILD_FOR_PI=ON"
+fi
+
+cmake .. $CMAKE_ARGS
+
+# Build (use fewer cores on Pi to avoid overheating)
+echo -e "${GREEN}🔨 Compiling...${NC}"
+if [ "$IS_PI" = true ]; then
+    make -j2
+else
+    make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+fi
+
+echo -e "${GREEN}✓ Build complete${NC}"
+echo ""
+
+# ============================================================================
+# Create systemd Service
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  Systemd Service Configuration${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+BINARY_PATH="$CPP_DIR/build/dubsiren"
+
+echo "Creating systemd service..."
+
+cat > /tmp/dubsiren-cpp.service << EOF
+[Unit]
+Description=Dub Siren V2 Synthesizer (C++ Edition)
+After=sound.target
+
+[Service]
+Type=simple
+User=$INSTALL_USER
+WorkingDirectory=$CPP_DIR
+ExecStart=$BINARY_PATH --device hw:$SELECTED_CARD,0
+Restart=on-failure
+RestartSec=5
+Nice=-10
+
+# Real-time priority for audio
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=80
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo mv /tmp/dubsiren-cpp.service /etc/systemd/system/dubsiren-cpp.service
+sudo systemctl daemon-reload
+
+echo -e "${GREEN}✓ Service created: dubsiren-cpp.service${NC}"
+echo ""
+
+# ============================================================================
+# Auto-Start Configuration
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  Auto-Start Configuration${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+echo "Would you like the Dub Siren to start automatically on boot?"
+echo ""
+read -p "Enable auto-start? (y/N): " -n 1 -r </dev/tty
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Enabling auto-start service..."
+    sudo systemctl enable dubsiren-cpp.service
+    echo -e "${GREEN}✓ Auto-start enabled${NC}"
+    echo ""
+    echo "The Dub Siren will start automatically on boot."
+    echo ""
+    echo "To disable auto-start later:"
+    echo -e "  ${CYAN}sudo systemctl disable dubsiren-cpp.service${NC}"
+else
+    echo "Auto-start not enabled."
+    echo ""
+    echo "To enable auto-start later:"
+    echo -e "  ${CYAN}sudo systemctl enable dubsiren-cpp.service${NC}"
+fi
+
+echo ""
+
+# ============================================================================
+# Summary
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}  Setup Complete!${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+echo -e "${YELLOW}Binary location:${NC}"
+echo -e "  $BINARY_PATH"
+echo ""
+
+echo -e "${YELLOW}Service commands:${NC}"
+echo -e "  Start:   ${CYAN}sudo systemctl start dubsiren-cpp.service${NC}"
+echo -e "  Stop:    ${CYAN}sudo systemctl stop dubsiren-cpp.service${NC}"
+echo -e "  Status:  ${CYAN}sudo systemctl status dubsiren-cpp.service${NC}"
+echo -e "  Logs:    ${CYAN}journalctl -u dubsiren-cpp.service -f${NC}"
+echo ""
+
+echo -e "${YELLOW}Manual testing:${NC}"
+echo -e "  Simulation:  ${CYAN}$BINARY_PATH --simulate --interactive${NC}"
+echo -e "  Hardware:    ${CYAN}$BINARY_PATH${NC}"
+echo ""
+
+if [ "${NEEDS_REBOOT:-false}" = true ]; then
+    echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}  ⚠️  REBOOT REQUIRED${NC}"
+    echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo "I2S configuration was changed. Please reboot for audio to work:"
+    echo -e "  ${CYAN}sudo reboot${NC}"
+    echo ""
+fi
+
+echo -e "${YELLOW}Control Surface (GPIO):${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  5 Rotary Encoders + 4 Buttons = 10 Parameters (14 GPIO pins)"
+echo ""
+echo "  Bank A: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix"
+echo "  Bank B: Release, Delay Time, Reverb Size, Osc Wave, LFO Wave"
+echo "  Buttons: Trigger, Pitch Env, Shift, Shutdown"
+echo ""
+echo -e "  ${YELLOW}⚠️  IMPORTANT: Avoid GPIO 18, 19, 21 (used by I2S audio)${NC}"
+echo ""
+echo "  See GPIO_WIRING_GUIDE.md for complete wiring diagrams"
+echo ""
