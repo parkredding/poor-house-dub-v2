@@ -121,6 +121,10 @@ private:
     float currentFrequency;
     SmoothedValue frequencySmooth;
     
+    // Pitch envelope state
+    bool inReleasePhase;
+    float pitchEnvStartLevel;  // Envelope level when release started
+    
     // Temporary buffers (pre-allocated to avoid allocation in audio thread)
     std::vector<float> oscBuffer;
     std::vector<float> envBuffer;

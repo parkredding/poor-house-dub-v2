@@ -16,9 +16,11 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     , reverb(sampleRate)
     , volume(0.7f)
     , baseFrequency(440.0f)
-    , pitchEnvMode(PitchEnvelopeMode::None)
+    , pitchEnvMode(PitchEnvelopeMode::Up)  // Default to UP for classic dub siren
     , currentFrequency(440.0f)
     , frequencySmooth(440.0f, 0.02f)
+    , inReleasePhase(false)
+    , pitchEnvStartLevel(1.0f)
 {
     // Pre-allocate buffers
     oscBuffer.resize(bufferSize);
@@ -40,18 +42,53 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
 }
 
 void AudioEngine::process(float* output, int numFrames) {
-    // Smooth frequency changes
-    frequencySmooth.setTarget(baseFrequency.get());
+    // Get pitch envelope mode
+    PitchEnvelopeMode pitchMode = pitchEnvMode.get();
+    float baseFreq = baseFrequency.get();
     
-    // Generate oscillator
+    // Generate envelope first (we need it for pitch envelope calculation)
+    envelope.generate(envBuffer.data(), numFrames);
+    
+    // Generate oscillator with pitch envelope
     for (int i = 0; i < numFrames; ++i) {
+        float targetFreq = baseFreq;
+        
+        // Apply pitch envelope during release phase
+        if (inReleasePhase && pitchMode != PitchEnvelopeMode::None) {
+            float envValue = envBuffer[i];
+            
+            // Calculate how far through release we are (0 = just started, 1 = finished)
+            // envValue goes from pitchEnvStartLevel down to 0
+            float releaseProgress = 0.0f;
+            if (pitchEnvStartLevel > 0.001f) {
+                releaseProgress = 1.0f - (envValue / pitchEnvStartLevel);
+                releaseProgress = clamp(releaseProgress, 0.0f, 1.0f);
+            }
+            
+            // Apply pitch shift (2 octaves = multiply by 4 at max)
+            // Use exponential curve for musical pitch sweep
+            if (pitchMode == PitchEnvelopeMode::Up) {
+                // Pitch goes UP: multiply by 1.0 to 4.0 (2 octaves up)
+                float pitchMult = std::pow(4.0f, releaseProgress);
+                targetFreq = baseFreq * pitchMult;
+            } else if (pitchMode == PitchEnvelopeMode::Down) {
+                // Pitch goes DOWN: multiply by 1.0 to 0.25 (2 octaves down)
+                float pitchMult = std::pow(0.25f, releaseProgress);
+                targetFreq = baseFreq * pitchMult;
+            }
+            
+            // End release phase when envelope is essentially done
+            if (envValue < 0.001f) {
+                inReleasePhase = false;
+            }
+        }
+        
+        // Smooth frequency changes to avoid clicks
+        frequencySmooth.setTarget(targetFreq);
         currentFrequency = frequencySmooth.getNext();
         oscillator.setFrequency(currentFrequency);
         oscBuffer[i] = oscillator.generateSample();
     }
-    
-    // Generate envelope
-    envelope.generate(envBuffer.data(), numFrames);
     
     // Generate LFO modulation
     lfo.generate(lfoBuffer.data(), numFrames);
@@ -100,10 +137,14 @@ void AudioEngine::trigger() {
     std::lock_guard<std::mutex> lock(triggerMutex);
     oscillator.resetPhase();
     envelope.trigger();
+    inReleasePhase = false;  // We're in attack/sustain phase
 }
 
 void AudioEngine::release() {
     std::lock_guard<std::mutex> lock(triggerMutex);
+    // Capture envelope level at start of release for pitch envelope
+    pitchEnvStartLevel = envelope.getCurrentValue();
+    inReleasePhase = true;  // Start release phase (enables pitch envelope)
     envelope.release();
 }
 
