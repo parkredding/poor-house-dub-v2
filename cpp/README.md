@@ -16,7 +16,7 @@ The Python implementation was hitting CPU limits (~80-100% on a single core), ca
 ### One-Line Installer (Recommended)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/cpp-juce-rewrite/cpp/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/cpp/install.sh | bash
 ```
 
 This will:
@@ -35,7 +35,7 @@ If you prefer to install manually:
 
 ```bash
 # Clone the repository
-git clone -b cpp-juce-rewrite https://github.com/parkredding/poor-house-dub-v2.git
+git clone https://github.com/parkredding/poor-house-dub-v2.git
 cd poor-house-dub-v2/cpp
 
 # Run setup (installs deps, configures audio, builds, creates service)

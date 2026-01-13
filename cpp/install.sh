@@ -1,12 +1,12 @@
 #!/bin/bash
 # Dub Siren V2 C++ Edition - One-line Installer for Raspberry Pi Zero 2W
-# Usage: curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/cpp-juce-rewrite/cpp/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/parkredding/poor-house-dub-v2/main/cpp/install.sh | bash
 
 set -e
 
 REPO_URL="https://github.com/parkredding/poor-house-dub-v2.git"
 INSTALL_DIR="$HOME/poor-house-dub-v2"
-BRANCH="${1:-cpp-juce-rewrite}"
+BRANCH="${1:-main}"
 
 # Colors for output
 RED='\033[0;31m'
