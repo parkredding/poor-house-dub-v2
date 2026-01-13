@@ -1,94 +1,67 @@
 #include "DSP/Reverb.h"
 #include <cmath>
 #include <algorithm>
-#include <random>
 
 namespace DubSiren {
 
 // ============================================================================
-// AllpassFilter Implementation
+// Comb Filter
 // ============================================================================
 
-AllpassFilter::AllpassFilter(int delaySamples)
-    : buffer(delaySamples, 0.0f)
-    , writePos(0)
-    , delaySamples(delaySamples)
-    , feedback(0.5f)
-{
+void ReverbEffect::CombFilter::init(int size) {
+    bufferSize = size;
+    buffer.resize(size, 0.0f);
+    index = 0;
+    filterStore = 0.0f;
 }
 
-float AllpassFilter::process(float input) {
-    int readPos = writePos - delaySamples;
-    if (readPos < 0) {
-        readPos += static_cast<int>(buffer.size());
+float ReverbEffect::CombFilter::process(float input, float feedback, float damp1, float damp2) {
+    float output = buffer[index];
+    
+    // One-pole lowpass in feedback path (damping)
+    filterStore = (output * damp2) + (filterStore * damp1);
+    
+    // Clamp tiny values to zero (prevent denormals)
+    if (std::abs(filterStore) < 1e-10f) {
+        filterStore = 0.0f;
     }
     
-    float delayed = buffer[readPos];
+    // Write new sample
+    buffer[index] = input + (filterStore * feedback);
     
-    // Standard allpass formula
-    float output = delayed - feedback * input;
-    buffer[writePos] = input + feedback * delayed;
-    
-    // Prevent tiny values
-    if (std::abs(buffer[writePos]) < 1e-10f) {
-        buffer[writePos] = 0.0f;
+    // Advance index
+    if (++index >= bufferSize) {
+        index = 0;
     }
-    
-    writePos = (writePos + 1) % static_cast<int>(buffer.size());
     
     return output;
 }
 
 // ============================================================================
-// DampedCombFilter Implementation
+// Allpass Filter
 // ============================================================================
 
-DampedCombFilter::DampedCombFilter(int sampleRate, float delayTime)
-    : sampleRate(sampleRate)
-    , buffer(static_cast<int>(delayTime * sampleRate), 0.0f)
-    , writePos(0)
-    , delaySamples(static_cast<int>(delayTime * sampleRate))
-    , feedback(0.7f)
-    , damping(0.5f)
-    , damperState(0.0f)
-    , modDepthSamples(2.0f)
-    , modRate(0.3f)
-{
-    // Random starting phase for natural sound
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> dist(0.0f, TWO_PI);
-    modPhase = dist(gen);
+void ReverbEffect::AllpassFilter::init(int size) {
+    bufferSize = size;
+    buffer.resize(size, 0.0f);
+    index = 0;
 }
 
-float DampedCombFilter::process(float input) {
-    // Simple fixed delay read (no modulation - cleaner sound)
-    int readPos = writePos - delaySamples;
-    if (readPos < 0) {
-        readPos += static_cast<int>(buffer.size());
+float ReverbEffect::AllpassFilter::process(float input) {
+    float bufOut = buffer[index];
+    
+    // Standard allpass with fixed feedback of 0.5
+    float output = -input + bufOut;
+    buffer[index] = input + (bufOut * 0.5f);
+    
+    // Clamp tiny values
+    if (std::abs(buffer[index]) < 1e-10f) {
+        buffer[index] = 0.0f;
     }
     
-    float delayed = buffer[readPos];
-    
-    // Apply damping (one-pole lowpass in feedback path)
-    float dampingCoeff = 1.0f - damping * 0.5f;
-    damperState = dampingCoeff * delayed + (1.0f - dampingCoeff) * damperState;
-    
-    // Prevent very small values
-    if (std::abs(damperState) < 1e-10f) {
-        damperState = 0.0f;
+    if (++index >= bufferSize) {
+        index = 0;
     }
-    
-    // Comb filter formula with soft clipping
-    float output = delayed;
-    float feedbackSample = input + damperState * feedback;
-    
-    // Soft clip to prevent runaway
-    if (feedbackSample > 1.0f) feedbackSample = 1.0f;
-    if (feedbackSample < -1.0f) feedbackSample = -1.0f;
-    
-    buffer[writePos] = feedbackSample;
-    writePos = (writePos + 1) % static_cast<int>(buffer.size());
     
     return output;
 }
@@ -99,129 +72,105 @@ float DampedCombFilter::process(float input) {
 
 ReverbEffect::ReverbEffect(int sampleRate)
     : sampleRate(sampleRate)
-    , earlyReflectionTimes({0.013f, 0.019f, 0.023f, 0.029f, 0.037f, 0.043f, 0.051f, 0.059f})
-    , earlyLevel(0.15f)
-    , inputDiffusion({
-        AllpassFilter(static_cast<int>(0.005f * sampleRate)),
-        AllpassFilter(static_cast<int>(0.0089f * sampleRate))
-    })
-    , outputDiffusion(static_cast<int>(0.0067f * sampleRate))
-    , size(0.5f)
-    , dryWet(0.0f)
+    , roomSize(0.5f)
     , damping(0.5f)
+    , wet(0.0f)
+    , wet1(0.0f)
+    , wet2(0.0f)
+    , dry(1.0f)
+    , width(1.0f)
+    , feedback(0.0f)
+    , damp1(0.0f)
+    , damp2(0.0f)
 {
-    // Initialize early reflection buffers
-    for (int i = 0; i < NUM_EARLY_REFLECTIONS; ++i) {
-        earlyBuffers[i].resize(static_cast<int>(earlyReflectionTimes[i] * sampleRate), 0.0f);
-        earlyWritePos[i] = 0;
+    // Scale delay lengths for sample rate
+    float scale = static_cast<float>(sampleRate) / 44100.0f;
+    
+    // Initialize comb filters (left channel)
+    for (int i = 0; i < NUM_COMBS; ++i) {
+        int len = static_cast<int>(COMB_LENGTHS[i] * scale);
+        combL[i].init(len);
+        combR[i].init(len + STEREO_SPREAD);
     }
     
-    // Initialize comb filters with different delay times
-    const std::array<float, NUM_COMB_FILTERS> combDelayTimes = {
-        0.0297f, 0.0371f, 0.0411f, 0.0437f, 0.0503f, 0.0571f
-    };
-    
-    for (int i = 0; i < NUM_COMB_FILTERS; ++i) {
-        combFilters[i] = std::make_unique<DampedCombFilter>(sampleRate, combDelayTimes[i]);
+    // Initialize allpass filters
+    for (int i = 0; i < NUM_ALLPASS; ++i) {
+        int len = static_cast<int>(ALLPASS_LENGTHS[i] * scale);
+        allpassL[i].init(len);
+        allpassR[i].init(len + STEREO_SPREAD);
     }
     
-    // Pre-allocate work buffers (avoid allocation in audio thread!)
-    // Use a reasonable max buffer size
-    const int maxBufferSize = 1024;
-    earlyBuffer.resize(maxBufferSize, 0.0f);
-    diffusedBuffer.resize(maxBufferSize, 0.0f);
-    combOutputBuffer.resize(maxBufferSize, 0.0f);
+    // Pre-allocate work buffer
+    workBuffer.resize(1024);
     
-    updateParameters();
+    updateCoefficients();
 }
 
-void ReverbEffect::updateParameters() {
-    // Size controls feedback (decay time)
-    float baseFeedback = 0.4f + size * 0.45f;  // Range: 0.4 to 0.85
+void ReverbEffect::updateCoefficients() {
+    // Calculate feedback from room size
+    feedback = roomSize * SCALE_ROOM + OFFSET_ROOM;
     
-    for (auto& comb : combFilters) {
-        comb->setFeedback(baseFeedback);
-        comb->setDamping(damping);
-    }
-}
-
-void ReverbEffect::processEarlyReflections(const float* input, float* output, int numSamples) {
-    for (int i = 0; i < numSamples; ++i) {
-        float earlySum = 0.0f;
-        
-        for (int j = 0; j < NUM_EARLY_REFLECTIONS; ++j) {
-            auto& buf = earlyBuffers[j];
-            int& wPos = earlyWritePos[j];
-            
-            // Read delayed sample
-            earlySum += buf[wPos];
-            
-            // Write input with attenuation
-            float attenuation = 0.7f - static_cast<float>(j) * 0.05f;
-            buf[wPos] = clampSample(input[i] * attenuation);
-            
-            // Advance write position
-            wPos = (wPos + 1) % static_cast<int>(buf.size());
-        }
-        
-        output[i] = earlySum / static_cast<float>(NUM_EARLY_REFLECTIONS);
-    }
+    // Clamp feedback to prevent runaway
+    if (feedback > 0.98f) feedback = 0.98f;
+    
+    // Calculate damping coefficients
+    damp1 = damping * SCALE_DAMP;
+    damp2 = 1.0f - damp1;
+    
+    // Calculate wet gains for stereo
+    wet1 = wet * (width / 2.0f + 0.5f);
+    wet2 = wet * ((1.0f - width) / 2.0f);
 }
 
 void ReverbEffect::process(const float* input, float* output, int numSamples) {
-    // Resize work buffers if needed (rare, only on buffer size change)
-    if (static_cast<size_t>(numSamples) > earlyBuffer.size()) {
-        earlyBuffer.resize(numSamples);
-        diffusedBuffer.resize(numSamples);
-        combOutputBuffer.resize(numSamples);
-    }
-    
-    // Early reflections
-    processEarlyReflections(input, earlyBuffer.data(), numSamples);
-    
-    // Copy input for diffusion processing
-    std::copy(input, input + numSamples, diffusedBuffer.begin());
-    
-    // Process through input diffusion (allpass filters)
+    // Process each sample
     for (int i = 0; i < numSamples; ++i) {
-        for (auto& allpass : inputDiffusion) {
-            diffusedBuffer[i] = allpass.process(diffusedBuffer[i]);
+        float inSample = input[i];
+        float outL = 0.0f;
+        float outR = 0.0f;
+        
+        // Input gain
+        float scaledInput = inSample * FIXED_GAIN;
+        
+        // Parallel comb filters
+        for (int c = 0; c < NUM_COMBS; ++c) {
+            outL += combL[c].process(scaledInput, feedback, damp1, damp2);
+            outR += combR[c].process(scaledInput, feedback, damp1, damp2);
         }
-    }
-    
-    // Process through parallel comb filters
-    for (int i = 0; i < numSamples; ++i) {
-        float combSum = 0.0f;
-        for (auto& comb : combFilters) {
-            combSum += comb->process(diffusedBuffer[i]);
+        
+        // Series allpass filters for diffusion
+        for (int a = 0; a < NUM_ALLPASS; ++a) {
+            outL = allpassL[a].process(outL);
+            outR = allpassR[a].process(outR);
         }
-        combOutputBuffer[i] = combSum / static_cast<float>(NUM_COMB_FILTERS);
-    }
-    
-    // Output diffusion
-    for (int i = 0; i < numSamples; ++i) {
-        combOutputBuffer[i] = outputDiffusion.process(combOutputBuffer[i]);
-    }
-    
-    // Combine early reflections and reverb tail, mix with dry
-    for (int i = 0; i < numSamples; ++i) {
-        float wet = earlyBuffer[i] * earlyLevel + combOutputBuffer[i];
-        output[i] = input[i] * (1.0f - dryWet) + wet * dryWet;
+        
+        // Mix wet/dry (output is mono, so average L+R)
+        float wetMix = (outL + outR) * 0.5f * wet * SCALE_WET;
+        float dryMix = inSample * dry * SCALE_DRY * 0.5f;
+        
+        output[i] = wetMix + dryMix;
     }
 }
 
-void ReverbEffect::setSize(float s) {
-    size = std::clamp(s, 0.0f, 1.0f);
-    updateParameters();
+void ReverbEffect::setSize(float size) {
+    roomSize = std::clamp(size, 0.0f, 1.0f);
+    updateCoefficients();
 }
 
 void ReverbEffect::setDryWet(float mix) {
-    dryWet = std::clamp(mix, 0.0f, 1.0f);
+    wet = std::clamp(mix, 0.0f, 1.0f);
+    dry = 1.0f - wet;
+    updateCoefficients();
 }
 
 void ReverbEffect::setDamping(float damp) {
     damping = std::clamp(damp, 0.0f, 1.0f);
-    updateParameters();
+    updateCoefficients();
+}
+
+void ReverbEffect::setWidth(float w) {
+    width = std::clamp(w, 0.0f, 1.0f);
+    updateCoefficients();
 }
 
 } // namespace DubSiren

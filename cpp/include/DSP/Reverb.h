@@ -3,115 +3,105 @@
 #include "Common.h"
 #include <vector>
 #include <array>
-#include <memory>
 
 namespace DubSiren {
 
 /**
- * Allpass filter for reverb diffusion.
- * Creates density and smoothness without coloring frequency response.
- */
-class AllpassFilter {
-public:
-    explicit AllpassFilter(int delaySamples);
-    float process(float input);
-    void setFeedback(float fb) { feedback = fb; }
-    
-private:
-    std::vector<float> buffer;
-    int writePos;
-    int delaySamples;
-    float feedback;
-};
-
-/**
- * Damped comb filter for warm, chamber-like reverb.
- * Features high-frequency damping to simulate air absorption.
- */
-class DampedCombFilter {
-public:
-    DampedCombFilter(int sampleRate, float delayTime);
-    float process(float input);
-    
-    void setFeedback(float fb) { feedback = fb; }
-    void setDamping(float damp) { damping = damp; }
-    
-private:
-    int sampleRate;
-    std::vector<float> buffer;
-    int writePos;
-    int delaySamples;
-    
-    float feedback;
-    float damping;
-    float damperState;
-    
-    // Subtle modulation for natural sound
-    float modDepthSamples;
-    float modRate;
-    float modPhase;
-};
-
-/**
- * Hybrid chamber reverb effect inspired by Ableton Live.
+ * Freeverb-style reverb effect.
  * 
- * Combines:
- * - Early reflections for spatial character
- * - Allpass filters for diffusion and density
- * - Damped comb filters for warm, chamber-like tail
- * - Subtle modulation for natural, non-metallic sound
+ * Classic Schroeder-Moorer reverb algorithm:
+ * - 8 parallel comb filters for decay
+ * - 4 series allpass filters for diffusion
+ * - Smooth, lush sound perfect for dub
  */
 class ReverbEffect {
 public:
     explicit ReverbEffect(int sampleRate = DEFAULT_SAMPLE_RATE);
     
-    /**
-     * Process audio through the reverb.
-     * @param input Input buffer
-     * @param output Output buffer (can be same as input)
-     * @param numSamples Number of samples to process
-     */
     void process(const float* input, float* output, int numSamples);
     
-    // Parameter setters
-    void setSize(float size);
-    void setDryWet(float mix);
-    void setDamping(float damp);
+    // Parameters
+    void setSize(float size);      // Room size (0.0 - 1.0)
+    void setDryWet(float mix);     // Dry/wet mix (0.0 - 1.0)
+    void setDamping(float damp);   // High-frequency damping (0.0 - 1.0)
+    void setWidth(float width);    // Stereo width (0.0 - 1.0)
     
-    // Getters
-    float getSize() const { return size; }
-    float getDryWet() const { return dryWet; }
+    float getSize() const { return roomSize; }
+    float getDryWet() const { return wet; }
     
 private:
     int sampleRate;
     
-    // Early reflections
-    static constexpr int NUM_EARLY_REFLECTIONS = 8;
-    std::array<float, NUM_EARLY_REFLECTIONS> earlyReflectionTimes;
-    std::array<std::vector<float>, NUM_EARLY_REFLECTIONS> earlyBuffers;
-    std::array<int, NUM_EARLY_REFLECTIONS> earlyWritePos;
-    float earlyLevel;
+    // Freeverb uses 8 comb filters
+    static constexpr int NUM_COMBS = 8;
+    // And 4 allpass filters
+    static constexpr int NUM_ALLPASS = 4;
     
-    // Allpass diffusion filters
-    std::array<AllpassFilter, 2> inputDiffusion;
-    AllpassFilter outputDiffusion;
+    // Comb filter delay line lengths (in samples at 44100Hz, scaled for other rates)
+    // These are tuned to avoid metallic resonances
+    static constexpr int COMB_LENGTHS[NUM_COMBS] = {
+        1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617
+    };
     
-    // Damped comb filters
-    static constexpr int NUM_COMB_FILTERS = 6;
-    std::array<std::unique_ptr<DampedCombFilter>, NUM_COMB_FILTERS> combFilters;
+    // Allpass filter delay line lengths
+    static constexpr int ALLPASS_LENGTHS[NUM_ALLPASS] = {
+        556, 441, 341, 225
+    };
     
-    // Control parameters
-    float size;     // Room size / decay time (0.0 to 1.0)
-    float dryWet;   // Mix (0.0 = dry, 1.0 = wet)
-    float damping;  // High-frequency damping
+    // Comb filter state
+    struct CombFilter {
+        std::vector<float> buffer;
+        int bufferSize;
+        int index;
+        float filterStore;  // For damping lowpass
+        
+        CombFilter() : bufferSize(0), index(0), filterStore(0.0f) {}
+        void init(int size);
+        float process(float input, float feedback, float damp1, float damp2);
+    };
     
-    // Pre-allocated work buffers (avoid allocation in audio thread!)
-    std::vector<float> earlyBuffer;
-    std::vector<float> diffusedBuffer;
-    std::vector<float> combOutputBuffer;
+    // Allpass filter state
+    struct AllpassFilter {
+        std::vector<float> buffer;
+        int bufferSize;
+        int index;
+        
+        AllpassFilter() : bufferSize(0), index(0) {}
+        void init(int size);
+        float process(float input);
+    };
     
-    void updateParameters();
-    void processEarlyReflections(const float* input, float* output, int numSamples);
+    std::array<CombFilter, NUM_COMBS> combL;
+    std::array<CombFilter, NUM_COMBS> combR;
+    std::array<AllpassFilter, NUM_ALLPASS> allpassL;
+    std::array<AllpassFilter, NUM_ALLPASS> allpassR;
+    
+    // Parameters
+    float roomSize;
+    float damping;
+    float wet, wet1, wet2;
+    float dry;
+    float width;
+    
+    // Derived coefficients
+    float feedback;
+    float damp1, damp2;
+    
+    // Pre-allocated work buffer
+    std::vector<float> workBuffer;
+    
+    void updateCoefficients();
+    
+    // Stereo spread (slight offset for right channel)
+    static constexpr int STEREO_SPREAD = 23;
+    
+    // Fixed gain to prevent clipping
+    static constexpr float FIXED_GAIN = 0.015f;
+    static constexpr float SCALE_WET = 3.0f;
+    static constexpr float SCALE_DRY = 2.0f;
+    static constexpr float SCALE_DAMP = 0.4f;
+    static constexpr float SCALE_ROOM = 0.28f;
+    static constexpr float OFFSET_ROOM = 0.7f;
 };
 
 } // namespace DubSiren
