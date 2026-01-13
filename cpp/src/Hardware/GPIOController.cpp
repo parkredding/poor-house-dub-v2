@@ -24,18 +24,48 @@ bool gpioInitialized = false;
 #ifdef HAVE_GPIOD
 struct gpiod_chip* gpioChip = nullptr;
 struct gpiod_line_request* lineRequest = nullptr;
-std::vector<unsigned int> requestedLines;
+
+// All GPIO pins we need to monitor
+const unsigned int ALL_PINS[] = {
+    2, 3, 4, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27
+};
+const size_t NUM_PINS = sizeof(ALL_PINS) / sizeof(ALL_PINS[0]);
 
 bool initPlatformGPIO() {
-    if (!gpioInitialized) {
-        gpioChip = gpiod_chip_open("/dev/gpiochip0");
-        if (!gpioChip) {
-            std::cerr << "Failed to open GPIO chip" << std::endl;
-            return false;
-        }
-        gpioInitialized = true;
-        std::cout << "libgpiod initialized successfully" << std::endl;
+    if (gpioInitialized) return true;
+    
+    gpioChip = gpiod_chip_open("/dev/gpiochip0");
+    if (!gpioChip) {
+        std::cerr << "Failed to open GPIO chip" << std::endl;
+        return false;
     }
+    
+    // Configure all pins at once for efficiency
+    struct gpiod_line_settings* settings = gpiod_line_settings_new();
+    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_INPUT);
+    gpiod_line_settings_set_bias(settings, GPIOD_LINE_BIAS_PULL_UP);
+    
+    struct gpiod_line_config* config = gpiod_line_config_new();
+    gpiod_line_config_add_line_settings(config, ALL_PINS, NUM_PINS, settings);
+    
+    struct gpiod_request_config* reqConfig = gpiod_request_config_new();
+    gpiod_request_config_set_consumer(reqConfig, "dubsiren");
+    
+    lineRequest = gpiod_chip_request_lines(gpioChip, reqConfig, config);
+    
+    gpiod_request_config_free(reqConfig);
+    gpiod_line_config_free(config);
+    gpiod_line_settings_free(settings);
+    
+    if (!lineRequest) {
+        std::cerr << "Failed to request GPIO lines" << std::endl;
+        gpiod_chip_close(gpioChip);
+        gpioChip = nullptr;
+        return false;
+    }
+    
+    gpioInitialized = true;
+    std::cout << "libgpiod initialized successfully (" << NUM_PINS << " pins)" << std::endl;
     return true;
 }
 
@@ -49,35 +79,13 @@ void cleanupPlatformGPIO() {
         gpioChip = nullptr;
     }
     gpioInitialized = false;
-    requestedLines.clear();
 }
 
 int readPin(int pin) {
-    if (!gpioChip) return 1;
+    if (!lineRequest) return 1;
     
-    // For libgpiod v2, we need to request lines individually for reading
-    struct gpiod_line_settings* settings = gpiod_line_settings_new();
-    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_INPUT);
-    gpiod_line_settings_set_bias(settings, GPIOD_LINE_BIAS_PULL_UP);
-    
-    struct gpiod_line_config* config = gpiod_line_config_new();
-    unsigned int offset = static_cast<unsigned int>(pin);
-    gpiod_line_config_add_line_settings(config, &offset, 1, settings);
-    
-    struct gpiod_request_config* reqConfig = gpiod_request_config_new();
-    gpiod_request_config_set_consumer(reqConfig, "dubsiren");
-    
-    struct gpiod_line_request* req = gpiod_chip_request_lines(gpioChip, reqConfig, config);
-    
-    int value = 1;  // Default high (pull-up)
-    if (req) {
-        value = gpiod_line_request_get_value(req, offset);
-        gpiod_line_request_release(req);
-    }
-    
-    gpiod_request_config_free(reqConfig);
-    gpiod_line_config_free(config);
-    gpiod_line_settings_free(settings);
+    // Fast read - line is already requested
+    int value = gpiod_line_request_get_value(lineRequest, static_cast<unsigned int>(pin));
     
     // With pull-up bias: ACTIVE = HIGH (not pressed), INACTIVE = LOW (pressed/grounded)
     // Our button logic expects: 0 = pressed, 1 = not pressed
@@ -85,7 +93,7 @@ int readPin(int pin) {
 }
 
 void setupInputPin(int pin) {
-    // For libgpiod v2, setup happens in readPin
+    // All pins are configured in initPlatformGPIO
     (void)pin;
 }
 
