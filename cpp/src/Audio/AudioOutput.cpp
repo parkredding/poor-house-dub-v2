@@ -2,6 +2,7 @@
 #include <iostream>
 #include <chrono>
 #include <cstring>
+#include <algorithm>
 
 #ifdef HAVE_ALSA
 #include <alsa/asoundlib.h>
@@ -117,6 +118,17 @@ void AudioOutput::audioLoop() {
         return;
     }
     
+    // Prepare the PCM for playback
+    err = snd_pcm_prepare(pcm);
+    if (err < 0) {
+        std::cerr << "Cannot prepare PCM: " << snd_strerror(err) << std::endl;
+        snd_pcm_close(pcm);
+        running.store(false);
+        return;
+    }
+    
+    std::cout << "[ALSA] PCM prepared successfully, state=" << snd_pcm_state_name(snd_pcm_state(pcm)) << std::endl;
+    
     // Allocate buffers
     std::vector<float> floatBuffer(bufferSize * channels);
     std::vector<int16_t> intBuffer(bufferSize * channels);
@@ -144,13 +156,22 @@ void AudioOutput::audioLoop() {
         if (frames < 0) {
             // Handle underrun
             underruns.fetch_add(1);
+            std::cerr << "[ALSA] Write returned " << frames << ": " << snd_strerror(static_cast<int>(frames)) << std::endl;
             frames = snd_pcm_recover(pcm, static_cast<int>(frames), 0);
             if (frames < 0) {
-                std::cerr << "ALSA write error: " << snd_strerror(static_cast<int>(frames)) << std::endl;
+                std::cerr << "[ALSA] Recovery failed: " << snd_strerror(static_cast<int>(frames)) << std::endl;
             }
         }
         
         totalBuffers.fetch_add(1);
+        
+        // Debug: print first successful write info
+        static bool firstWrite = true;
+        if (firstWrite && frames > 0) {
+            firstWrite = false;
+            std::cout << "[ALSA] First write: " << frames << " frames, max sample=" 
+                      << *std::max_element(intBuffer.begin(), intBuffer.end()) << std::endl;
+        }
         
         // Calculate CPU usage
         auto endTime = std::chrono::high_resolution_clock::now();
