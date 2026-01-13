@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstring>
 #include <algorithm>
+#include <cerrno>
 
 #ifdef HAVE_ALSA
 #include <alsa/asoundlib.h>
@@ -111,6 +112,12 @@ void AudioOutput::audioLoop() {
     }
     
     std::cout << "[ALSA] PCM configured successfully, state=" << snd_pcm_state_name(snd_pcm_state(pcm)) << std::endl;
+    
+    // Explicitly start the PCM (some devices need this)
+    err = snd_pcm_start(pcm);
+    if (err < 0 && err != -EBADFD) {  // -EBADFD means already running, which is OK
+        std::cerr << "[ALSA] Warning: snd_pcm_start returned " << snd_strerror(err) << std::endl;
+    }
     
     // Allocate buffers
     std::vector<float> floatBuffer(bufferSize * channels);
