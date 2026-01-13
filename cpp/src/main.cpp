@@ -20,6 +20,7 @@
 #include <csignal>
 #include <atomic>
 #include <cstring>
+#include <cfenv>
 
 #include "Common.h"
 #include "Audio/AudioEngine.h"
@@ -27,6 +28,27 @@
 #include "Hardware/GPIOController.h"
 
 using namespace DubSiren;
+
+// Enable flush-to-zero for denormal numbers (prevents CPU spikes in DSP)
+void enableFlushToZero() {
+#if defined(__aarch64__)
+    // ARM64: Set FZ bit in FPCR
+    uint64_t fpcr;
+    asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+    fpcr |= (1 << 24);  // FZ bit
+    asm volatile("msr fpcr, %0" : : "r"(fpcr));
+#elif defined(__arm__)
+    // ARM32: Set FZ bit in FPSCR
+    uint32_t fpscr;
+    asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
+    fpscr |= (1 << 24);
+    asm volatile("vmsr fpscr, %0" : : "r"(fpscr));
+#elif defined(__x86_64__) || defined(__i386__)
+    // x86: Use MXCSR for SSE flush-to-zero
+    #include <xmmintrin.h>
+    _mm_setcsr(_mm_getcsr() | 0x8040);  // FZ and DAZ bits
+#endif
+}
 
 // Global flag for signal handling
 std::atomic<bool> g_running(true);
@@ -98,6 +120,9 @@ int main(int argc, char* argv[]) {
     // Setup signal handlers
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
+    
+    // Enable flush-to-zero to prevent denormal CPU spikes
+    enableFlushToZero();
     
     printBanner();
     

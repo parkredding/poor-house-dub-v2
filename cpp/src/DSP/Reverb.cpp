@@ -17,6 +17,9 @@ AllpassFilter::AllpassFilter(int delaySamples)
 {
 }
 
+// Tiny constant to prevent denormal numbers
+static constexpr float ANTI_DENORMAL = 1e-20f;
+
 float AllpassFilter::process(float input) {
     int readPos = (writePos - delaySamples + static_cast<int>(buffer.size())) % static_cast<int>(buffer.size());
     float delayed = buffer[readPos];
@@ -24,8 +27,8 @@ float AllpassFilter::process(float input) {
     // Allpass formula: y = -x + d + g*(x - d)
     float output = -input + delayed + feedback * (input - delayed);
     
-    // Write to buffer with clamping
-    buffer[writePos] = clampSample(input + feedback * delayed);
+    // Write to buffer with clamping and anti-denormal
+    buffer[writePos] = clampSample(input + feedback * delayed) + ANTI_DENORMAL;
     writePos = (writePos + 1) % static_cast<int>(buffer.size());
     
     return output;
@@ -75,11 +78,11 @@ float DampedCombFilter::process(float input) {
     
     // Apply damping (one-pole lowpass in feedback path)
     float dampingCoeff = 1.0f - damping * 0.5f;
-    damperState = clampSample(dampingCoeff * delayed + (1.0f - dampingCoeff) * damperState);
+    damperState = clampSample(dampingCoeff * delayed + (1.0f - dampingCoeff) * damperState) + ANTI_DENORMAL;
     
     // Comb filter formula
     float output = delayed;
-    buffer[writePos] = clampSample(input + damperState * feedback);
+    buffer[writePos] = clampSample(input + damperState * feedback) + ANTI_DENORMAL;
     writePos = (writePos + 1) % static_cast<int>(buffer.size());
     
     return output;
