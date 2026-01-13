@@ -98,14 +98,14 @@ void AudioOutput::audioLoop() {
     }
     
     // Use snd_pcm_set_params for ALSA configuration
-    // Lower latency = more responsive but higher CPU usage
+    // 50ms latency - good balance of responsiveness and stability
     err = snd_pcm_set_params(pcm,
                               SND_PCM_FORMAT_S16_LE,
                               SND_PCM_ACCESS_RW_INTERLEAVED,
                               channels,
                               sampleRate,
                               1,  // allow resampling
-                              100000);  // latency in us (100ms)
+                              50000);  // latency in us (50ms)
     if (err < 0) {
         std::cerr << "Cannot set PCM parameters: " << snd_strerror(err) << std::endl;
         snd_pcm_close(pcm);
@@ -122,12 +122,12 @@ void AudioOutput::audioLoop() {
     // Calculate expected buffer duration for CPU usage estimation
     double bufferDuration = static_cast<double>(bufferSize) / static_cast<double>(sampleRate);
     
-    // CPU logging variables
+    // CPU logging variables (logs every 10 seconds)
     float cpuSum = 0.0f;
     float cpuMax = 0.0f;
     int cpuSamples = 0;
     auto lastLogTime = std::chrono::steady_clock::now();
-    const auto logInterval = std::chrono::seconds(2);
+    const auto logInterval = std::chrono::seconds(10);
     
     while (running.load()) {
         auto startTime = std::chrono::high_resolution_clock::now();

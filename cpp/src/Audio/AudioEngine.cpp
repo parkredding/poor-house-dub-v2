@@ -53,14 +53,10 @@ void AudioEngine::process(float* output, int numFrames) {
     // Generate envelope
     envelope.generate(envBuffer.data(), numFrames);
     
-    // ============================================
-    // FEATURE TEST: Adding features one by one
-    // ============================================
-    
-    // FEATURE 1: Filter ✓ PASSED
-    // FEATURE 2: LFO modulation ✓ PASSED
+    // Generate LFO modulation
     lfo.generate(lfoBuffer.data(), numFrames);
     
+    // Apply LFO to filter cutoff and process
     float baseCutoff = filter.getCutoff();
     for (int i = 0; i < numFrames; ++i) {
         // LFO modulates filter cutoff by ±2 octaves
@@ -80,11 +76,11 @@ void AudioEngine::process(float* output, int numFrames) {
         }
     }
     
-    // FEATURE 3: Delay ✓ PASSED
+    // Apply delay
     delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
     std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
     
-    // FEATURE 4: Reverb ← TESTING NOW
+    // Apply reverb
     reverb.process(filterBuffer.data(), delayBuffer.data(), numFrames);
     std::copy(delayBuffer.begin(), delayBuffer.begin() + numFrames, filterBuffer.begin());
     
