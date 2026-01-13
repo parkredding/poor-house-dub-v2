@@ -18,7 +18,17 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 # Raspberry Pi specific optimizations
 if(BUILD_FOR_PI)
     message(STATUS "Building with Raspberry Pi optimizations")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard")
+    # Detect architecture - 64-bit aarch64 vs 32-bit armhf
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+        # 64-bit ARM (Pi Zero 2W with 64-bit OS, Pi 4/5 64-bit)
+        # NEON is always available, no -mfpu/-mfloat-abi needed
+        message(STATUS "Detected 64-bit ARM (aarch64)")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=cortex-a53")
+    else()
+        # 32-bit ARM (older Pi OS)
+        message(STATUS "Detected 32-bit ARM")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=cortex-a53 -mfpu=neon-fp-armv8 -mfloat-abi=hard")
+    endif()
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math")
 endif()
 
