@@ -131,6 +131,32 @@ sudo systemctl status dubsiren.service
 journalctl -u dubsiren.service -f
 ```
 
+## Step 7: Enable Appliance Mode (Recommended)
+
+Once everything is working, enable appliance mode to protect against SD card corruption when power is unplugged:
+
+```bash
+cd ~/poor-house-dub-v2
+sudo ./enable_appliance_mode.sh
+```
+
+This makes the filesystem **read-only** using OverlayFS:
+- ✅ Users can safely unplug power anytime
+- ✅ SD card is protected from corruption
+- ✅ System always boots to a known good state
+
+**Note:** All changes after enabling are temporary (lost on reboot). To make updates:
+
+```bash
+# Disable appliance mode
+sudo ./disable_appliance_mode.sh
+
+# Make your changes, then re-enable
+sudo ./enable_appliance_mode.sh
+```
+
+---
+
 ## Troubleshooting Quick Fixes
 
 ### No audio output?
