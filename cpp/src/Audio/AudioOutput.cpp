@@ -95,39 +95,22 @@ void AudioOutput::audioLoop() {
         return;
     }
     
-    // Set hardware parameters
-    snd_pcm_hw_params_t* hwParams;
-    snd_pcm_hw_params_alloca(&hwParams);
-    snd_pcm_hw_params_any(pcm, hwParams);
-    
-    snd_pcm_hw_params_set_access(pcm, hwParams, SND_PCM_ACCESS_RW_INTERLEAVED);
-    snd_pcm_hw_params_set_format(pcm, hwParams, SND_PCM_FORMAT_S16_LE);
-    snd_pcm_hw_params_set_channels(pcm, hwParams, channels);
-    
-    unsigned int actualRate = sampleRate;
-    snd_pcm_hw_params_set_rate_near(pcm, hwParams, &actualRate, nullptr);
-    
-    snd_pcm_uframes_t periodSize = bufferSize;
-    snd_pcm_hw_params_set_period_size_near(pcm, hwParams, &periodSize, nullptr);
-    
-    err = snd_pcm_hw_params(pcm, hwParams);
+    // Use snd_pcm_set_params for simpler configuration (matches speaker-test behavior)
+    err = snd_pcm_set_params(pcm,
+                              SND_PCM_FORMAT_S16_LE,
+                              SND_PCM_ACCESS_RW_INTERLEAVED,
+                              channels,
+                              sampleRate,
+                              1,  // allow resampling
+                              100000);  // latency in us (100ms)
     if (err < 0) {
-        std::cerr << "Cannot set hardware parameters: " << snd_strerror(err) << std::endl;
+        std::cerr << "Cannot set PCM parameters: " << snd_strerror(err) << std::endl;
         snd_pcm_close(pcm);
         running.store(false);
         return;
     }
     
-    // Prepare the PCM for playback
-    err = snd_pcm_prepare(pcm);
-    if (err < 0) {
-        std::cerr << "Cannot prepare PCM: " << snd_strerror(err) << std::endl;
-        snd_pcm_close(pcm);
-        running.store(false);
-        return;
-    }
-    
-    std::cout << "[ALSA] PCM prepared successfully, state=" << snd_pcm_state_name(snd_pcm_state(pcm)) << std::endl;
+    std::cout << "[ALSA] PCM configured successfully, state=" << snd_pcm_state_name(snd_pcm_state(pcm)) << std::endl;
     
     // Allocate buffers
     std::vector<float> floatBuffer(bufferSize * channels);
