@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include <atomic>
 
 namespace DubSiren {
 
@@ -44,7 +45,7 @@ public:
     float getAttack() const { return attackTime; }
     float getRelease() const { return releaseTime; }
     float getCurrentValue() const { return currentValue; }
-    bool isActive() const { return active; }
+    bool isActive() const { return active.load(); }
     
 private:
     int sampleRate;
@@ -53,7 +54,7 @@ private:
     float attackCoeff;  // Calculated coefficient for attack
     float releaseCoeff; // Calculated coefficient for release
     float currentValue; // Current envelope value
-    bool active;        // Whether envelope is in attack phase
+    std::atomic<bool> active;  // Whether envelope is in attack phase (thread-safe)
     
     void updateCoefficients();
 };

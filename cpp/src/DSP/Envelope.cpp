@@ -37,7 +37,7 @@ float Envelope::generateSample() {
     float target;
     float coeff;
     
-    if (active) {
+    if (active.load(std::memory_order_acquire)) {
         // Attack: approach 1.0
         target = 1.0f;
         coeff = attackCoeff;
@@ -54,11 +54,11 @@ float Envelope::generateSample() {
 }
 
 void Envelope::trigger() {
-    active = true;
+    active.store(true, std::memory_order_release);
 }
 
 void Envelope::release() {
-    active = false;
+    active.store(false, std::memory_order_release);
 }
 
 void Envelope::setAttack(float timeSeconds) {
