@@ -165,12 +165,22 @@ void AudioOutput::audioLoop() {
         
         totalBuffers.fetch_add(1);
         
-        // Debug: print first successful write info
-        static bool firstWrite = true;
-        if (firstWrite && frames > 0) {
-            firstWrite = false;
-            std::cout << "[ALSA] First write: " << frames << " frames, max sample=" 
-                      << *std::max_element(intBuffer.begin(), intBuffer.end()) << std::endl;
+        // Debug: periodically print ALSA write info
+        static int alsaDebugCounter = 0;
+        int16_t maxSample = *std::max_element(intBuffer.begin(), intBuffer.end());
+        alsaDebugCounter++;
+        if (alsaDebugCounter >= 187) {  // ~1 second at 48kHz/256
+            alsaDebugCounter = 0;
+            if (maxSample > 100) {  // Only print when there's actual audio
+                std::cout << "[ALSA] Writing: " << frames << " frames, max int16=" << maxSample << std::endl;
+            }
+        }
+        
+        // Also print immediately when audio starts (first non-silent write)
+        static bool hadAudio = false;
+        if (!hadAudio && maxSample > 1000) {
+            hadAudio = true;
+            std::cout << "[ALSA] Audio detected! max int16=" << maxSample << std::endl;
         }
         
         // Calculate CPU usage
