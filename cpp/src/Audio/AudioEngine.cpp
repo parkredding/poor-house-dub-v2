@@ -2,8 +2,12 @@
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 namespace DubSiren {
+
+// Debug counter for periodic logging
+static int debugCounter = 0;
 
 AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     : sampleRate(sampleRate)
@@ -89,10 +93,24 @@ void AudioEngine::process(float* output, int numFrames) {
     
     // Apply volume and convert to stereo interleaved
     float vol = volume.get();
+    float maxSample = 0.0f;
+    float maxEnv = 0.0f;
     for (int i = 0; i < numFrames; ++i) {
         float sample = clamp(filterBuffer[i] * vol, -1.0f, 1.0f);
         output[i * 2] = sample;      // Left
         output[i * 2 + 1] = sample;  // Right
+        if (std::abs(sample) > maxSample) maxSample = std::abs(sample);
+        if (envBuffer[i] > maxEnv) maxEnv = envBuffer[i];
+    }
+    
+    // Debug output every ~1 second (48000/256 = ~187 buffers per second)
+    debugCounter++;
+    if (debugCounter >= 187) {
+        debugCounter = 0;
+        if (maxEnv > 0.001f || envelope.isActive()) {
+            std::cout << "[DEBUG] env=" << maxEnv << " out=" << maxSample 
+                      << " vol=" << vol << " active=" << envelope.isActive() << std::endl;
+        }
     }
 }
 
@@ -100,6 +118,7 @@ void AudioEngine::trigger() {
     std::lock_guard<std::mutex> lock(triggerMutex);
     oscillator.resetPhase();
     envelope.trigger();
+    std::cout << "[DEBUG] Trigger called - envelope active: " << envelope.isActive() << std::endl;
 }
 
 void AudioEngine::release() {
