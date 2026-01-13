@@ -96,15 +96,15 @@ void AudioOutput::audioLoop() {
         return;
     }
     
-    // Use snd_pcm_set_params with larger latency to match speaker-test behavior
-    // speaker-test uses period_size=12000, buffer_size=48000 (1 second latency at 48kHz)
+    // Use snd_pcm_set_params for ALSA configuration
+    // Lower latency = more responsive but higher CPU usage
     err = snd_pcm_set_params(pcm,
                               SND_PCM_FORMAT_S16_LE,
                               SND_PCM_ACCESS_RW_INTERLEAVED,
                               channels,
                               sampleRate,
                               1,  // allow resampling
-                              1000000);  // latency in us (1 second - matches speaker-test)
+                              100000);  // latency in us (100ms)
     if (err < 0) {
         std::cerr << "Cannot set PCM parameters: " << snd_strerror(err) << std::endl;
         snd_pcm_close(pcm);
@@ -112,7 +112,7 @@ void AudioOutput::audioLoop() {
         return;
     }
     
-    std::cout << "[ALSA] PCM configured successfully, state=" << snd_pcm_state_name(snd_pcm_state(pcm)) << std::endl;
+    // PCM configured successfully
     
     // Allocate buffers
     std::vector<float> floatBuffer(bufferSize * channels);
@@ -149,24 +149,6 @@ void AudioOutput::audioLoop() {
         }
         
         totalBuffers.fetch_add(1);
-        
-        // Debug: periodically print ALSA write info
-        static int alsaDebugCounter = 0;
-        int16_t maxSample = *std::max_element(intBuffer.begin(), intBuffer.end());
-        alsaDebugCounter++;
-        if (alsaDebugCounter >= 187) {  // ~1 second at 48kHz/256
-            alsaDebugCounter = 0;
-            if (maxSample > 100) {  // Only print when there's actual audio
-                std::cout << "[ALSA] Writing: " << frames << " frames, max int16=" << maxSample << std::endl;
-            }
-        }
-        
-        // Also print immediately when audio starts (first non-silent write)
-        static bool hadAudio = false;
-        if (!hadAudio && maxSample > 1000) {
-            hadAudio = true;
-            std::cout << "[ALSA] Audio detected! max int16=" << maxSample << std::endl;
-        }
         
         // Calculate CPU usage
         auto endTime = std::chrono::high_resolution_clock::now();

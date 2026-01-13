@@ -525,14 +525,15 @@ void GPIOController::onShiftRelease() {
 void GPIOController::onShutdownPress() {
     std::cout << "\n============================================================" << std::endl;
     std::cout << "  SHUTDOWN BUTTON PRESSED" << std::endl;
-    std::cout << "  (Shutdown disabled for testing - would shutdown here)" << std::endl;
+    std::cout << "  Safely shutting down the system..." << std::endl;
     std::cout << "============================================================" << std::endl;
     
-    // Disabled for testing - uncomment below to enable actual shutdown
-    // if (shutdownCallback) {
-    //     shutdownCallback();
-    // }
-    // std::system("sudo shutdown -h now");
+    if (shutdownCallback) {
+        shutdownCallback();
+    }
+    
+    // Issue system shutdown command
+    std::system("sudo shutdown -h now");
 }
 
 // ============================================================================
