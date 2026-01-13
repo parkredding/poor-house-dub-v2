@@ -101,10 +101,27 @@ if [ "$IS_PI" = true ]; then
         unzip -q pigpio.zip
         cd pigpio-master
         
-        # Build and install
+        # Build (don't use 'make install' - it tries to install Python bindings which fail on newer Python)
         echo "Compiling pigpio (this may take a few minutes)..."
         make -j2
-        sudo make install
+        
+        # Manually install only the C library components we need (skip Python bindings)
+        echo "Installing C library components..."
+        sudo install -m 0755 -d /usr/local/include
+        sudo install -m 0755 -d /usr/local/lib
+        sudo install -m 0755 -d /usr/local/bin
+        
+        # Headers
+        sudo install -m 0644 pigpio.h /usr/local/include/
+        
+        # Libraries
+        sudo install -m 0755 libpigpio.so.1 /usr/local/lib/
+        sudo ln -fs libpigpio.so.1 /usr/local/lib/libpigpio.so
+        
+        # Binaries (pigpiod daemon)
+        sudo install -m 0755 pigpiod /usr/local/bin/
+        sudo install -m 0755 pigs /usr/local/bin/
+        sudo install -m 0755 pig2vcd /usr/local/bin/
         
         # Update library cache
         sudo ldconfig
