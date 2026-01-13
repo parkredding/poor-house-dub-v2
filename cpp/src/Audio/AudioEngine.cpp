@@ -54,13 +54,22 @@ void AudioEngine::process(float* output, int numFrames) {
     envelope.generate(envBuffer.data(), numFrames);
     
     // ============================================
-    // FEATURE TEST: Uncomment features one by one
+    // FEATURE TEST: Adding features one by one
     // ============================================
     
-    // FEATURE 1: Filter (no LFO modulation for now)
+    // FEATURE 1: Filter ✓ PASSED
+    // FEATURE 2: LFO modulation on filter ← TESTING NOW
+    lfo.generate(lfoBuffer.data(), numFrames);
+    
+    float baseCutoff = filter.getCutoff();
     for (int i = 0; i < numFrames; ++i) {
+        // LFO modulates filter cutoff by ±2 octaves
+        float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 2.0f);
+        modCutoff = clamp(modCutoff, 100.0f, 8000.0f);
+        filter.setCutoff(modCutoff);
         filterBuffer[i] = filter.processSample(oscBuffer[i]);
     }
+    filter.setCutoff(baseCutoff);
     
     // Apply envelope
     for (int i = 0; i < numFrames; ++i) {
@@ -70,9 +79,6 @@ void AudioEngine::process(float* output, int numFrames) {
             filterBuffer[i] *= envBuffer[i];
         }
     }
-    
-    // FEATURE 2: LFO (uncomment to test)
-    // lfo.generate(lfoBuffer.data(), numFrames);
     
     // FEATURE 3: Delay (uncomment to test)
     // delay.process(filterBuffer.data(), delayBuffer.data(), numFrames);
