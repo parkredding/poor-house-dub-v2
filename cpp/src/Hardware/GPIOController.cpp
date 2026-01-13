@@ -92,11 +92,6 @@ int readPin(int pin) {
     return value == GPIOD_LINE_VALUE_ACTIVE ? 1 : 0;
 }
 
-void setupInputPin(int pin) {
-    // All pins are configured in initPlatformGPIO
-    (void)pin;
-}
-
 #elif defined(HAVE_PIGPIO)
 
 bool initPlatformGPIO() {
