@@ -17,18 +17,23 @@ AllpassFilter::AllpassFilter(int delaySamples)
 {
 }
 
-// Tiny constant to prevent denormal numbers
-static constexpr float ANTI_DENORMAL = 1e-20f;
-
 float AllpassFilter::process(float input) {
-    int readPos = (writePos - delaySamples + static_cast<int>(buffer.size())) % static_cast<int>(buffer.size());
+    int readPos = writePos - delaySamples;
+    if (readPos < 0) {
+        readPos += static_cast<int>(buffer.size());
+    }
+    
     float delayed = buffer[readPos];
     
-    // Allpass formula: y = -x + d + g*(x - d)
-    float output = -input + delayed + feedback * (input - delayed);
+    // Standard allpass formula
+    float output = delayed - feedback * input;
+    buffer[writePos] = input + feedback * delayed;
     
-    // Write to buffer with clamping and anti-denormal
-    buffer[writePos] = clampSample(input + feedback * delayed) + ANTI_DENORMAL;
+    // Prevent tiny values
+    if (std::abs(buffer[writePos]) < 1e-10f) {
+        buffer[writePos] = 0.0f;
+    }
+    
     writePos = (writePos + 1) % static_cast<int>(buffer.size());
     
     return output;
@@ -57,32 +62,32 @@ DampedCombFilter::DampedCombFilter(int sampleRate, float delayTime)
 }
 
 float DampedCombFilter::process(float input) {
-    // Calculate modulated read position
-    float modOffset = modDepthSamples * std::sin(modPhase);
-    modPhase += TWO_PI * modRate / static_cast<float>(sampleRate);
-    if (modPhase > TWO_PI) {
-        modPhase -= TWO_PI;
+    // Simple fixed delay read (no modulation - cleaner sound)
+    int readPos = writePos - delaySamples;
+    if (readPos < 0) {
+        readPos += static_cast<int>(buffer.size());
     }
     
-    // Read from buffer with interpolation
-    float readPosFloat = static_cast<float>(writePos) - static_cast<float>(delaySamples) + modOffset;
-    if (readPosFloat < 0) {
-        readPosFloat += static_cast<float>(buffer.size());
-    }
-    
-    int readPosInt = static_cast<int>(readPosFloat) % static_cast<int>(buffer.size());
-    int readPosNext = (readPosInt + 1) % static_cast<int>(buffer.size());
-    float frac = readPosFloat - std::floor(readPosFloat);
-    
-    float delayed = buffer[readPosInt] * (1.0f - frac) + buffer[readPosNext] * frac;
+    float delayed = buffer[readPos];
     
     // Apply damping (one-pole lowpass in feedback path)
     float dampingCoeff = 1.0f - damping * 0.5f;
-    damperState = clampSample(dampingCoeff * delayed + (1.0f - dampingCoeff) * damperState) + ANTI_DENORMAL;
+    damperState = dampingCoeff * delayed + (1.0f - dampingCoeff) * damperState;
     
-    // Comb filter formula
+    // Prevent very small values
+    if (std::abs(damperState) < 1e-10f) {
+        damperState = 0.0f;
+    }
+    
+    // Comb filter formula with soft clipping
     float output = delayed;
-    buffer[writePos] = clampSample(input + damperState * feedback) + ANTI_DENORMAL;
+    float feedbackSample = input + damperState * feedback;
+    
+    // Soft clip to prevent runaway
+    if (feedbackSample > 1.0f) feedbackSample = 1.0f;
+    if (feedbackSample < -1.0f) feedbackSample = -1.0f;
+    
+    buffer[writePos] = feedbackSample;
     writePos = (writePos + 1) % static_cast<int>(buffer.size());
     
     return output;
