@@ -5,6 +5,7 @@
 #include <thread>
 #include <atomic>
 #include <memory>
+#include <string>
 
 namespace DubSiren {
 
