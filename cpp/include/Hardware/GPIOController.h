@@ -2,11 +2,16 @@
 
 #include "Common.h"
 #include "Audio/AudioEngine.h"
+#include "Hardware/LEDController.h"
 #include <functional>
 #include <thread>
 #include <atomic>
 #include <array>
 #include <map>
+#include <mutex>
+#include <memory>
+#include <vector>
+#include <chrono>
 
 namespace DubSiren {
 
@@ -29,9 +34,15 @@ namespace GPIO {
     
     // Button pins
     constexpr int TRIGGER_BTN = 4;
-    constexpr int PITCH_ENV_BTN = 10;
     constexpr int SHIFT_BTN = 15;
     constexpr int SHUTDOWN_BTN = 3;
+    
+    // 3-position switch pins (ON/OFF/ON for pitch envelope)
+    constexpr int PITCH_ENV_UP = 10;    // Pin 19
+    constexpr int PITCH_ENV_DOWN = 9;   // Pin 21
+    
+    // Optional WS2812 LED data pin (supports PWM)
+    constexpr int LED_DATA = 12;        // Pin 32 (PWM0)
 }
 
 /**
@@ -105,13 +116,65 @@ private:
 };
 
 /**
+ * Three-position switch (ON/OFF/ON) handler with debouncing.
+ * Used for pitch envelope selection: UP / OFF / DOWN
+ */
+enum class SwitchPosition {
+    Off,    // Middle position (neither terminal connected)
+    Up,     // Upper ON position
+    Down    // Lower ON position
+};
+
+class ThreePositionSwitch {
+public:
+    using PositionCallback = std::function<void(SwitchPosition)>;
+    
+    ThreePositionSwitch(int upPin, int downPin, PositionCallback onChange = nullptr);
+    ~ThreePositionSwitch();
+    
+    void start();
+    void stop();
+    SwitchPosition getPosition() const { return position.load(); }
+    
+private:
+    int upPin;
+    int downPin;
+    PositionCallback callback;
+    std::atomic<SwitchPosition> position;
+    std::atomic<bool> running;
+    std::thread pollThread;
+    
+    SwitchPosition lastPosition;
+    std::chrono::steady_clock::time_point lastChange;
+    
+    static constexpr int DEBOUNCE_MS = 20;
+    
+    void pollLoop();
+    SwitchPosition readPosition();
+};
+
+/**
+ * Secret mode enumeration.
+ * Triggered by rapidly toggling the pitch envelope switch.
+ */
+enum class SecretMode {
+    None,   // Normal operation
+    NJD,    // Classic NJD siren mode (5 toggles in 1 second)
+    UFO     // UFO/Sci-fi mode (10 toggles in 2 seconds)
+};
+
+/**
  * Control surface handler for the Dub Siren.
  * 
  * 5 Encoders with bank switching:
- * - Bank A: Volume, Filter Freq, Filter Res, Delay Feedback, Reverb Mix
- * - Bank B: Release Time, Delay Time, Reverb Size, Osc Waveform, LFO Waveform
+ * - Bank A: Volume, Filter Freq, Base Freq, Delay Feedback, Reverb Mix
+ * - Bank B: Release Time, Delay Time, Filter Res, Osc Waveform, Reverb Size
  * 
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
+ * 
+ * Secret Modes (triggered by rapid pitch envelope toggling):
+ * - NJD Mode: 5 toggles in 1 second - Classic dub siren presets
+ * - UFO Mode: 10 toggles in 2 seconds - Sci-fi UFO presets
  */
 class GPIOController {
 public:
@@ -140,6 +203,17 @@ public:
      */
     bool isRunning() const { return running.load(); }
     
+    /**
+     * Update LED with current audio level (0.0 - 1.0) for sound-reactive pulsing.
+     * Call this from the audio callback with the current output level.
+     */
+    void updateLEDAudioLevel(float level);
+    
+    /**
+     * Get the LED controller (may be nullptr if not available).
+     */
+    LEDController* getLEDController() { return ledController.get(); }
+    
 private:
     AudioEngine& engine;
     ShutdownCallback shutdownCallback;
@@ -147,27 +221,40 @@ private:
     std::atomic<Bank> currentBank;
     std::atomic<bool> shiftPressed;
     
+    // Secret mode state
+    std::atomic<SecretMode> secretMode;
+    std::atomic<int> secretModePreset{0};  // Current preset within secret mode (0-indexed)
+    
+    // Toggle tracking for secret mode activation
+    // Protected by togglesMutex for thread-safe access
+    mutable std::mutex togglesMutex;
+    std::vector<std::chrono::steady_clock::time_point> recentToggles;
+    std::atomic<SwitchPosition> lastPitchEnvPosition{SwitchPosition::Off};
+    std::atomic<bool> toggleTrackingInitialized{false};  // First extreme-to-extreme transition initializes tracking
+    
     // Parameter values
     struct Parameters {
         // Bank A
         float volume = 0.7f;
         float filterFreq = 2000.0f;
-        float filterRes = 1.0f;
+        float baseFreq = 440.0f;
         float delayFeedback = 0.5f;
         float reverbMix = 0.35f;
         
         // Bank B
         float release = 0.5f;
         float delayTime = 0.2f;
-        float reverbSize = 0.5f;
+        float filterRes = 0.5f;
         int oscWaveform = 0;
-        int lfoWaveform = 0;
+        float reverbSize = 0.5f;
     };
     Parameters params;
     
     // Hardware components
     std::array<std::unique_ptr<RotaryEncoder>, 5> encoders;
-    std::array<std::unique_ptr<MomentarySwitch>, 4> buttons;
+    std::array<std::unique_ptr<MomentarySwitch>, 3> buttons;  // Trigger, Shift, Shutdown
+    std::unique_ptr<ThreePositionSwitch> pitchEnvSwitch;      // 3-position pitch envelope
+    std::unique_ptr<LEDController> ledController;             // Optional WS2812 status LED
     
     // Encoder handlers
     void handleEncoder(int encoderIndex, int direction);
@@ -175,10 +262,19 @@ private:
     // Button handlers
     void onTriggerPress();
     void onTriggerRelease();
-    void onPitchEnvPress();
     void onShiftPress();
     void onShiftRelease();
     void onShutdownPress();
+    
+    // Pitch envelope switch handler
+    void onPitchEnvChange(SwitchPosition position);
+    
+    // Secret mode handling
+    void checkSecretModeActivation();
+    void activateSecretMode(SecretMode mode);
+    void exitSecretMode();
+    void cycleSecretModePreset();
+    void applySecretModePreset();
     
     // Apply parameter to engine
     void applyParameter(const char* name, float value);

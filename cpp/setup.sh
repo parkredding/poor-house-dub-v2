@@ -82,6 +82,35 @@ if [ "$IS_PI" = true ]; then
     sudo apt-get install -y libgpiod-dev gpiod
     
     echo -e "${GREEN}✓ libgpiod installed${NC}"
+    
+    # Install WS2812 LED library (optional - for status LED)
+    echo -e "${GREEN}📦 Installing WS2812 LED library (optional)...${NC}"
+    
+    # Try to install from package manager first
+    if apt-cache show libws2811-dev &>/dev/null; then
+        sudo apt-get install -y libws2811-dev
+        echo -e "${GREEN}✓ ws2811 library installed${NC}"
+    else
+        # Build from source if not available as package
+        echo -e "${YELLOW}  ws2811 not in package manager, building from source...${NC}"
+        
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        
+        git clone https://github.com/jgarff/rpi_ws281x.git
+        cd rpi_ws281x
+        
+        mkdir build && cd build
+        cmake -DBUILD_SHARED=ON -DBUILD_TEST=OFF ..
+        make
+        sudo make install
+        sudo ldconfig
+        
+        cd "$SCRIPT_DIR"
+        rm -rf "$TEMP_DIR"
+        
+        echo -e "${GREEN}✓ ws2811 library built and installed${NC}"
+    fi
 fi
 
 echo -e "${GREEN}✓ Dependencies installed${NC}"
@@ -402,7 +431,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  5 Rotary Encoders + 4 Buttons = 10 Parameters (14 GPIO pins)"
 echo ""
 echo "  Bank A: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix"
-echo "  Bank B: Release, Delay Time, Reverb Size, Osc Wave, LFO Wave"
+echo "  Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size"
 echo "  Buttons: Trigger, Pitch Env, Shift, Shutdown"
 echo ""
 echo -e "  ${YELLOW}⚠️  IMPORTANT: Avoid GPIO 18, 19, 21 (used by I2S audio)${NC}"

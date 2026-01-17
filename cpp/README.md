@@ -115,10 +115,12 @@ make -j2
 | Key | Action |
 |-----|--------|
 | `t` | Toggle trigger (start/stop siren) |
-| `p` | Cycle pitch envelope mode |
+| `p` | Cycle pitch envelope mode (none → up → down) |
 | `s` | Show status |
 | `h` | Show help |
 | `q` | Quit |
+
+**Note:** On hardware, pitch envelope is controlled by a 3-position toggle switch, not a button.
 
 ## Service Management
 
@@ -193,7 +195,8 @@ cpp/
 │   │   ├── AudioEngine.h    # Main synth engine
 │   │   └── AudioOutput.h    # ALSA audio output
 │   └── Hardware/
-│       └── GPIOController.h # Raspberry Pi GPIO
+│       ├── GPIOController.h # Raspberry Pi GPIO
+│       └── LEDController.h  # WS2812 LED control
 ├── src/
 │   ├── main.cpp             # Entry point
 │   ├── DSP/
@@ -207,7 +210,8 @@ cpp/
 │   │   ├── AudioEngine.cpp
 │   │   └── AudioOutput.cpp
 │   └── Hardware/
-│       └── GPIOController.cpp
+│       ├── GPIOController.cpp
+│       └── LEDController.cpp
 └── build/                   # Build output (git-ignored)
 ```
 
@@ -223,19 +227,26 @@ Compared to Python implementation:
 
 ## Hardware Requirements
 
-Same as Python version:
 - Raspberry Pi Zero 2 W
 - PCM5102 I2S DAC
-- 5x Rotary encoders (KY-040)
-- 4x Momentary switches
+- 5x Rotary encoders (EC11 5-pin, no VCC required)
+- 3x Momentary switches (Trigger, Shift, Shutdown)
+- 1x 3-Position ON/OFF/ON toggle switch (Pitch Envelope)
 - 5V 2.5A power supply
+- Optional: WS2812D-F5 RGB LED for status indication
 
-See [HARDWARE.md](../HARDWARE.md) in the parent directory for wiring.
+See [HARDWARE.md](../HARDWARE.md) and [GPIO_WIRING_GUIDE.md](../GPIO_WIRING_GUIDE.md) for wiring.
+
+## Features
+
+- ✅ Pitch envelope with 3-position toggle switch (up/off/down)
+- ✅ Secret modes (NJD and UFO) with preset cycling
+- ✅ Optional WS2812 RGB LED status indicator
+- ✅ Sound-reactive LED pulsing
 
 ## Future Plans
 
 - [ ] JUCE framework integration for VST3 plugin support
-- [ ] Pitch envelope (now feasible with C++ performance)
 - [ ] MIDI input support
 - [ ] Preset save/load
 - [ ] OLED display support

@@ -70,6 +70,7 @@ set(AUDIO_SOURCES
 
 set(HARDWARE_SOURCES
     src/Hardware/GPIOController.cpp
+    src/Hardware/LEDController.cpp
 )
 
 set(MAIN_SOURCES
@@ -128,6 +129,17 @@ if(BUILD_FOR_PI)
         else()
             message(WARNING "No GPIO library found - GPIO will be simulated")
         endif()
+    endif()
+    
+    # WS2812 LED library (optional)
+    find_library(WS2811_LIBRARY ws2811)
+    if(WS2811_LIBRARY)
+        message(STATUS "ws2811 (WS2812 LED) found: ${WS2811_LIBRARY}")
+        target_link_libraries(dubsiren PRIVATE ${WS2811_LIBRARY})
+        target_compile_definitions(dubsiren PRIVATE HAVE_WS2812=1)
+    else()
+        message(STATUS "ws2811 library not found - LED will be simulated")
+        message(STATUS "  To enable WS2812 LED: sudo apt-get install libws2811-dev")
     endif()
 endif()
 

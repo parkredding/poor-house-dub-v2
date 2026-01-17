@@ -102,15 +102,22 @@ The control surface gracefully handles partial hardware. You can add encoders an
 ### Full Encoder List:
 1. **Encoder 1** (GPIO 17, 2) - Bank A: Volume | Bank B: Release Time
 2. **Encoder 2** (GPIO 27, 22) - Bank A: Filter Freq | Bank B: Delay Time
-3. **Encoder 3** (GPIO 23, 24) - Bank A: Filter Res | Bank B: Reverb Size
+3. **Encoder 3** (GPIO 23, 24) - Bank A: Base Freq | Bank B: Filter Res
 4. **Encoder 4** (GPIO 20, 26) - Bank A: Delay FB | Bank B: Osc Waveform
-5. **Encoder 5** (GPIO 14, 13) - Bank A: Reverb Mix | Bank B: LFO Waveform
+5. **Encoder 5** (GPIO 14, 13) - Bank A: Reverb Mix | Bank B: Reverb Size
 
 ### Full Button List:
 1. **Trigger** (GPIO 4) - Start/stop siren
-2. **Pitch Env** (GPIO 10) - Cycle pitch envelope mode
-3. **Shift** (GPIO 15) - Access Bank B parameters
-4. **Shutdown** (GPIO 3) - Safe system shutdown
+2. **Shift** (GPIO 15) - Access Bank B parameters; cycles presets in secret modes
+3. **Shutdown** (GPIO 3) - Safe system shutdown
+
+### Pitch Envelope Switch (3-Position Toggle):
+- **UP** (GPIO 10) - Pitch rises on release
+- **OFF** (center) - No pitch envelope
+- **DOWN** (GPIO 9) - Pitch falls on release
+
+### Optional LED:
+- **WS2812 LED** (GPIO 12) - Status indicator with color cycling
 
 ## Recommended Build Order
 
@@ -120,7 +127,9 @@ The control surface gracefully handles partial hardware. You can add encoders an
 4. **Add filter freq encoder** - Test multiple encoders working together
 5. **Add remaining encoders** - Build out Bank A controls
 6. **Add shift button** - Enable Bank B access
-7. **Add utility buttons** - Pitch envelope and shutdown
+7. **Add pitch envelope switch** - 3-position toggle for pitch control
+8. **Add shutdown button** - Safe power-off
+9. **Add status LED (optional)** - WS2812 for visual feedback
 
 ## Troubleshooting Partial Builds
 
@@ -141,12 +150,21 @@ The control surface gracefully handles partial hardware. You can add encoders an
 - Look for shorts between GPIO pins
 - Review console output for specific error messages
 
+## Secret Modes
+
+Once you have the pitch envelope switch wired, you can access hidden preset modes:
+
+- **NJD Mode**: Toggle the pitch switch rapidly 5 times in 1 second
+- **UFO Mode**: Toggle the pitch switch rapidly 10 times in 2 seconds
+
+In secret modes, the Shift button cycles through presets instead of switching banks.
+
 ## Important Notes
 
 - **I2S Pins**: Never use GPIO 18, 19, or 21 for controls (reserved for audio)
 - **GPIO Mode**: All pin numbers use BCM numbering, not physical pin numbers
 - **Pull-ups**: Internal pull-up resistors are enabled in software (no external resistors needed)
-- **Active-Low**: Buttons are active-low (pressed = LOW signal, released = HIGH)
+- **Active-Low**: Buttons and switch terminals are active-low (connected to GND = LOW signal)
 
 ## See Also
 
