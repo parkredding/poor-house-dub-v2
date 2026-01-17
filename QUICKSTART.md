@@ -87,11 +87,21 @@ Commands in interactive mode:
 
 The control surface uses **5 rotary encoders** with a **shift button** for bank switching:
 
-- **Bank A (normal):** Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
-- **Bank B (shift held):** Release Time, Delay Time, Filter Resonance, Osc Waveform, Reverb Size
-- **4 Buttons:** Trigger, Pitch Envelope, Shift, Shutdown
+- **Bank A (normal):** Volume, Filter Freq, Base Freq, Delay FB, Reverb Mix
+- **Bank B (shift held):** Release Time, Delay Time, Filter Res, Osc Waveform, Reverb Size
+- **3 Buttons:** Trigger, Shift, Shutdown
+- **3-Position Toggle Switch:** Pitch Envelope (UP = rise / OFF = none / DOWN = fall)
+- **Optional:** WS2812 RGB LED for status indication
 
 See [GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md) for complete wiring instructions.
+
+### Secret Modes
+
+Rapidly toggle the pitch envelope switch to activate hidden presets:
+- **NJD Mode:** 5 toggles in 1 second - Classic dub siren presets
+- **UFO Mode:** 10 toggles in 2 seconds - Sci-fi alien presets
+
+Use Shift button to cycle through presets within each secret mode.
 
 ### Run full system:
 

@@ -26,9 +26,18 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 
 - **Hardware Control Surface**
   - 5 rotary encoders with bank switching (10 parameters total)
-  - 4 momentary switches (trigger, pitch envelope, shift, shutdown)
+  - 3 momentary switches (trigger, shift, shutdown)
+  - 3-position toggle switch for pitch envelope (up/off/down)
   - Shift button for accessing Bank A/B parameters
-  - Uses only 14 GPIO pins (avoids I2S conflict)
+  - Uses 15 GPIO pins (avoids I2S conflict)
+  - Secret modes: NJD (rasta presets) and UFO (sci-fi presets)
+
+- **Optional Status LED**
+  - WS2812 RGB LED for visual feedback
+  - Amber during boot, lime green when ready
+  - Slow color cycling in normal mode
+  - Rasta colors in NJD mode, green/purple in UFO mode
+  - Sound-reactive pulsing
 
 - **High-Quality Audio**
   - PCM5102 I2S DAC for pristine audio output
@@ -46,10 +55,12 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 
 - Raspberry Pi Zero 2 W
 - PCM5102 DAC module
-- 5x rotary encoders (KY-040 or similar)
-- 4x momentary switches
+- 5x rotary encoders (EC11 5-pin, no VCC required)
+- 3x momentary switches
+- 1x 3-position ON/OFF/ON toggle switch (for pitch envelope)
 - MicroSD card (8GB+)
 - 5V 2.5A power supply
+- Optional: WS2812D-F5 RGB LED for status indication
 
 ### Installation
 
@@ -149,7 +160,14 @@ The control surface uses 5 rotary encoders with a **shift button** for bank swit
 
 ```
 Encoders:  [Encoder 1]  [Encoder 2]  [Encoder 3]  [Encoder 4]  [Encoder 5]
-Buttons:   [TRIGGER]    [PITCH ENV]  [SHIFT]      [SHUTDOWN]
+            Volume       Filter       Base Freq    Delay FB     Reverb Mix
+            (Release)    (Delay)      (Filter Res) (Osc Wave)   (Rev Size)
+
+Buttons:   [TRIGGER]    [↑|○|↓]      [SHIFT]      [SHUTDOWN]
+                        PITCH ENV
+                        (3-pos toggle)
+
+Optional:  [◉ LED]  ← WS2812 status indicator
 ```
 
 ### Bank A (Normal Mode)
@@ -187,6 +205,31 @@ Buttons:   [TRIGGER]    [PITCH ENV]  [SHIFT]      [SHUTDOWN]
 | **UP** | Pitch rises (2 octaves) on release |
 | **CENTER** | No pitch envelope |
 | **DOWN** | Pitch falls (2 octaves) on release |
+
+### Secret Modes
+
+Rapidly toggle the pitch envelope switch to unlock hidden preset modes:
+
+| Mode | Activation | Description |
+|------|------------|-------------|
+| **NJD Mode** | 5 toggles in 1 second | Classic NJD dub siren presets |
+| **UFO Mode** | 10 toggles in 2 seconds | Sci-fi alien sound presets |
+
+**In secret modes:**
+- Use **SHIFT** button to cycle through presets
+- Delay and reverb effects still apply
+- Toggle switch again to exit (or power cycle)
+
+### Optional Status LED (WS2812)
+
+| State | LED Behavior |
+|-------|--------------|
+| **Boot** | Amber color |
+| **Ready** | Lime green (2 sec), then cycling |
+| **Normal Mode** | Slow color cycling (changes over minutes) |
+| **NJD Mode** | Fast Rasta colors (red/yellow/green) |
+| **UFO Mode** | Fast green/purple alien theme |
+| **Audio Playing** | Pulses brighter with sound |
 
 ## Architecture
 
@@ -242,7 +285,8 @@ poor-house-dub-v2/
 │   │   │   ├── Delay.h
 │   │   │   └── Reverb.h
 │   │   └── Hardware/
-│   │       └── GPIOController.h
+│   │       ├── GPIOController.h
+│   │       └── LEDController.h
 │   └── src/                     # Source files
 │       ├── main.cpp
 │       ├── Audio/

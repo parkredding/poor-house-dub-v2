@@ -5,11 +5,13 @@
 ### Main Components
 - **Raspberry Pi Zero 2 W** - Main controller
 - **PCM5102 I2S DAC Module** - High-quality audio output
-- **5x Rotary Encoders (360°)** - Continuous rotation encoders (KY-040 or similar)
-- **4x Momentary Push Buttons** - Trigger, Pitch Envelope, Shift, and Shutdown switches
+- **5x Rotary Encoders (360°)** - EC11 5-pin encoders (no VCC required - uses Pi's internal pull-ups)
+- **3x Momentary Push Buttons** - Trigger, Shift, and Shutdown switches
+- **1x 3-Position Toggle Switch** - ON/OFF/ON SPDT for pitch envelope
 - **Power Supply** - 5V 2.5A recommended
 
 ### Optional Components
+- **WS2812D-F5 RGB LED** - 5mm through-hole addressable LED for status indication
 - Enclosure/case
 - Knobs for rotary encoders
 - PCB or perfboard for mounting
@@ -67,7 +69,7 @@ Raspberry Pi Zero 2 (Top View)
 
 The design uses **5 rotary encoders** with **bank switching** to access 10 parameters. A shift button switches between Bank A (normal mode) and Bank B (shift held).
 
-**Total GPIO pins used: 14** (10 encoder pins + 4 button pins)
+**Total GPIO pins used: 15-16** (10 encoder pins + 3 button pins + 2 pitch switch pins + 1 optional LED pin)
 
 ⚠️ **Critical:** This design avoids GPIO 18, 19, and 21 which are reserved for I2S audio (PCM5102 DAC).
 
@@ -145,24 +147,27 @@ Switch Wiring:
 │  │ ↻1 │  │ ↻2 │  │ ↻3 │  │ ↻4 │  │ ↻5 │       │
 │  └────┘  └────┘  └────┘  └────┘  └────┘       │
 │                                                  │
-│  Bank A:  Vol   Freq    Res     D.FB   R.Mix   │
-│  Bank B:  Rel   Delay  R.Size  Osc.W  LFO.W    │
+│  Bank A:  Vol   Filter  Pitch   D.FB   R.Mix   │
+│  Bank B:  Rel   Delay   F.Res  Osc.W  R.Size   │
 │                                                  │
-│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐              │
-│  │  ⏺  │ │  ⏺  │ │  ⏺  │ │  ⏺  │              │
-│  └─────┘ └─────┘ └─────┘ └─────┘              │
-│  TRIGGER PITCH  SHIFT  SHUTDOWN                │
-│           ENV                                    │
+│  ┌─────┐  ↑|○|↓   ┌─────┐ ┌─────┐   ◉         │
+│  │  ⏺  │  PITCH   │  ⏺  │ │  ⏺  │  LED       │
+│  └─────┘   ENV    └─────┘ └─────┘             │
+│  TRIGGER (toggle) SHIFT  SHUTDOWN              │
 │                                                  │
 └──────────────────────────────────────────────────┘
 ```
 
 **How it works:**
-- **Normal operation (Bank A):** Encoders control Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
+- **Normal operation (Bank A):** Encoders control Volume, Filter Freq, Base Freq, Delay FB, Reverb Mix
 - **Hold SHIFT (Bank B):** Same encoders now control Release, Delay Time, Filter Res, Osc Waveform, Reverb Size
 - **TRIGGER:** Press to start siren, release to stop
-- **PITCH ENV:** Cycles through pitch envelope modes (none → up → down)
+- **PITCH ENV:** 3-position toggle switch (UP=rise, OFF=none, DOWN=fall)
+- **SHIFT:** Hold to access Bank B; in secret modes, cycles presets
 - **SHUTDOWN:** Safely powers down the Raspberry Pi
+- **LED (optional):** WS2812 status indicator - shows mode and pulses with audio
+
+**Secret Modes:** Rapidly toggle the pitch envelope switch 5× in 1 sec (NJD mode) or 10× in 2 sec (UFO mode) to unlock hidden presets!
 
 ## Important Notes
 
@@ -173,14 +178,14 @@ Switch Wiring:
 - **GPIO 19** - I2S BCLK (Bit Clock)
 - **GPIO 21** - I2S DOUT (Data)
 
-The 14 GPIO pins used by the control surface (GPIO 2, 3, 4, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27) are all safe to use alongside I2S.
+The 15-16 GPIO pins used by the control surface (GPIO 2, 3, 4, 9, 10, 12, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27) are all safe to use alongside I2S.
 
 ### Bank Switching Operation
 
 The shift button enables access to 10 parameters with only 5 encoders:
 
 **Bank A (default):**
-- Immediate sound shaping: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
+- Immediate sound shaping: Volume, Filter Freq, Base Freq, Delay FB, Reverb Mix
 
 **Bank B (shift held):**
 - Advanced parameters: Release Time, Delay Time, Filter Resonance, Oscillator Waveform, Reverb Size
