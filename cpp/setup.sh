@@ -320,10 +320,10 @@ fi
 
 cmake .. $CMAKE_ARGS
 
-# Build (use fewer cores on Pi to avoid overheating)
-echo -e "${GREEN}🔨 Compiling...${NC}"
+# Build (single-threaded on Pi Zero to avoid OOM crashes)
+echo -e "${GREEN}🔨 Compiling (this may take 5-10 minutes on Pi Zero)...${NC}"
 if [ "$IS_PI" = true ]; then
-    make -j2
+    make -j1
 else
     make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 fi
