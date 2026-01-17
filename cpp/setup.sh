@@ -54,6 +54,63 @@ fi
 echo ""
 
 # ============================================================================
+# Ensure Swap Space (Pi Zero needs this for compilation)
+# ============================================================================
+if [ "$IS_PI" = true ]; then
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}  Checking Swap Space${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    # Check current swap
+    SWAP_TOTAL=$(free -m | awk '/^Swap:/ {print $2}')
+    
+    if [ "$SWAP_TOTAL" -lt 512 ]; then
+        echo -e "${YELLOW}⚠️  Insufficient swap space (${SWAP_TOTAL}MB). Pi Zero needs swap for compilation.${NC}"
+        
+        # Check if we're in appliance mode (overlay filesystem)
+        if mount | grep -q "overlay on / "; then
+            echo -e "${RED}✗ Cannot create swap: System is in read-only appliance mode${NC}"
+            echo -e "${YELLOW}  Run 'sudo raspi-config' and disable overlay filesystem, then reboot${NC}"
+            echo -e "${YELLOW}  Or run: sudo raspi-config nonint do_overlayfs 0 && sudo reboot${NC}"
+            exit 1
+        fi
+        
+        # Check if swapfile already exists but isn't active
+        if [ -f /swapfile ]; then
+            echo -e "${GREEN}📦 Activating existing swap file...${NC}"
+            sudo swapon /swapfile 2>/dev/null || true
+        else
+            echo -e "${GREEN}📦 Creating 1GB swap file (required for compilation)...${NC}"
+            
+            # Check available disk space
+            AVAIL_SPACE=$(df -m / | awk 'NR==2 {print $4}')
+            if [ "$AVAIL_SPACE" -lt 1500 ]; then
+                echo -e "${RED}✗ Not enough disk space for swap file (need 1.5GB, have ${AVAIL_SPACE}MB)${NC}"
+                exit 1
+            fi
+            
+            sudo fallocate -l 1G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            
+            # Make swap permanent
+            if ! grep -q "/swapfile" /etc/fstab; then
+                echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
+            fi
+        fi
+        
+        # Verify swap is now active
+        SWAP_TOTAL=$(free -m | awk '/^Swap:/ {print $2}')
+        echo -e "${GREEN}✓ Swap space: ${SWAP_TOTAL}MB${NC}"
+    else
+        echo -e "${GREEN}✓ Swap space available: ${SWAP_TOTAL}MB${NC}"
+    fi
+    echo ""
+fi
+
+# ============================================================================
 # Install Build Dependencies
 # ============================================================================
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
