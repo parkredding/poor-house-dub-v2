@@ -3,13 +3,9 @@
 #include <cmath>
 #include <algorithm>
 
-// Platform detection
-#if defined(__linux__) && (defined(__arm__) || defined(__aarch64__))
-    #define HAVE_WS2812
-    // Try to include ws2811 library
-    #ifdef HAVE_WS2812
-        #include <ws2811/ws2811.h>
-    #endif
+// Include ws2811 library only if CMake found it and defined HAVE_WS2812
+#ifdef HAVE_WS2812
+    #include <ws2811/ws2811.h>
 #endif
 
 namespace DubSiren {
