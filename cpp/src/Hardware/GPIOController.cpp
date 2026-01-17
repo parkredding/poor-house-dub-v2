@@ -15,6 +15,11 @@
 namespace DubSiren {
 
 // ============================================================================
+// DEBUG: Set to 1 to enable verbose input logging for testing
+// ============================================================================
+#define DEBUG_INPUTS 1
+
+// ============================================================================
 // Platform-specific GPIO helpers
 // ============================================================================
 
@@ -211,6 +216,13 @@ void RotaryEncoder::update() {
     int clkState = readPin(clkPin);
     int dtState = readPin(dtPin);
     
+#if DEBUG_INPUTS
+    // Log only when state changes to avoid spam
+    if (clkState != lastClk || dtState != lastDt) {
+        std::cout << "[ENC " << clkPin << "/" << dtPin << "] CLK=" << clkState << " DT=" << dtState << std::endl;
+    }
+#endif
+    
     if (clkState != lastClk) {
         int direction;
         if (dtState != clkState) {
@@ -270,9 +282,19 @@ void MomentarySwitch::stop() {
 }
 
 void MomentarySwitch::pollLoop() {
+    int lastLoggedState = -1;  // For debug logging
+    
     while (running.load()) {
         int state = readPin(pin);
         auto now = std::chrono::steady_clock::now();
+        
+#if DEBUG_INPUTS
+        if (state != lastLoggedState) {
+            std::cout << "[BTN " << pin << "] state=" << state 
+                      << (state == 0 ? " (PRESSED)" : " (released)") << std::endl;
+            lastLoggedState = state;
+        }
+#endif
         
         // Debounce
         if (state != lastState) {
@@ -356,6 +378,18 @@ SwitchPosition ThreePositionSwitch::readPosition() {
     // - Pin reads HIGH (1) when not connected (switch in other position)
     int upState = readPin(upPin);
     int downState = readPin(downPin);
+    
+#if DEBUG_INPUTS
+    static int lastLoggedUp = -1, lastLoggedDown = -1;
+    if (upState != lastLoggedUp || downState != lastLoggedDown) {
+        const char* pos = (upState == 0) ? "UP" : (downState == 0) ? "DOWN" : "OFF";
+        std::cout << "[PITCH SW] UP_pin(" << upPin << ")=" << upState 
+                  << " DOWN_pin(" << downPin << ")=" << downState 
+                  << " -> " << pos << std::endl;
+        lastLoggedUp = upState;
+        lastLoggedDown = downState;
+    }
+#endif
     
     if (upState == 0) {
         return SwitchPosition::Up;
