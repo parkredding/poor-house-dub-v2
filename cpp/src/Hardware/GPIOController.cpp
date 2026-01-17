@@ -381,6 +381,7 @@ void GPIOController::start() {
     // Apply initial parameters
     engine.setVolume(params.volume);
     engine.setFilterCutoff(params.filterFreq);
+    engine.setFrequency(params.baseFreq);
     engine.setFilterResonance(params.filterRes);
     engine.setDelayFeedback(params.delayFeedback);
     engine.setReverbMix(params.reverbMix);
@@ -394,8 +395,8 @@ void GPIOController::start() {
     std::cout << "============================================================" << std::endl;
     std::cout << "  Control Surface Ready" << std::endl;
     std::cout << "============================================================" << std::endl;
-    std::cout << "\nBank A: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix" << std::endl;
-    std::cout << "Bank B: Release, Delay Time, Reverb Size, Osc Wave, LFO Wave" << std::endl;
+    std::cout << "\nBank A: Volume, Filter Freq, Base Freq, Delay FB, Reverb Mix" << std::endl;
+    std::cout << "Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size" << std::endl;
     std::cout << "\nButtons: Trigger, Pitch Env, Shift (Bank A/B), Shutdown" << std::endl;
     std::cout << "============================================================" << std::endl;
 }
@@ -422,9 +423,9 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     Bank bank = currentBank.load();
     
     // Bank A parameters
-    const char* bankAParams[] = {"volume", "filter_freq", "filter_res", "delay_feedback", "reverb_mix"};
+    const char* bankAParams[] = {"volume", "filter_freq", "base_freq", "delay_feedback", "reverb_mix"};
     // Bank B parameters
-    const char* bankBParams[] = {"release", "delay_time", "reverb_size", "osc_waveform", "lfo_waveform"};
+    const char* bankBParams[] = {"release", "delay_time", "filter_res", "osc_waveform", "reverb_size"};
     
     const char* paramName = (bank == Bank::A) ? bankAParams[encoderIndex] : bankBParams[encoderIndex];
     
@@ -443,6 +444,13 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         params.filterFreq = clamp(params.filterFreq + step, 20.0f, 20000.0f);
         engine.setFilterCutoff(params.filterFreq);
         newValue = params.filterFreq;
+    }
+    else if (strcmp(paramName, "base_freq") == 0) {
+        // Logarithmic frequency control for musical response
+        float multiplier = (direction > 0) ? 1.05f : 0.95f;
+        params.baseFreq = clamp(params.baseFreq * multiplier, 50.0f, 2000.0f);
+        engine.setFrequency(params.baseFreq);
+        newValue = params.baseFreq;
     }
     else if (strcmp(paramName, "filter_res") == 0) {
         step = 0.02f * direction;
@@ -484,11 +492,6 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         params.oscWaveform = (params.oscWaveform + direction + 4) % 4;
         engine.setWaveform(params.oscWaveform);
         newValue = static_cast<float>(params.oscWaveform);
-    }
-    else if (strcmp(paramName, "lfo_waveform") == 0) {
-        params.lfoWaveform = (params.lfoWaveform + direction + 4) % 4;
-        engine.setLfoWaveform(params.lfoWaveform);
-        newValue = static_cast<float>(params.lfoWaveform);
     }
     else {
         return;

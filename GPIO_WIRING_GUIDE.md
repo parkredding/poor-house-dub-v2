@@ -38,9 +38,9 @@ The pin assignments below carefully avoid these pins.
 |---------|---------------------------|---------|--------|---------------|
 | **Encoder 1** | Volume / Release Time | GPIO 17 | GPIO 2 | Pin 11, Pin 3 |
 | **Encoder 2** | Filter Freq / Delay Time | GPIO 27 | GPIO 22 | Pin 13, Pin 15 |
-| **Encoder 3** | Filter Res / Reverb Size | GPIO 23 | GPIO 24 | Pin 16, Pin 18 |
+| **Encoder 3** | Base Freq / Filter Res | GPIO 23 | GPIO 24 | Pin 16, Pin 18 |
 | **Encoder 4** | Delay Feedback / Osc Wave | GPIO 20 | GPIO 26 | Pin 38, Pin 37 |
-| **Encoder 5** | Reverb Mix / LFO Wave | GPIO 14 | GPIO 13 | Pin 8, Pin 33 |
+| **Encoder 5** | Reverb Mix / Reverb Size | GPIO 14 | GPIO 13 | Pin 8, Pin 33 |
 
 ### 4 Buttons (4 GPIO pins)
 
@@ -63,16 +63,16 @@ The pin assignments below carefully avoid these pins.
 ### Bank A (Normal - no shift)
 1. **Volume** - Master output level (0-100%)
 2. **Filter Frequency** - Low-pass filter cutoff (20-20000 Hz)
-3. **Filter Resonance** - Filter emphasis (0-95%)
+3. **Base Frequency** - Oscillator pitch (50-2000 Hz)
 4. **Delay Feedback** - Echo repeats (0-95%)
 5. **Reverb Mix** - Reverb dry/wet (0-100%)
 
 ### Bank B (Hold Shift)
 1. **Release Time** - Envelope decay (0.001-5.0s)
 2. **Delay Time** - Echo timing (0.001-2.0s)
-3. **Reverb Size** - Room size (0-100%)
+3. **Filter Resonance** - Filter emphasis (0-95%)
 4. **Osc Waveform** - Oscillator shape (Sine/Square/Saw/Triangle)
-5. **LFO Waveform** - LFO shape (Sine/Square/Saw/Triangle)
+5. **Reverb Size** - Room size (0-100%)
 
 ## Detailed Wiring Diagrams
 
@@ -138,7 +138,7 @@ DT (B)  → Pin 15 (GPIO 22)
 GND     → Pin 9  (GND)
 ```
 
-**Encoder 3 (Filter Res / Reverb Size):**
+**Encoder 3 (Base Freq / Filter Res):**
 ```
 CLK (A) → Pin 16 (GPIO 23)
 DT (B)  → Pin 18 (GPIO 24)
@@ -154,7 +154,7 @@ DT (B)  → Pin 37 (GPIO 26)
 GND     → Pin 39 (GND)
 ```
 
-**Encoder 5 (Reverb Mix / LFO Wave):**
+**Encoder 5 (Reverb Mix / Reverb Size):**
 ```
 CLK (A) → Pin 8  (GPIO 14)
 DT (B)  → Pin 33 (GPIO 13)
@@ -205,7 +205,7 @@ Pin 2 → Pin 6  (GND)
     │  ┌────────────────────────────────────┐ │
     │  │                                    │ │
     │  │  [Enc1] [Enc2] [Enc3] [Enc4] [Enc5]│ │
-    │  │   Vol  Filter Filter Delay  Reverb │ │
+    │  │   Vol  Filter  Pitch Delay  Reverb │ │
     │  │                                    │ │
     │  │  [Trig] [Pitch] [Shift] [Shutdown]│ │
     │  │                                    │ │
@@ -283,8 +283,8 @@ sudo journalctl -u dubsiren.service -f
 **Encoder 2 (Filter Frequency):**
 - Turn → Should see `[Bank A] filter_freq: XXXX.000`
 
-**Encoder 3 (Filter Resonance):**
-- Turn → Should see `[Bank A] filter_res: 0.XXX`
+**Encoder 3 (Base Frequency):**
+- Turn → Should see `[Bank A] base_freq: XXX.XXX`
 
 **Encoder 4 (Delay Feedback):**
 - Turn → Should see `[Bank A] delay_feedback: 0.XXX`
@@ -296,11 +296,11 @@ sudo journalctl -u dubsiren.service -f
 
 **Hold Shift and turn encoders:**
 - Should see `Bank B active`
-- Encoder 1 → `[Bank B] release_time: X.XXX`
+- Encoder 1 → `[Bank B] release: X.XXX`
 - Encoder 2 → `[Bank B] delay_time: X.XXX`
-- Encoder 3 → `[Bank B] reverb_size: 0.XXX`
+- Encoder 3 → `[Bank B] filter_res: 0.XXX`
 - Encoder 4 → `[Bank B] osc_waveform: Sine/Square/Saw/Triangle`
-- Encoder 5 → `[Bank B] lfo_waveform: Sine/Square/Saw/Triangle`
+- Encoder 5 → `[Bank B] reverb_size: 0.XXX`
 
 **Release Shift:**
 - Should see `Bank A active`
@@ -368,7 +368,7 @@ For a permanent enclosure build:
 ┌──────────────────────────────────┐
 │                                  │
 │  [1]    [2]    [3]    [4]   [5]  │  ← Encoders
-│  Vol  Filter Filter Delay  Rev   │
+│  Vol  Filter Pitch  Delay  Rev   │
 │                                  │
 │  (Trigger)  (Pitch)  (Shift)     │  ← Buttons
 │                                  │
@@ -382,7 +382,9 @@ For a permanent enclosure build:
 - **Label each knob** with bank functions:
   - `VOL / REL` (Volume / Release Time)
   - `FILT / DLY` (Filter Freq / Delay Time)
-  - etc.
+  - `PITCH / RES` (Base Freq / Filter Res)
+  - `FB / WAVE` (Delay Feedback / Osc Wave)
+  - `MIX / SIZE` (Reverb Mix / Reverb Size)
 - Mount **Shift button** in easy reach
 - Add **LED indicator** for shift/bank status (optional)
 - Use **arcade buttons** for trigger (satisfying tactile feel)

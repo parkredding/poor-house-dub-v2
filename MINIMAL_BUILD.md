@@ -102,9 +102,9 @@ The control surface gracefully handles partial hardware. You can add encoders an
 ### Full Encoder List:
 1. **Encoder 1** (GPIO 17, 2) - Bank A: Volume | Bank B: Release Time
 2. **Encoder 2** (GPIO 27, 22) - Bank A: Filter Freq | Bank B: Delay Time
-3. **Encoder 3** (GPIO 23, 24) - Bank A: Filter Res | Bank B: Reverb Size
+3. **Encoder 3** (GPIO 23, 24) - Bank A: Base Freq | Bank B: Filter Res
 4. **Encoder 4** (GPIO 20, 26) - Bank A: Delay FB | Bank B: Osc Waveform
-5. **Encoder 5** (GPIO 14, 13) - Bank A: Reverb Mix | Bank B: LFO Waveform
+5. **Encoder 5** (GPIO 14, 13) - Bank A: Reverb Mix | Bank B: Reverb Size
 
 ### Full Button List:
 1. **Trigger** (GPIO 4) - Start/stop siren

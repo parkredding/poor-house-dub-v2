@@ -108,8 +108,8 @@ private:
  * Control surface handler for the Dub Siren.
  * 
  * 5 Encoders with bank switching:
- * - Bank A: Volume, Filter Freq, Filter Res, Delay Feedback, Reverb Mix
- * - Bank B: Release Time, Delay Time, Reverb Size, Osc Waveform, LFO Waveform
+ * - Bank A: Volume, Filter Freq, Base Freq, Delay Feedback, Reverb Mix
+ * - Bank B: Release Time, Delay Time, Filter Res, Osc Waveform, Reverb Size
  * 
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
  */
@@ -152,16 +152,16 @@ private:
         // Bank A
         float volume = 0.7f;
         float filterFreq = 2000.0f;
-        float filterRes = 1.0f;
+        float baseFreq = 440.0f;
         float delayFeedback = 0.5f;
         float reverbMix = 0.35f;
         
         // Bank B
         float release = 0.5f;
         float delayTime = 0.2f;
-        float reverbSize = 0.5f;
+        float filterRes = 0.5f;
         int oscWaveform = 0;
-        int lfoWaveform = 0;
+        float reverbSize = 0.5f;
     };
     Parameters params;
     

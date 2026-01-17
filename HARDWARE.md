@@ -77,9 +77,9 @@ The design uses **5 rotary encoders** with **bank switching** to access 10 param
 |---------|---------|--------|------------------|-------------------------------|
 | **Encoder 1** | GPIO 17 | GPIO 2  | Volume           | Release Time |
 | **Encoder 2** | GPIO 27 | GPIO 22 | Filter Frequency | Delay Time |
-| **Encoder 3** | GPIO 23 | GPIO 24 | Filter Resonance | Reverb Size |
+| **Encoder 3** | GPIO 23 | GPIO 24 | Base Frequency   | Filter Resonance |
 | **Encoder 4** | GPIO 20 | GPIO 26 | Delay Feedback   | Oscillator Waveform |
-| **Encoder 5** | GPIO 14 | GPIO 13 | Reverb Mix       | LFO Waveform |
+| **Encoder 5** | GPIO 14 | GPIO 13 | Reverb Mix       | Reverb Size |
 
 #### Momentary Switches (4 buttons)
 
@@ -152,7 +152,7 @@ Switch Wiring:
 
 **How it works:**
 - **Normal operation (Bank A):** Encoders control Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
-- **Hold SHIFT (Bank B):** Same encoders now control Release, Delay Time, Reverb Size, Osc Waveform, LFO Waveform
+- **Hold SHIFT (Bank B):** Same encoders now control Release, Delay Time, Filter Res, Osc Waveform, Reverb Size
 - **TRIGGER:** Press to start siren, release to stop
 - **PITCH ENV:** Cycles through pitch envelope modes (none → up → down)
 - **SHUTDOWN:** Safely powers down the Raspberry Pi
@@ -176,7 +176,7 @@ The shift button enables access to 10 parameters with only 5 encoders:
 - Immediate sound shaping: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
 
 **Bank B (shift held):**
-- Advanced parameters: Release Time, Delay Time, Reverb Size, Oscillator Waveform, LFO Waveform
+- Advanced parameters: Release Time, Delay Time, Filter Resonance, Oscillator Waveform, Reverb Size
 
 When you hold the shift button, all 5 encoders immediately control their Bank B parameters. Release shift to return to Bank A.
 

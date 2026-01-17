@@ -158,7 +158,7 @@ Buttons:   [TRIGGER]    [PITCH ENV]  [SHIFT]      [SHUTDOWN]
 |---------|-----------|----------|-------|
 | **Encoder 1** | Volume | Master output volume | 0.0 to 1.0 |
 | **Encoder 2** | Filter Freq | Low-pass filter cutoff frequency | 20Hz to 20kHz |
-| **Encoder 3** | Filter Res | Filter resonance/emphasis | 0.0 to 0.95 |
+| **Encoder 3** | Base Freq | Oscillator base pitch | 50Hz to 2kHz |
 | **Encoder 4** | Delay FB | Delay feedback amount | 0.0 to 0.95 |
 | **Encoder 5** | Reverb Mix | Reverb dry/wet mix | 0.0 (dry) to 1.0 (wet) |
 
@@ -168,9 +168,9 @@ Buttons:   [TRIGGER]    [PITCH ENV]  [SHIFT]      [SHUTDOWN]
 |---------|-----------|----------|-------|
 | **Encoder 1** | Release Time | Oscillator envelope release time | 0.001s to 5.0s |
 | **Encoder 2** | Delay Time | Delay effect time | 0.001s to 2.0s |
-| **Encoder 3** | Reverb Size | Reverb room size | 0.0 to 1.0 |
+| **Encoder 3** | Filter Res | Filter resonance/emphasis | 0.0 to 0.95 |
 | **Encoder 4** | Osc Wave | Oscillator waveform | Sine/Square/Saw/Triangle |
-| **Encoder 5** | LFO Wave | LFO waveform | Sine/Square/Saw/Triangle |
+| **Encoder 5** | Reverb Size | Reverb room size | 0.0 to 1.0 |
 
 ### Button Functions
 

@@ -88,7 +88,7 @@ Commands in interactive mode:
 The control surface uses **5 rotary encoders** with a **shift button** for bank switching:
 
 - **Bank A (normal):** Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix
-- **Bank B (shift held):** Release Time, Delay Time, Reverb Size, Osc Waveform, LFO Waveform
+- **Bank B (shift held):** Release Time, Delay Time, Filter Resonance, Osc Waveform, Reverb Size
 - **4 Buttons:** Trigger, Pitch Envelope, Shift, Shutdown
 
 See [GPIO_WIRING_GUIDE.md](GPIO_WIRING_GUIDE.md) for complete wiring instructions.
@@ -218,7 +218,7 @@ When you start the siren, these are the default values:
 | Reverb Mix | 0.3 (30% wet) |
 | Release Time | 0.5 seconds |
 | Osc Waveform | Sine (0) |
-| LFO Waveform | Sine (0) |
+| Base Frequency | 440 Hz |
 
 ## Performance Tweaks
 

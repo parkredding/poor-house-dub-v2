@@ -402,7 +402,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  5 Rotary Encoders + 4 Buttons = 10 Parameters (14 GPIO pins)"
 echo ""
 echo "  Bank A: Volume, Filter Freq, Filter Res, Delay FB, Reverb Mix"
-echo "  Bank B: Release, Delay Time, Reverb Size, Osc Wave, LFO Wave"
+echo "  Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size"
 echo "  Buttons: Trigger, Pitch Env, Shift, Shutdown"
 echo ""
 echo -e "  ${YELLOW}⚠️  IMPORTANT: Avoid GPIO 18, 19, 21 (used by I2S audio)${NC}"
