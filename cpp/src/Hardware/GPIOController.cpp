@@ -481,6 +481,16 @@ void GPIOController::start() {
         
         // Apply initial pitch envelope from switch position
         onPitchEnvChange(pitchEnvSwitch->getPosition());
+        
+        // Initialize optional WS2812 LED controller
+        ledController = std::make_unique<LEDController>(GPIO::LED_DATA);
+        if (ledController->init()) {
+            ledController->showStartupColor();  // Show amber during init
+            std::cout << "  ✓ LED controller initialized (GPIO " << GPIO::LED_DATA << ")" << std::endl;
+        } else {
+            std::cout << "  ⚠ LED controller not available (optional)" << std::endl;
+            ledController.reset();
+        }
     }
     
     // Apply initial parameters
@@ -496,6 +506,12 @@ void GPIOController::start() {
     
     running.store(true);
     
+    // Start LED controller and show ready color
+    if (ledController) {
+        ledController->start();
+        ledController->showReadyColor();  // Show lime green when ready
+    }
+    
     std::cout << "\n";
     std::cout << "============================================================" << std::endl;
     std::cout << "  Control Surface Ready" << std::endl;
@@ -504,6 +520,9 @@ void GPIOController::start() {
     std::cout << "Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size" << std::endl;
     std::cout << "\nButtons: Trigger, Shift (Bank A/B), Shutdown" << std::endl;
     std::cout << "Pitch Env Switch: UP=rise | OFF=none | DOWN=fall" << std::endl;
+    if (ledController && ledController->isAvailable()) {
+        std::cout << "Status LED: Active (GPIO " << GPIO::LED_DATA << ")" << std::endl;
+    }
     std::cout << "============================================================" << std::endl;
 }
 
@@ -521,6 +540,8 @@ void GPIOController::stop() {
     }
     
     if (pitchEnvSwitch) pitchEnvSwitch->stop();
+    
+    if (ledController) ledController->stop();
     
     cleanupGPIO();
     
@@ -792,6 +813,15 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     secretMode.store(mode);
     secretModePreset.store(0);
     
+    // Update LED mode for secret modes
+    if (ledController) {
+        if (mode == SecretMode::NJD) {
+            ledController->setMode(LEDMode::NJD);
+        } else if (mode == SecretMode::UFO) {
+            ledController->setMode(LEDMode::UFO);
+        }
+    }
+    
     const char* modeName = (mode == SecretMode::NJD) ? "NJD SIREN" : "UFO";
     
     std::cout << "\n";
@@ -823,6 +853,11 @@ void GPIOController::exitSecretMode() {
     secretMode.store(SecretMode::None);
     secretModePreset.store(0);
     toggleTrackingInitialized.store(false);  // Reset for next secret mode activation
+    
+    // Return LED to normal mode
+    if (ledController) {
+        ledController->setMode(LEDMode::Normal);
+    }
     
     // Restore default parameters
     params.volume = 0.7f;
@@ -984,6 +1019,12 @@ void GPIOController::applySecretModePreset() {
     
     std::cout << "  Base: " << params.baseFreq << "Hz, Filter: " << params.filterFreq 
               << "Hz, Release: " << params.release << "s" << std::endl;
+}
+
+void GPIOController::updateLEDAudioLevel(float level) {
+    if (ledController) {
+        ledController->setAudioLevel(level);
+    }
 }
 
 // ============================================================================

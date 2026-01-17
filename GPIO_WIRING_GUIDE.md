@@ -4,9 +4,9 @@ Complete wiring instructions for the Poor House Dub V2 control surface with shif
 
 ## Overview
 
-The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 10 parameters across 2 banks, plus 3 function buttons and a 3-position pitch envelope switch.
+The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 10 parameters across 2 banks, plus 3 function buttons, a 3-position pitch envelope switch, and an optional status LED.
 
-**Total GPIO pins: 15** (10 for encoders + 3 for buttons + 2 for pitch envelope switch)
+**Total GPIO pins: 15-16** (10 for encoders + 3 for buttons + 2 for pitch envelope switch + 1 optional for LED)
 
 ### Bank System
 - **Bank A (Normal):** Primary dub controls (volume, filter, delay, reverb)
@@ -21,6 +21,7 @@ The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 1
 - **Jumper wires** (male-to-female, 10-15cm)
 - **Pi Zero 2W** with 40-pin GPIO header
 - **Optional:** Panel-mount encoders with knobs for enclosure
+- **Optional:** WS2812D-F5 RGB LED (5mm through-hole, single addressable LED) for status indication
 
 ## Critical: I2S Pin Avoidance
 
@@ -60,6 +61,22 @@ The pin assignments below carefully avoid these pins.
 | **UP** | Rise (pitch sweeps up on release) | GPIO 10 | Pin 19 |
 | **OFF** | None (no pitch sweep) | — | — |
 | **DOWN** | Fall (pitch sweeps down on release) | GPIO 9 | Pin 21 |
+
+### Optional Status LED (1 GPIO pin)
+
+WS2812D-F5 RGB LED for visual status indication:
+
+| Function | GPIO Pin | Physical Pin |
+|----------|----------|--------------|
+| **LED Data** | GPIO 12 | Pin 32 (PWM0) |
+
+**LED Features:**
+- **Amber** during boot
+- **Lime Green** when siren is ready
+- **Slow color cycling** in normal mode (changes over minutes)
+- **Rasta colors** (red/yellow/green) in NJD secret mode
+- **Green/purple** alien theme in UFO secret mode
+- **Pulses with audio** for sound-reactive feedback
 
 ### Power Connections
 
@@ -224,6 +241,44 @@ Wiring:
 - **UP:** Terminal 1 connects to Common → GPIO 10 reads LOW → Pitch rises on release
 - **CENTER:** Neither terminal connected → Both GPIOs read HIGH → No pitch envelope  
 - **DOWN:** Terminal 2 connects to Common → GPIO 9 reads LOW → Pitch falls on release
+
+### Optional WS2812 Status LED
+
+The WS2812D-F5 is a 5mm RGB LED with built-in controller - only needs a single data wire plus power.
+
+```
+WS2812D-F5 LED (4 pins)
+┌────────────────┐
+│    (top view)  │
+│    ┌──────┐    │
+│    │ LED  │    │
+│    └──────┘    │
+│   [1][2][3][4] │
+└────────────────┘
+     │  │  │  │
+     │  │  │  └─ GND (VSS)
+     │  │  └──── Data Out (DOUT) - not used for single LED
+     │  └─────── Data In (DIN) → GPIO 12 (Pin 32)
+     └────────── VCC (VDD) → 5V (Pin 2 or Pin 4)
+
+Note: Pin order may vary - check your LED's datasheet!
+      Common configurations:
+      - VDD, DOUT, GND, DIN
+      - DIN, VDD, GND, DOUT
+```
+
+**Wiring:**
+```
+VCC (VDD)  → Pin 2 or Pin 4 (5V)
+Data (DIN) → Pin 32 (GPIO 12)
+GND (VSS)  → Pin 6, 9, or any GND
+```
+
+⚠️ **Important Notes:**
+- The WS2812 runs on **5V power** but accepts 3.3V data signals
+- GPIO 12 supports hardware PWM which is ideal for WS2812 timing
+- If you have signal issues, add a 300-500Ω resistor in series with the data line
+- Add a 100µF capacitor across VCC and GND near the LED if you see flickering
 
 ## Breadboard Layout Example
 
@@ -433,7 +488,7 @@ For a permanent enclosure build:
   - `FB / WAVE` (Delay Feedback / Osc Wave)
   - `MIX / SIZE` (Reverb Mix / Reverb Size)
 - Mount **Shift button** in easy reach
-- Add **LED indicator** for shift/bank status (optional)
+- Mount **WS2812 LED** in a visible location for status indication
 - Use **arcade buttons** for trigger (satisfying tactile feel)
 
 ## Shopping List
@@ -454,11 +509,18 @@ For a permanent enclosure build:
 - **Breadboard** (400-point) for prototyping, OR
 - **Perfboard** (70x90mm) for permanent build
 
-### Optional
-- **0.1µF ceramic capacitors** (10-pack) for noise reduction (CLK/DT to GND)
+### Optional Status LED
+- **WS2812D-F5** (5mm through-hole RGB LED with integrated controller)
+  - Also known as: WS2812B-F5, NeoPixel 5mm
+  - Only needs one data pin + 5V power
+  - Shows startup status, mode indication, audio-reactive pulsing
+- **100µF electrolytic capacitor** (for LED power filtering)
+- **330Ω resistor** (optional, for data line protection)
+
+### Optional Components
+- **0.1µF ceramic capacitors** (10-pack) for encoder noise reduction (CLK/DT to GND)
 - **Panel-mount encoder brackets**
 - **Enclosure** (Hammond 1590DD or similar)
-- **Status LEDs** (3mm, various colors)
 
 **Note:** Capacitors are usually not needed - software debouncing handles most noise. Add them only if you experience jittery encoder readings.
 

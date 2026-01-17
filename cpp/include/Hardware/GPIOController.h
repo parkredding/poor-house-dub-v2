@@ -2,12 +2,14 @@
 
 #include "Common.h"
 #include "Audio/AudioEngine.h"
+#include "Hardware/LEDController.h"
 #include <functional>
 #include <thread>
 #include <atomic>
 #include <array>
 #include <map>
 #include <mutex>
+#include <memory>
 #include <vector>
 #include <chrono>
 
@@ -38,6 +40,9 @@ namespace GPIO {
     // 3-position switch pins (ON/OFF/ON for pitch envelope)
     constexpr int PITCH_ENV_UP = 10;    // Pin 19
     constexpr int PITCH_ENV_DOWN = 9;   // Pin 21
+    
+    // Optional WS2812 LED data pin (supports PWM)
+    constexpr int LED_DATA = 12;        // Pin 32 (PWM0)
 }
 
 /**
@@ -198,6 +203,17 @@ public:
      */
     bool isRunning() const { return running.load(); }
     
+    /**
+     * Update LED with current audio level (0.0 - 1.0) for sound-reactive pulsing.
+     * Call this from the audio callback with the current output level.
+     */
+    void updateLEDAudioLevel(float level);
+    
+    /**
+     * Get the LED controller (may be nullptr if not available).
+     */
+    LEDController* getLEDController() { return ledController.get(); }
+    
 private:
     AudioEngine& engine;
     ShutdownCallback shutdownCallback;
@@ -238,6 +254,7 @@ private:
     std::array<std::unique_ptr<RotaryEncoder>, 5> encoders;
     std::array<std::unique_ptr<MomentarySwitch>, 3> buttons;  // Trigger, Shift, Shutdown
     std::unique_ptr<ThreePositionSwitch> pitchEnvSwitch;      // 3-position pitch envelope
+    std::unique_ptr<LEDController> ledController;             // Optional WS2812 status LED
     
     // Encoder handlers
     void handleEncoder(int encoderIndex, int direction);
