@@ -320,10 +320,11 @@ fi
 
 cmake .. $CMAKE_ARGS
 
-# Build (use fewer cores on Pi to avoid overheating)
+# Build (use single core on Pi Zero to avoid OOM kills)
 echo -e "${GREEN}🔨 Compiling...${NC}"
 if [ "$IS_PI" = true ]; then
-    make -j2
+    # Pi Zero 2W only has 512MB RAM - use single thread to avoid OOM
+    make -j1
 else
     make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 fi
