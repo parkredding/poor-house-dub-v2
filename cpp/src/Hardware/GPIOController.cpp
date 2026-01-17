@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include <algorithm>
 
 #ifdef HAVE_GPIOD
 #include <gpiod.h>
@@ -27,12 +28,22 @@ struct gpiod_line_request* lineRequest = nullptr;
 
 // All GPIO pins we need to monitor
 const unsigned int ALL_PINS[] = {
-    2, 3, 4, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27
+    2, 3, 4, 9, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27
 };
 const size_t NUM_PINS = sizeof(ALL_PINS) / sizeof(ALL_PINS[0]);
 
+// Lookup table: maps GPIO number -> index in ALL_PINS (-1 if not used)
+// Max GPIO on Pi is 27, so array of 28 elements
+int gpioToLineIndex[28] = {-1};
+
 bool initPlatformGPIO() {
     if (gpioInitialized) return true;
+    
+    // Initialize GPIO-to-line-index lookup table
+    for (int i = 0; i < 28; ++i) gpioToLineIndex[i] = -1;
+    for (size_t i = 0; i < NUM_PINS; ++i) {
+        gpioToLineIndex[ALL_PINS[i]] = static_cast<int>(i);
+    }
     
     gpioChip = gpiod_chip_open("/dev/gpiochip0");
     if (!gpioChip) {
@@ -83,9 +94,14 @@ void cleanupPlatformGPIO() {
 
 int readPin(int pin) {
     if (!lineRequest) return 1;
+    if (pin < 0 || pin > 27) return 1;
     
-    // Fast read - line is already requested
-    int value = gpiod_line_request_get_value(lineRequest, static_cast<unsigned int>(pin));
+    // Convert GPIO number to line index in our request
+    int lineIndex = gpioToLineIndex[pin];
+    if (lineIndex < 0) return 1;  // GPIO not in our requested set
+    
+    // Read using line index (libgpiod uses indices into requested lines, not GPIO numbers)
+    int value = gpiod_line_request_get_value(lineRequest, static_cast<unsigned int>(lineIndex));
     
     // With pull-up bias: ACTIVE = HIGH (not pressed), INACTIVE = LOW (pressed/grounded)
     // Our button logic expects: 0 = pressed, 1 = not pressed
@@ -293,6 +309,89 @@ void MomentarySwitch::pollLoop() {
 }
 
 // ============================================================================
+// ThreePositionSwitch Implementation
+// ============================================================================
+
+ThreePositionSwitch::ThreePositionSwitch(int upPin, int downPin, PositionCallback onChange)
+    : upPin(upPin)
+    , downPin(downPin)
+    , callback(std::move(onChange))
+    , position(SwitchPosition::Off)
+    , running(false)
+    , lastPosition(SwitchPosition::Off)
+{
+    lastChange = std::chrono::steady_clock::now();
+}
+
+ThreePositionSwitch::~ThreePositionSwitch() {
+    stop();
+}
+
+void ThreePositionSwitch::start() {
+    if (running.load()) return;
+    
+#ifdef HAVE_PIGPIO
+    setupInputPin(upPin);
+    setupInputPin(downPin);
+#endif
+    
+    // Read initial position
+    lastPosition = readPosition();
+    position.store(lastPosition);
+    
+    running.store(true);
+    pollThread = std::thread(&ThreePositionSwitch::pollLoop, this);
+}
+
+void ThreePositionSwitch::stop() {
+    running.store(false);
+    if (pollThread.joinable()) {
+        pollThread.join();
+    }
+}
+
+SwitchPosition ThreePositionSwitch::readPosition() {
+    // With pull-ups enabled:
+    // - Pin reads LOW (0) when connected to GND (switch in that position)
+    // - Pin reads HIGH (1) when not connected (switch in other position)
+    int upState = readPin(upPin);
+    int downState = readPin(downPin);
+    
+    if (upState == 0) {
+        return SwitchPosition::Up;
+    } else if (downState == 0) {
+        return SwitchPosition::Down;
+    }
+    return SwitchPosition::Off;
+}
+
+void ThreePositionSwitch::pollLoop() {
+    while (running.load()) {
+        SwitchPosition currentPos = readPosition();
+        auto now = std::chrono::steady_clock::now();
+        
+        // Debounce
+        if (currentPos != lastPosition) {
+            lastPosition = currentPos;
+            lastChange = now;
+        }
+        
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastChange).count();
+        if (elapsed >= DEBOUNCE_MS) {
+            SwitchPosition storedPos = position.load();
+            if (currentPos != storedPos) {
+                position.store(currentPos);
+                if (callback) {
+                    callback(currentPos);
+                }
+            }
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+}
+
+// ============================================================================
 // GPIOController Implementation
 // ============================================================================
 
@@ -302,6 +401,8 @@ GPIOController::GPIOController(AudioEngine& engine, ShutdownCallback shutdownCb)
     , running(false)
     , currentBank(Bank::A)
     , shiftPressed(false)
+    , secretMode(SecretMode::None)
+    // secretModePreset and lastPitchEnvPosition are initialized via brace-init in header
 {
 }
 
@@ -354,28 +455,32 @@ void GPIOController::start() {
         std::cout << "  ✓ trigger button initialized (GPIO " << GPIO::TRIGGER_BTN << ")" << std::endl;
         
         buttons[1] = std::make_unique<MomentarySwitch>(
-            GPIO::PITCH_ENV_BTN,
-            [this]() { onPitchEnvPress(); },
-            nullptr
-        );
-        buttons[1]->start();
-        std::cout << "  ✓ pitch_env button initialized (GPIO " << GPIO::PITCH_ENV_BTN << ")" << std::endl;
-        
-        buttons[2] = std::make_unique<MomentarySwitch>(
             GPIO::SHIFT_BTN,
             [this]() { onShiftPress(); },
             [this]() { onShiftRelease(); }
         );
-        buttons[2]->start();
+        buttons[1]->start();
         std::cout << "  ✓ shift button initialized (GPIO " << GPIO::SHIFT_BTN << ")" << std::endl;
         
-        buttons[3] = std::make_unique<MomentarySwitch>(
+        buttons[2] = std::make_unique<MomentarySwitch>(
             GPIO::SHUTDOWN_BTN,
             [this]() { onShutdownPress(); },
             nullptr
         );
-        buttons[3]->start();
+        buttons[2]->start();
         std::cout << "  ✓ shutdown button initialized (GPIO " << GPIO::SHUTDOWN_BTN << ")" << std::endl;
+        
+        // Create 3-position pitch envelope switch
+        pitchEnvSwitch = std::make_unique<ThreePositionSwitch>(
+            GPIO::PITCH_ENV_UP, GPIO::PITCH_ENV_DOWN,
+            [this](SwitchPosition pos) { onPitchEnvChange(pos); }
+        );
+        pitchEnvSwitch->start();
+        std::cout << "  ✓ pitch_env switch initialized (GPIO " << GPIO::PITCH_ENV_UP 
+                  << ", " << GPIO::PITCH_ENV_DOWN << ")" << std::endl;
+        
+        // Apply initial pitch envelope from switch position
+        onPitchEnvChange(pitchEnvSwitch->getPosition());
     }
     
     // Apply initial parameters
@@ -397,7 +502,8 @@ void GPIOController::start() {
     std::cout << "============================================================" << std::endl;
     std::cout << "\nBank A: Volume, Filter Freq, Base Freq, Delay FB, Reverb Mix" << std::endl;
     std::cout << "Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size" << std::endl;
-    std::cout << "\nButtons: Trigger, Pitch Env, Shift (Bank A/B), Shutdown" << std::endl;
+    std::cout << "\nButtons: Trigger, Shift (Bank A/B), Shutdown" << std::endl;
+    std::cout << "Pitch Env Switch: UP=rise | OFF=none | DOWN=fall" << std::endl;
     std::cout << "============================================================" << std::endl;
 }
 
@@ -413,6 +519,8 @@ void GPIOController::stop() {
     for (auto& button : buttons) {
         if (button) button->stop();
     }
+    
+    if (pitchEnvSwitch) pitchEnvSwitch->stop();
     
     cleanupGPIO();
     
@@ -511,21 +619,93 @@ void GPIOController::onTriggerRelease() {
     engine.release();
 }
 
-void GPIOController::onPitchEnvPress() {
-    const char* mode = engine.cyclePitchEnvelope();
-    std::cout << "Pitch envelope: " << mode << std::endl;
+void GPIOController::onPitchEnvChange(SwitchPosition position) {
+    // Track toggles for secret mode detection
+    // A "toggle" is counted when the switch reaches Up or Down from the opposite extreme
+    // (passing through Off in between, which is how a physical 3-position switch works)
+    SwitchPosition lastPos = lastPitchEnvPosition.load();
+    if (position != lastPos) {
+        // Only count toggles for Up/Down positions (not transitions to/from Off)
+        if (position == SwitchPosition::Up || position == SwitchPosition::Down) {
+            // Check if this is a toggle from the opposite extreme position
+            // lastPitchEnvPosition tracks the last Up or Down we saw
+            if ((lastPos == SwitchPosition::Up && position == SwitchPosition::Down) ||
+                (lastPos == SwitchPosition::Down && position == SwitchPosition::Up)) {
+                // First extreme-to-extreme transition just initializes tracking,
+                // subsequent transitions count as actual toggles
+                if (toggleTrackingInitialized.load()) {
+                    {
+                        std::lock_guard<std::mutex> lock(togglesMutex);
+                        recentToggles.push_back(std::chrono::steady_clock::now());
+                    }
+                    checkSecretModeActivation();
+                } else {
+                    // First transition from initial position - establishes baseline
+                    toggleTrackingInitialized.store(true);
+                }
+            }
+            // Update last position only when we reach Up or Down (ignore Off for toggle tracking)
+            lastPitchEnvPosition.store(position);
+        }
+        // Note: We don't update lastPitchEnvPosition when position is Off,
+        // so it remembers the last Up/Down for proper toggle detection
+    }
+    
+    // Apply pitch envelope (still works in secret mode)
+    PitchEnvelopeMode mode;
+    const char* modeName;
+    
+    switch (position) {
+        case SwitchPosition::Up:
+            mode = PitchEnvelopeMode::Up;
+            modeName = "up (rise)";
+            break;
+        case SwitchPosition::Down:
+            mode = PitchEnvelopeMode::Down;
+            modeName = "down (fall)";
+            break;
+        case SwitchPosition::Off:
+        default:
+            mode = PitchEnvelopeMode::None;
+            modeName = "none";
+            break;
+    }
+    
+    engine.setPitchEnvelopeMode(mode);
+    
+    SecretMode currentMode = secretMode.load();
+    if (currentMode != SecretMode::None) {
+        const char* modeStr = (currentMode == SecretMode::NJD) ? "NJD" : "UFO";
+        std::cout << "[" << modeStr << " MODE] Pitch envelope: " << modeName << std::endl;
+    } else {
+        std::cout << "Pitch envelope: " << modeName << std::endl;
+    }
 }
 
 void GPIOController::onShiftPress() {
     shiftPressed.store(true);
-    currentBank.store(Bank::B);
-    std::cout << "Bank B active" << std::endl;
+    
+    SecretMode currentMode = secretMode.load();
+    if (currentMode != SecretMode::None) {
+        // In secret mode, shift cycles through presets
+        cycleSecretModePreset();
+    } else {
+        // Normal operation - switch to Bank B
+        currentBank.store(Bank::B);
+        std::cout << "Bank B active" << std::endl;
+    }
 }
 
 void GPIOController::onShiftRelease() {
     shiftPressed.store(false);
-    currentBank.store(Bank::A);
-    std::cout << "Bank A active" << std::endl;
+    
+    SecretMode currentMode = secretMode.load();
+    if (currentMode == SecretMode::None) {
+        // Normal operation - switch back to Bank A
+        currentBank.store(Bank::A);
+        std::cout << "Bank A active" << std::endl;
+    }
+    // In secret mode, don't change bank on release
 }
 
 void GPIOController::onShutdownPress() {
@@ -540,6 +720,270 @@ void GPIOController::onShutdownPress() {
     
     // Issue system shutdown command
     std::system("sudo shutdown -h now");
+}
+
+// ============================================================================
+// Secret Mode Implementation
+// ============================================================================
+
+void GPIOController::checkSecretModeActivation() {
+    auto now = std::chrono::steady_clock::now();
+    
+    int togglesIn1Sec = 0;
+    int togglesIn2Sec = 0;
+    bool activateNJD = false;
+    bool activateUFO = false;
+    
+    {
+        std::lock_guard<std::mutex> lock(togglesMutex);
+        
+        // Remove old toggles (older than 2 seconds)
+        recentToggles.erase(
+            std::remove_if(recentToggles.begin(), recentToggles.end(),
+                [&now](const auto& t) {
+                    return std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count() > 2000;
+                }),
+            recentToggles.end()
+        );
+        
+        // Count toggles in different time windows
+        togglesIn2Sec = static_cast<int>(recentToggles.size());
+        
+        for (const auto& t : recentToggles) {
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count() <= 1000) {
+                togglesIn1Sec++;
+            }
+        }
+        
+        // Check for UFO mode first (10 toggles in 2 seconds) - takes priority
+        if (togglesIn2Sec >= 10) {
+            activateUFO = true;
+            recentToggles.clear();  // Reset after activation
+        }
+        // Check for NJD mode (5 toggles in 1 second)
+        else if (togglesIn1Sec >= 5) {
+            activateNJD = true;
+            recentToggles.clear();  // Reset after activation
+        }
+    }
+    
+    // Activate outside the lock to avoid potential deadlock with other callbacks
+    if (activateUFO) {
+        activateSecretMode(SecretMode::UFO);
+    } else if (activateNJD) {
+        activateSecretMode(SecretMode::NJD);
+    }
+}
+
+void GPIOController::activateSecretMode(SecretMode mode) {
+    SecretMode currentMode = secretMode.load();
+    
+    // If already in a secret mode, exit first
+    if (currentMode != SecretMode::None && currentMode != mode) {
+        exitSecretMode();
+    }
+    
+    // If activating same mode again, exit it
+    if (currentMode == mode) {
+        exitSecretMode();
+        return;
+    }
+    
+    secretMode.store(mode);
+    secretModePreset.store(0);
+    
+    const char* modeName = (mode == SecretMode::NJD) ? "NJD SIREN" : "UFO";
+    
+    std::cout << "\n";
+    std::cout << "╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║              🎵 SECRET MODE ACTIVATED! 🎵                ║" << std::endl;
+    std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
+    std::cout << "║  Mode: " << modeName << std::string(49 - strlen(modeName), ' ') << "║" << std::endl;
+    std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
+    std::cout << "║  Toggle pitch switch rapidly again to exit               ║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+    std::cout << std::endl;
+    
+    applySecretModePreset();
+}
+
+void GPIOController::exitSecretMode() {
+    SecretMode currentMode = secretMode.load();
+    if (currentMode == SecretMode::None) return;
+    
+    const char* modeName = (currentMode == SecretMode::NJD) ? "NJD SIREN" : "UFO";
+    
+    std::cout << "\n";
+    std::cout << "╔══════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║              SECRET MODE DEACTIVATED                     ║" << std::endl;
+    std::cout << "║  Exiting " << modeName << " mode..." << std::string(43 - strlen(modeName), ' ') << "║" << std::endl;
+    std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
+    std::cout << std::endl;
+    
+    secretMode.store(SecretMode::None);
+    secretModePreset.store(0);
+    toggleTrackingInitialized.store(false);  // Reset for next secret mode activation
+    
+    // Restore default parameters
+    params.volume = 0.7f;
+    params.filterFreq = 2000.0f;
+    params.baseFreq = 440.0f;
+    params.filterRes = 0.5f;
+    params.delayFeedback = 0.5f;
+    params.delayTime = 0.2f;
+    params.reverbMix = 0.35f;
+    params.reverbSize = 0.5f;
+    params.release = 0.5f;
+    params.oscWaveform = 0;
+    
+    // Apply restored parameters
+    engine.setVolume(params.volume);
+    engine.setFilterCutoff(params.filterFreq);
+    engine.setFrequency(params.baseFreq);
+    engine.setFilterResonance(params.filterRes);
+    engine.setDelayFeedback(params.delayFeedback);
+    engine.setDelayTime(params.delayTime);
+    engine.setReverbMix(params.reverbMix);
+    engine.setReverbSize(params.reverbSize);
+    engine.setReleaseTime(params.release);
+    engine.setWaveform(params.oscWaveform);
+    
+    std::cout << "Parameters restored to defaults" << std::endl;
+}
+
+void GPIOController::cycleSecretModePreset() {
+    SecretMode currentMode = secretMode.load();
+    
+    int numPresets = (currentMode == SecretMode::NJD) ? 4 : 3;
+    int currentPreset = secretModePreset.load();
+    secretModePreset.store((currentPreset + 1) % numPresets);
+    
+    applySecretModePreset();
+}
+
+void GPIOController::applySecretModePreset() {
+    SecretMode currentMode = secretMode.load();
+    int preset = secretModePreset.load();  // Load once for consistent use throughout
+    
+    // Preset parameters: baseFreq, filterFreq, filterRes, release, oscWaveform, delayTime, delayFeedback, reverbSize, reverbMix
+    
+    if (currentMode == SecretMode::NJD) {
+        // NJD Classic Dub Siren Presets
+        // These are inspired by the classic NJD siren sounds
+        const char* presetNames[] = {"Classic", "Deep Bass", "Bright", "Wobble"};
+        
+        switch (preset) {
+            case 0: // Classic NJD - the original dub siren sound
+                params.baseFreq = 587.0f;     // D5 - classic siren note
+                params.filterFreq = 3000.0f;
+                params.filterRes = 0.3f;
+                params.release = 0.8f;
+                params.oscWaveform = 0;       // Sine
+                params.delayTime = 0.375f;    // Dotted eighth for reggae feel
+                params.delayFeedback = 0.45f;
+                params.reverbSize = 0.6f;
+                params.reverbMix = 0.3f;
+                break;
+                
+            case 1: // Deep Bass - sub-heavy version
+                params.baseFreq = 147.0f;     // D3 - deep bass
+                params.filterFreq = 800.0f;
+                params.filterRes = 0.5f;
+                params.release = 1.2f;
+                params.oscWaveform = 0;       // Sine for clean sub
+                params.delayTime = 0.5f;
+                params.delayFeedback = 0.35f;
+                params.reverbSize = 0.7f;
+                params.reverbMix = 0.25f;
+                break;
+                
+            case 2: // Bright - cutting through the mix
+                params.baseFreq = 880.0f;     // A5 - bright and piercing
+                params.filterFreq = 6000.0f;
+                params.filterRes = 0.2f;
+                params.release = 0.5f;
+                params.oscWaveform = 1;       // Square for edge
+                params.delayTime = 0.25f;
+                params.delayFeedback = 0.55f;
+                params.reverbSize = 0.4f;
+                params.reverbMix = 0.35f;
+                break;
+                
+            case 3: // Wobble - with heavy resonance
+                params.baseFreq = 392.0f;     // G4
+                params.filterFreq = 1500.0f;
+                params.filterRes = 0.75f;     // Heavy resonance
+                params.release = 1.0f;
+                params.oscWaveform = 2;       // Sawtooth
+                params.delayTime = 0.333f;    // Triplet feel
+                params.delayFeedback = 0.6f;
+                params.reverbSize = 0.5f;
+                params.reverbMix = 0.4f;
+                break;
+        }
+        
+        std::cout << "[NJD MODE] Preset " << (preset + 1) << "/4: " 
+                  << presetNames[preset] << std::endl;
+                  
+    } else if (currentMode == SecretMode::UFO) {
+        // UFO Sci-Fi Presets
+        const char* presetNames[] = {"Flying Saucer", "Alien Signal", "Warp Drive"};
+        
+        switch (preset) {
+            case 0: // Flying Saucer - classic UFO whoosh
+                params.baseFreq = 1200.0f;    // High pitch
+                params.filterFreq = 4000.0f;
+                params.filterRes = 0.4f;
+                params.release = 2.0f;        // Long decay
+                params.oscWaveform = 0;       // Sine for clean tone
+                params.delayTime = 0.1f;      // Short slapback
+                params.delayFeedback = 0.7f;  // Lots of repeats
+                params.reverbSize = 0.9f;     // Huge space
+                params.reverbMix = 0.5f;
+                break;
+                
+            case 1: // Alien Signal - digital beeps
+                params.baseFreq = 1800.0f;    // Very high
+                params.filterFreq = 8000.0f;
+                params.filterRes = 0.6f;
+                params.release = 0.3f;        // Quick
+                params.oscWaveform = 1;       // Square for digital feel
+                params.delayTime = 0.05f;     // Very short
+                params.delayFeedback = 0.8f;  // Heavy feedback
+                params.reverbSize = 0.3f;
+                params.reverbMix = 0.6f;
+                break;
+                
+            case 2: // Warp Drive - deep space rumble
+                params.baseFreq = 80.0f;      // Sub bass
+                params.filterFreq = 2000.0f;
+                params.filterRes = 0.85f;     // Heavy resonance
+                params.release = 3.0f;        // Very long
+                params.oscWaveform = 2;       // Sawtooth for harmonics
+                params.delayTime = 0.75f;
+                params.delayFeedback = 0.5f;
+                params.reverbSize = 0.95f;    // Maximum space
+                params.reverbMix = 0.45f;
+                break;
+        }
+        
+        std::cout << "[UFO MODE] Preset " << (preset + 1) << "/3: " 
+                  << presetNames[preset] << std::endl;
+    }
+    
+    // Apply all parameters to engine (delay and reverb always active)
+    engine.setFrequency(params.baseFreq);
+    engine.setFilterCutoff(params.filterFreq);
+    engine.setFilterResonance(params.filterRes);
+    engine.setReleaseTime(params.release);
+    engine.setWaveform(params.oscWaveform);
+    engine.setDelayTime(params.delayTime);
+    engine.setDelayFeedback(params.delayFeedback);
+    engine.setReverbSize(params.reverbSize);
+    engine.setReverbMix(params.reverbMix);
+    
+    std::cout << "  Base: " << params.baseFreq << "Hz, Filter: " << params.filterFreq 
+              << "Hz, Release: " << params.release << "s" << std::endl;
 }
 
 // ============================================================================

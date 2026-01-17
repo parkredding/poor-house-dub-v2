@@ -177,9 +177,16 @@ Buttons:   [TRIGGER]    [PITCH ENV]  [SHIFT]      [SHUTDOWN]
 | Button | Function | Behavior |
 |--------|----------|----------|
 | **TRIGGER** | Trigger the siren | Press to start, release to stop |
-| **PITCH ENV** | Cycle pitch envelope mode | Cycles through: none → up → down |
 | **SHIFT** | Switch to Bank B | Hold to access Bank B parameters |
 | **SHUTDOWN** | Safe system shutdown | Press to safely power down the Pi |
+
+### Pitch Envelope Switch (3-Position Toggle)
+
+| Position | Effect |
+|----------|--------|
+| **UP** | Pitch rises (2 octaves) on release |
+| **CENTER** | No pitch envelope |
+| **DOWN** | Pitch falls (2 octaves) on release |
 
 ## Architecture
 

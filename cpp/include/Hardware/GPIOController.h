@@ -7,6 +7,9 @@
 #include <atomic>
 #include <array>
 #include <map>
+#include <mutex>
+#include <vector>
+#include <chrono>
 
 namespace DubSiren {
 
@@ -29,9 +32,12 @@ namespace GPIO {
     
     // Button pins
     constexpr int TRIGGER_BTN = 4;
-    constexpr int PITCH_ENV_BTN = 10;
     constexpr int SHIFT_BTN = 15;
     constexpr int SHUTDOWN_BTN = 3;
+    
+    // 3-position switch pins (ON/OFF/ON for pitch envelope)
+    constexpr int PITCH_ENV_UP = 10;    // Pin 19
+    constexpr int PITCH_ENV_DOWN = 9;   // Pin 21
 }
 
 /**
@@ -105,6 +111,54 @@ private:
 };
 
 /**
+ * Three-position switch (ON/OFF/ON) handler with debouncing.
+ * Used for pitch envelope selection: UP / OFF / DOWN
+ */
+enum class SwitchPosition {
+    Off,    // Middle position (neither terminal connected)
+    Up,     // Upper ON position
+    Down    // Lower ON position
+};
+
+class ThreePositionSwitch {
+public:
+    using PositionCallback = std::function<void(SwitchPosition)>;
+    
+    ThreePositionSwitch(int upPin, int downPin, PositionCallback onChange = nullptr);
+    ~ThreePositionSwitch();
+    
+    void start();
+    void stop();
+    SwitchPosition getPosition() const { return position.load(); }
+    
+private:
+    int upPin;
+    int downPin;
+    PositionCallback callback;
+    std::atomic<SwitchPosition> position;
+    std::atomic<bool> running;
+    std::thread pollThread;
+    
+    SwitchPosition lastPosition;
+    std::chrono::steady_clock::time_point lastChange;
+    
+    static constexpr int DEBOUNCE_MS = 20;
+    
+    void pollLoop();
+    SwitchPosition readPosition();
+};
+
+/**
+ * Secret mode enumeration.
+ * Triggered by rapidly toggling the pitch envelope switch.
+ */
+enum class SecretMode {
+    None,   // Normal operation
+    NJD,    // Classic NJD siren mode (5 toggles in 1 second)
+    UFO     // UFO/Sci-fi mode (10 toggles in 2 seconds)
+};
+
+/**
  * Control surface handler for the Dub Siren.
  * 
  * 5 Encoders with bank switching:
@@ -112,6 +166,10 @@ private:
  * - Bank B: Release Time, Delay Time, Filter Res, Osc Waveform, Reverb Size
  * 
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
+ * 
+ * Secret Modes (triggered by rapid pitch envelope toggling):
+ * - NJD Mode: 5 toggles in 1 second - Classic dub siren presets
+ * - UFO Mode: 10 toggles in 2 seconds - Sci-fi UFO presets
  */
 class GPIOController {
 public:
@@ -147,6 +205,17 @@ private:
     std::atomic<Bank> currentBank;
     std::atomic<bool> shiftPressed;
     
+    // Secret mode state
+    std::atomic<SecretMode> secretMode;
+    std::atomic<int> secretModePreset{0};  // Current preset within secret mode (0-indexed)
+    
+    // Toggle tracking for secret mode activation
+    // Protected by togglesMutex for thread-safe access
+    mutable std::mutex togglesMutex;
+    std::vector<std::chrono::steady_clock::time_point> recentToggles;
+    std::atomic<SwitchPosition> lastPitchEnvPosition{SwitchPosition::Off};
+    std::atomic<bool> toggleTrackingInitialized{false};  // First extreme-to-extreme transition initializes tracking
+    
     // Parameter values
     struct Parameters {
         // Bank A
@@ -167,7 +236,8 @@ private:
     
     // Hardware components
     std::array<std::unique_ptr<RotaryEncoder>, 5> encoders;
-    std::array<std::unique_ptr<MomentarySwitch>, 4> buttons;
+    std::array<std::unique_ptr<MomentarySwitch>, 3> buttons;  // Trigger, Shift, Shutdown
+    std::unique_ptr<ThreePositionSwitch> pitchEnvSwitch;      // 3-position pitch envelope
     
     // Encoder handlers
     void handleEncoder(int encoderIndex, int direction);
@@ -175,10 +245,19 @@ private:
     // Button handlers
     void onTriggerPress();
     void onTriggerRelease();
-    void onPitchEnvPress();
     void onShiftPress();
     void onShiftRelease();
     void onShutdownPress();
+    
+    // Pitch envelope switch handler
+    void onPitchEnvChange(SwitchPosition position);
+    
+    // Secret mode handling
+    void checkSecretModeActivation();
+    void activateSecretMode(SecretMode mode);
+    void exitSecretMode();
+    void cycleSecretModePreset();
+    void applySecretModePreset();
     
     // Apply parameter to engine
     void applyParameter(const char* name, float value);

@@ -81,14 +81,21 @@ The design uses **5 rotary encoders** with **bank switching** to access 10 param
 | **Encoder 4** | GPIO 20 | GPIO 26 | Delay Feedback   | Oscillator Waveform |
 | **Encoder 5** | GPIO 14 | GPIO 13 | Reverb Mix       | Reverb Size |
 
-#### Momentary Switches (4 buttons)
+#### Momentary Switches (3 buttons)
 
 | Button | GPIO Pin | Function |
 |--------|----------|----------|
 | **Trigger** | GPIO 4 | Main siren trigger (press/release) |
-| **Pitch Envelope** | GPIO 10 | Cycle pitch envelope mode (none/up/down) |
 | **Shift** | GPIO 15 | Hold to access Bank B parameters |
 | **Shutdown** | GPIO 3 | Safe system shutdown |
+
+#### Pitch Envelope Switch (3-position ON/OFF/ON)
+
+| Position | GPIO Pin | Function |
+|----------|----------|----------|
+| **UP** | GPIO 10 | Pitch rises on release |
+| **OFF** | — | No pitch envelope |
+| **DOWN** | GPIO 9 | Pitch falls on release |
 
 ### Rotary Encoder Wiring
 

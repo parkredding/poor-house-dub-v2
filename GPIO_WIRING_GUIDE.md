@@ -4,9 +4,9 @@ Complete wiring instructions for the Poor House Dub V2 control surface with shif
 
 ## Overview
 
-The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 10 parameters across 2 banks, plus 3 additional function buttons.
+The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 10 parameters across 2 banks, plus 3 function buttons and a 3-position pitch envelope switch.
 
-**Total GPIO pins: 14** (10 for encoders + 4 for buttons)
+**Total GPIO pins: 15** (10 for encoders + 3 for buttons + 2 for pitch envelope switch)
 
 ### Bank System
 - **Bank A (Normal):** Primary dub controls (volume, filter, delay, reverb)
@@ -14,8 +14,9 @@ The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 1
 
 ## Components Needed
 
-- **5x Rotary Encoders** (KY-040 or EC11 compatible)
-- **4x Momentary Switches** (Trigger, Pitch Env, Shift, Shutdown)
+- **5x Rotary Encoders** (EC11 5-pin, no VCC required - uses Pi's internal pull-ups)
+- **3x Momentary Switches** (Trigger, Shift, Shutdown)
+- **1x 3-Position Toggle Switch** (ON/OFF/ON, SPDT) for pitch envelope
 - **Breadboard** or **PCB** for prototyping
 - **Jumper wires** (male-to-female, 10-15cm)
 - **Pi Zero 2W** with 40-pin GPIO header
@@ -42,21 +43,31 @@ The pin assignments below carefully avoid these pins.
 | **Encoder 4** | Delay Feedback / Osc Wave | GPIO 20 | GPIO 26 | Pin 38, Pin 37 |
 | **Encoder 5** | Reverb Mix / Reverb Size | GPIO 14 | GPIO 13 | Pin 8, Pin 33 |
 
-### 4 Buttons (4 GPIO pins)
+### 3 Buttons (3 GPIO pins)
 
 | Button | Function | GPIO Pin | Physical Pin |
 |--------|----------|----------|--------------|
 | **Trigger** | Main sound trigger (hold to play) | GPIO 4 | Pin 7 |
-| **Pitch Env** | Cycle pitch envelope (none/up/down) | GPIO 10 | Pin 19 |
 | **Shift** | Access Bank B parameters | GPIO 15 | Pin 10 |
 | **Shutdown** | Safe system shutdown | GPIO 3 | Pin 5 |
+
+### Pitch Envelope Switch (2 GPIO pins)
+
+3-position ON/OFF/ON toggle switch for pitch envelope selection:
+
+| Position | Pitch Envelope | GPIO Pin | Physical Pin |
+|----------|----------------|----------|--------------|
+| **UP** | Rise (pitch sweeps up on release) | GPIO 10 | Pin 19 |
+| **OFF** | None (no pitch sweep) | — | — |
+| **DOWN** | Fall (pitch sweeps down on release) | GPIO 9 | Pin 21 |
 
 ### Power Connections
 
 | Connection | Pin(s) |
 |------------|--------|
-| **3.3V** (encoder power) | Pin 1, Pin 17 |
 | **GND** (common ground) | Pins 6, 9, 14, 20, 25, 30, 34, 39 |
+
+**Note:** No 3.3V power needed for encoders - they use the Pi's internal pull-up resistors.
 
 ## Parameter Bank Mapping
 
@@ -81,26 +92,26 @@ The pin assignments below carefully avoid these pins.
 ```
 Raspberry Pi Zero 2W GPIO Header (40-pin)
 ┌────────────────────────────────────────┐
-│ 1  [3.3V]      [5V]     2  │  ← Encoder power
-│ 3  [GPIO 2]    [5V]     4  │  ← Enc1-DT
+│ 1  3.3V        [5V]     2  │
+│ 3  [GPIO 2]    5V       4  │  ← Enc1-DT
 │ 5  [GPIO 3]    [GND]    6  │  ← Shutdown, PCM5102 GND
-│ 7  [GPIO 4]    GPIO 14  8  │  ← Trigger
-│ 9  [GND]       GPIO 15  10 │  ← Common GND, Shift
-│ 11 [GPIO 17]   GPIO 18  12 │  ← Enc1-CLK, I2S-LCK (DO NOT USE 18!)
+│ 7  [GPIO 4]    [GPIO 14] 8 │  ← Trigger, Enc5-CLK
+│ 9  [GND]       [GPIO 15] 10│  ← Common GND, Shift
+│ 11 [GPIO 17]   GPIO 18  12 │  ← Enc1-CLK, I2S (DO NOT USE 18!)
 │ 13 [GPIO 27]   [GND]    14 │  ← Enc2-CLK
-│ 15 [GPIO 22]   GPIO 23  16 │  ← Enc2-DT, Enc3-CLK
-│ 17 3.3V        GPIO 24  18 │  ← Enc3-DT
-│ 19 GPIO 10     [GND]    20 │  ← Pitch Env
-│ 21 GPIO 9      GPIO 25  22 │
+│ 15 [GPIO 22]   [GPIO 23] 16│  ← Enc2-DT, Enc3-CLK
+│ 17 3.3V        [GPIO 24] 18│  ← Enc3-DT
+│ 19 [GPIO 10]   [GND]    20 │  ← Pitch Env UP, Switch GND
+│ 21 [GPIO 9]    GPIO 25  22 │  ← Pitch Env DOWN
 │ 23 GPIO 11     GPIO 8   24 │
 │ 25 [GND]       GPIO 7   26 │
 │ 27 ID_SD       ID_SC    28 │
 │ 29 GPIO 5      [GND]    30 │
 │ 31 GPIO 6      GPIO 12  32 │
 │ 33 [GPIO 13]   [GND]    34 │  ← Enc5-DT
-│ 35 GPIO 19     GPIO 16  36 │  ← I2S-BCK (DO NOT USE 19!)
-│ 37 [GPIO 26]   GPIO 20  38 │  ← Enc4-DT, Enc4-CLK
-│ 39 [GND]       GPIO 21  40 │  ← I2S-DOUT (DO NOT USE 21!)
+│ 35 GPIO 19     GPIO 16  36 │  ← I2S (DO NOT USE 19!)
+│ 37 [GPIO 26]   [GPIO 20] 38│  ← Enc4-DT, Enc4-CLK
+│ 39 [GND]       GPIO 21  40 │  ← I2S (DO NOT USE 21!)
 └────────────────────────────────────────┘
 
 [Bracketed] = Used by Dub Siren V2
@@ -108,25 +119,31 @@ Raspberry Pi Zero 2W GPIO Header (40-pin)
 
 ### Rotary Encoder Wiring (All 5 Encoders)
 
-Standard KY-040/EC11 rotary encoder pinout:
+**5-Pin EC11-style encoders (no VCC required):**
+
+The Pi's internal pull-up resistors are enabled in software, so no external VCC or pull-up resistors are needed.
+
 ```
-┌─────────┐
-│ Encoder │
-└─────────┘
-   │││││
-   │││││
-   ││││└─ GND      → Common GND
-   │││└── + (VCC)  → 3.3V
-   ││└─── SW (not used)
-   │└──── DT (B)   → See table above
-   └───── CLK (A)  → See table above
+┌─────────────┐
+│   Encoder   │
+│   (top view)│
+└─────────────┘
+    │ │ │ │ │
+    │ │ │ │ │
+    │ │ │ │ └─ GND (or GND 2)
+    │ │ │ └─── SW (push button - not used)
+    │ │ └───── GND
+    │ └─────── DT (B) → GPIO pin
+    └───────── CLK (A) → GPIO pin
+
+Note: Pin order may vary by manufacturer - check your encoder's datasheet.
+      Some encoders label pins as A/B/C or have different arrangements.
 ```
 
 **Encoder 1 (Volume / Release Time):**
 ```
 CLK (A) → Pin 11 (GPIO 17)
 DT (B)  → Pin 3  (GPIO 2)
-+ (VCC) → Pin 1  (3.3V)
 GND     → Pin 9  (GND)
 ```
 
@@ -134,7 +151,6 @@ GND     → Pin 9  (GND)
 ```
 CLK (A) → Pin 13 (GPIO 27)
 DT (B)  → Pin 15 (GPIO 22)
-+ (VCC) → Pin 1  (3.3V)
 GND     → Pin 9  (GND)
 ```
 
@@ -142,7 +158,6 @@ GND     → Pin 9  (GND)
 ```
 CLK (A) → Pin 16 (GPIO 23)
 DT (B)  → Pin 18 (GPIO 24)
-+ (VCC) → Pin 1  (3.3V)
 GND     → Pin 9  (GND)
 ```
 
@@ -150,7 +165,6 @@ GND     → Pin 9  (GND)
 ```
 CLK (A) → Pin 38 (GPIO 20)
 DT (B)  → Pin 37 (GPIO 26)
-+ (VCC) → Pin 17 (3.3V)
 GND     → Pin 39 (GND)
 ```
 
@@ -158,11 +172,10 @@ GND     → Pin 39 (GND)
 ```
 CLK (A) → Pin 8  (GPIO 14)
 DT (B)  → Pin 33 (GPIO 13)
-+ (VCC) → Pin 1  (3.3V)
 GND     → Pin 9  (GND)
 ```
 
-### Button Wiring (All 4 Buttons)
+### Button Wiring (3 Buttons)
 
 All buttons are wired as **active low** (pressed = connects to GND). Internal pull-ups are enabled in software.
 
@@ -170,12 +183,6 @@ All buttons are wired as **active low** (pressed = connects to GND). Internal pu
 ```
 Pin 1 → Pin 7  (GPIO 4)
 Pin 2 → Pin 9  (GND)
-```
-
-**Pitch Envelope Button (Cycle Modes):**
-```
-Pin 1 → Pin 19 (GPIO 10)
-Pin 2 → Pin 20 (GND)
 ```
 
 **Shift Button (Access Bank B):**
@@ -189,6 +196,34 @@ Pin 2 → Pin 9  (GND)
 Pin 1 → Pin 5  (GPIO 3)
 Pin 2 → Pin 6  (GND)
 ```
+
+### 3-Position Pitch Envelope Switch
+
+Use an ON/OFF/ON SPDT toggle switch. The middle position is OFF (no pitch envelope).
+
+```
+3-Position Toggle Switch (ON/OFF/ON)
+┌─────────────────────────────────┐
+│                                 │
+│    UP position (Rise)           │
+│         ┌───┐                   │
+│         │ ● │ ← Toggle lever    │
+│         └───┘                   │
+│    [1] [C] [2]  ← Terminals     │
+│                                 │
+│    DOWN position (Fall)         │
+└─────────────────────────────────┘
+
+Wiring:
+  Terminal 1 (UP)   → Pin 19 (GPIO 10)
+  Terminal C (COM)  → Pin 20 (GND)
+  Terminal 2 (DOWN) → Pin 21 (GPIO 9)
+```
+
+**Switch positions:**
+- **UP:** Terminal 1 connects to Common → GPIO 10 reads LOW → Pitch rises on release
+- **CENTER:** Neither terminal connected → Both GPIOs read HIGH → No pitch envelope  
+- **DOWN:** Terminal 2 connects to Common → GPIO 9 reads LOW → Pitch falls on release
 
 ## Breadboard Layout Example
 
@@ -222,13 +257,12 @@ Pin 2 → Pin 6  (GND)
 - Gather all components
 - Use ESD protection (wrist strap recommended)
 
-### 2. Connect Power Rails
+### 2. Connect Ground Rails
 ```
-Pin 1  (3.3V) → Breadboard + rail
 Pin 9  (GND)  → Breadboard - rail
-Pin 17 (3.3V) → Breadboard + rail (additional power)
 Pin 39 (GND)  → Breadboard - rail (additional ground)
 ```
+**Note:** No 3.3V rail needed - encoders use Pi's internal pull-ups.
 
 ### 3. Wire Encoders (in order)
 Wire one encoder at a time and test:
@@ -253,17 +287,21 @@ CLK: GPIO 14 (Pin 8), DT: GPIO 13 (Pin 33)
 ### 4. Wire Buttons
 ```bash
 Trigger:   GPIO 4  (Pin 7)  to GND
-Pitch Env: GPIO 10 (Pin 19) to GND
 Shift:     GPIO 15 (Pin 10) to GND
 Shutdown:  GPIO 3  (Pin 5)  to GND
+
+# 3-Position Pitch Envelope Switch
+Pitch UP:   GPIO 10 (Pin 19) to switch terminal 1
+Pitch DOWN: GPIO 9  (Pin 21) to switch terminal 2
+Common:     GND (Pin 20) to switch common terminal
 ```
 
 ### 5. Double-Check Connections
 ⚠️ **Critical checks before powering on:**
-- [ ] No shorts between 3.3V and GND
+- [ ] No shorts between any GPIO pins
 - [ ] No connections to GPIO 18, 19, or 21 (I2S pins)
-- [ ] All encoder power pins to 3.3V (NOT 5V!)
-- [ ] All grounds connected to common GND
+- [ ] All encoder GND pins connected to common GND
+- [ ] All button/switch GND pins connected to common GND
 
 ## Testing the Control Surface
 
@@ -312,11 +350,20 @@ sudo journalctl -u dubsiren.service -f
 - Press and hold → Should hear dub siren sound
 - Release → Sound stops
 
-**Pitch Envelope Button:**
-- Press repeatedly → Cycles: `none` → `up` → `down` → `none`
-
 **Shutdown Button:**
 - Press → System shuts down safely after 1 second
+
+### 5. Test Pitch Envelope Switch
+
+**3-Position Switch:**
+- Flip UP → Should see `Pitch envelope: up (rise)`
+- Flip to CENTER → Should see `Pitch envelope: none`
+- Flip DOWN → Should see `Pitch envelope: down (fall)`
+
+**Test with Trigger:**
+- Set switch to UP, trigger sound → pitch rises on release
+- Set switch to DOWN, trigger sound → pitch falls on release
+- Set switch to CENTER, trigger sound → no pitch change on release
 
 ## Troubleshooting
 
@@ -370,8 +417,8 @@ For a permanent enclosure build:
 │  [1]    [2]    [3]    [4]   [5]  │  ← Encoders
 │  Vol  Filter Pitch  Delay  Rev   │
 │                                  │
-│  (Trigger)  (Pitch)  (Shift)     │  ← Buttons
-│                                  │
+│  (Trigger)   ↑|○|↓   (Shift)     │  ← Buttons + 3-pos switch
+│              PITCH                │
 │  [Power LED]        (Shutdown)   │
 │                                  │
 └──────────────────────────────────┘
@@ -392,14 +439,15 @@ For a permanent enclosure build:
 ## Shopping List
 
 ### Encoders (5x)
-- **KY-040** rotary encoder modules, OR
-- **EC11** encoders with breakout boards
+- **EC11** 5-pin rotary encoders (no VCC required)
 - Encoder knobs (recommend 20mm diameter)
+- No breakout boards or modules needed - direct wiring to Pi
 
-### Buttons (4x)
+### Buttons (3x) + Toggle Switch (1x)
 - **Trigger:** Arcade button (30mm) or large tactile switch
-- **Pitch/Shift:** 6mm tactile switches or small arcade buttons
+- **Shift:** 6mm tactile switch or small arcade button
 - **Shutdown:** Latching switch or recessed button (prevent accidents)
+- **Pitch Envelope:** 3-position ON/OFF/ON toggle switch (SPDT, panel mount)
 
 ### Wiring
 - **Male-to-female jumper wires** (20-pack, 15cm length)
@@ -407,10 +455,12 @@ For a permanent enclosure build:
 - **Perfboard** (70x90mm) for permanent build
 
 ### Optional
-- **0.1µF ceramic capacitors** (10-pack) for noise reduction
+- **0.1µF ceramic capacitors** (10-pack) for noise reduction (CLK/DT to GND)
 - **Panel-mount encoder brackets**
 - **Enclosure** (Hammond 1590DD or similar)
 - **Status LEDs** (3mm, various colors)
+
+**Note:** Capacitors are usually not needed - software debouncing handles most noise. Add them only if you experience jittery encoder readings.
 
 ## Advanced: Custom Pin Configuration
 
@@ -438,11 +488,11 @@ SWITCH_PINS = {
 ## Safety Notes
 
 ⚠️ **Critical Safety:**
-- **NEVER** connect encoders to 5V (3.3V ONLY!)
 - **Double-check** all wiring before powering on
 - **Avoid** GPIO 18, 19, 21 (will conflict with audio)
 - **Use ESD protection** when handling components
 - **Disconnect GPIO** during SD card flashing
+- **Encoder GND only** - no power connection needed (internal pull-ups used)
 
 ## Next Steps
 
