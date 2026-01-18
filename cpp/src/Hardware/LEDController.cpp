@@ -1,6 +1,7 @@
 #include "Hardware/LEDController.h"
 #include <iostream>
 #include <cmath>
+#include <cstring>
 #include <algorithm>
 
 // Include ws2811 library only if CMake found it and defined HAVE_WS2812

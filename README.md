@@ -98,8 +98,7 @@ If you prefer to install manually:
 
 3. **Run setup script**
    ```bash
-   chmod +x setup.sh
-   ./setup.sh
+   bash setup.sh
    ```
 
 4. **Reboot**

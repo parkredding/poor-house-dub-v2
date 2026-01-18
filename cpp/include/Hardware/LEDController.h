@@ -150,6 +150,9 @@ private:
     std::atomic<float> brightness;
     std::atomic<float> cycleSpeed;
     
+    // Platform-specific LED handle (must be before rng for initialization order)
+    void* ledHandle;  // ws2811_t* on Pi, nullptr on other platforms
+    
     // Color cycling state
     ColorPath currentPath;
     float cyclePosition;         // 0.0 - 1.0 within current cycle
@@ -163,9 +166,6 @@ private:
     // Startup transition timer (to avoid detached thread lifetime issues)
     std::atomic<bool> pendingReadyTransition;
     std::chrono::steady_clock::time_point readyTransitionTime;
-    
-    // Platform-specific LED handle
-    void* ledHandle;  // ws2811_t* on Pi, nullptr on other platforms
     
     // Update loop
     void updateLoop();
