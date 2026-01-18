@@ -781,14 +781,12 @@ void GPIOController::checkSecretModeActivation() {
         pressCount = static_cast<int>(recentShiftPresses.size());
 
         // Check for UFO mode first (10 presses) - takes priority
-        if (pressCount >= 10) {
+        if (pressCount == 10) {
             activateUFO = true;
-            recentShiftPresses.clear();  // Reset after activation
         }
         // Check for NJD mode (5 presses)
-        else if (pressCount >= 5) {
+        else if (pressCount == 5) {
             activateNJD = true;
-            recentShiftPresses.clear();  // Reset after activation
         }
     }
 
@@ -802,18 +800,19 @@ void GPIOController::checkSecretModeActivation() {
 
 void GPIOController::activateSecretMode(SecretMode mode) {
     SecretMode currentMode = secretMode.load();
-    
-    // If already in a secret mode, exit first
-    if (currentMode != SecretMode::None && currentMode != mode) {
-        exitSecretMode();
-    }
-    
-    // If activating same mode again, exit it
+
+    // If activating same mode we're already in, toggle it off
     if (currentMode == mode) {
         exitSecretMode();
         return;
     }
-    
+
+    // If in a different secret mode, exit it first
+    if (currentMode != SecretMode::None) {
+        exitSecretMode();
+    }
+
+    // Enter the new mode
     secretMode.store(mode);
     secretModePreset.store(0);
     
