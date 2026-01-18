@@ -676,41 +676,10 @@ void GPIOController::onTriggerRelease() {
 }
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
-    // Track toggles for secret mode detection
-    // A "toggle" is counted when the switch reaches Up or Down from the opposite extreme
-    // (passing through Off in between, which is how a physical 3-position switch works)
-    SwitchPosition lastPos = lastPitchEnvPosition.load();
-    if (position != lastPos) {
-        // Only count toggles for Up/Down positions (not transitions to/from Off)
-        if (position == SwitchPosition::Up || position == SwitchPosition::Down) {
-            // Check if this is a toggle from the opposite extreme position
-            // lastPitchEnvPosition tracks the last Up or Down we saw
-            if ((lastPos == SwitchPosition::Up && position == SwitchPosition::Down) ||
-                (lastPos == SwitchPosition::Down && position == SwitchPosition::Up)) {
-                // First extreme-to-extreme transition just initializes tracking,
-                // subsequent transitions count as actual toggles
-                if (toggleTrackingInitialized.load()) {
-                    {
-                        std::lock_guard<std::mutex> lock(togglesMutex);
-                        recentToggles.push_back(std::chrono::steady_clock::now());
-                    }
-                    checkSecretModeActivation();
-                } else {
-                    // First transition from initial position - establishes baseline
-                    toggleTrackingInitialized.store(true);
-                }
-            }
-            // Update last position only when we reach Up or Down (ignore Off for toggle tracking)
-            lastPitchEnvPosition.store(position);
-        }
-        // Note: We don't update lastPitchEnvPosition when position is Off,
-        // so it remembers the last Up/Down for proper toggle detection
-    }
-    
-    // Apply pitch envelope (still works in secret mode)
+    // Apply pitch envelope (works in normal and secret modes)
     PitchEnvelopeMode mode;
     const char* modeName;
-    
+
     switch (position) {
         case SwitchPosition::Up:
             mode = PitchEnvelopeMode::Up;
@@ -726,9 +695,9 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
             modeName = "none";
             break;
     }
-    
+
     engine.setPitchEnvelopeMode(mode);
-    
+
     SecretMode currentMode = secretMode.load();
     if (currentMode != SecretMode::None) {
         const char* modeStr = (currentMode == SecretMode::NJD) ? "NJD" : "UFO";
@@ -740,7 +709,14 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
 
 void GPIOController::onShiftPress() {
     shiftPressed.store(true);
-    
+
+    // Track shift button presses for secret mode activation
+    {
+        std::lock_guard<std::mutex> lock(pressesMutex);
+        recentShiftPresses.push_back(std::chrono::steady_clock::now());
+    }
+    checkSecretModeActivation();
+
     SecretMode currentMode = secretMode.load();
     if (currentMode != SecretMode::None) {
         // In secret mode, shift cycles through presets
@@ -784,45 +760,38 @@ void GPIOController::onShutdownPress() {
 
 void GPIOController::checkSecretModeActivation() {
     auto now = std::chrono::steady_clock::now();
-    
-    int togglesIn1Sec = 0;
-    int togglesIn2Sec = 0;
+
+    int pressCount = 0;
     bool activateNJD = false;
     bool activateUFO = false;
-    
+
     {
-        std::lock_guard<std::mutex> lock(togglesMutex);
-        
-        // Remove old toggles (older than 2 seconds)
-        recentToggles.erase(
-            std::remove_if(recentToggles.begin(), recentToggles.end(),
+        std::lock_guard<std::mutex> lock(pressesMutex);
+
+        // Remove old presses (older than 2 seconds)
+        recentShiftPresses.erase(
+            std::remove_if(recentShiftPresses.begin(), recentShiftPresses.end(),
                 [&now](const auto& t) {
                     return std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count() > 2000;
                 }),
-            recentToggles.end()
+            recentShiftPresses.end()
         );
-        
-        // Count toggles in different time windows
-        togglesIn2Sec = static_cast<int>(recentToggles.size());
-        
-        for (const auto& t : recentToggles) {
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count() <= 1000) {
-                togglesIn1Sec++;
-            }
-        }
-        
-        // Check for UFO mode first (10 toggles in 2 seconds) - takes priority
-        if (togglesIn2Sec >= 10) {
+
+        // Count recent presses within 2 second window
+        pressCount = static_cast<int>(recentShiftPresses.size());
+
+        // Check for UFO mode first (10 presses) - takes priority
+        if (pressCount >= 10) {
             activateUFO = true;
-            recentToggles.clear();  // Reset after activation
+            recentShiftPresses.clear();  // Reset after activation
         }
-        // Check for NJD mode (5 toggles in 1 second)
-        else if (togglesIn1Sec >= 5) {
+        // Check for NJD mode (5 presses)
+        else if (pressCount >= 5) {
             activateNJD = true;
-            recentToggles.clear();  // Reset after activation
+            recentShiftPresses.clear();  // Reset after activation
         }
     }
-    
+
     // Activate outside the lock to avoid potential deadlock with other callbacks
     if (activateUFO) {
         activateSecretMode(SecretMode::UFO);
@@ -865,7 +834,7 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
     std::cout << "║  Mode: " << modeName << std::string(49 - strlen(modeName), ' ') << "║" << std::endl;
     std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
-    std::cout << "║  Toggle pitch switch rapidly again to exit               ║" << std::endl;
+    std::cout << "║  Press SHIFT rapidly again to exit                       ║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
     
@@ -887,8 +856,7 @@ void GPIOController::exitSecretMode() {
     
     secretMode.store(SecretMode::None);
     secretModePreset.store(0);
-    toggleTrackingInitialized.store(false);  // Reset for next secret mode activation
-    
+
     // Return LED to normal mode
     if (ledController) {
         ledController->setMode(LEDMode::Normal);
