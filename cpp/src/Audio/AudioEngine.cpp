@@ -19,7 +19,7 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     , lfoPitchDepth(0.0f)  // Default to 0 (no pitch modulation)
     , pitchEnvMode(PitchEnvelopeMode::Up)  // Default to UP for classic dub siren
     , currentFrequency(440.0f)
-    , frequencySmooth(440.0f, 0.02f)
+    , frequencySmooth(440.0f, 0.08f)  // Increased smoothing to reduce zipper noise
     , inReleasePhase(false)
     , pitchEnvStartLevel(1.0f)
 {

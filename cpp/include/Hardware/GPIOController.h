@@ -237,7 +237,7 @@ private:
         float filterFreq = 2000.0f;
         float baseFreq = 440.0f;
         float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
-        float reverbMix = 0.55f;  // Higher wet signal for more spacious sound
+        float reverbMix = 0.7f;  // High wet signal for spacious dub sound
 
         // Bank B
         float release = 0.5f;
