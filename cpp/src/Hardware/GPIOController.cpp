@@ -100,14 +100,14 @@ void cleanupPlatformGPIO() {
 int readPin(int pin) {
     if (!lineRequest) return 1;
     if (pin < 0 || pin > 27) return 1;
-    
-    // Convert GPIO number to line index in our request
+
+    // Verify GPIO is in our requested set
     int lineIndex = gpioToLineIndex[pin];
     if (lineIndex < 0) return 1;  // GPIO not in our requested set
-    
-    // Read using line index (libgpiod uses indices into requested lines, not GPIO numbers)
-    int value = gpiod_line_request_get_value(lineRequest, static_cast<unsigned int>(lineIndex));
-    
+
+    // Read using GPIO pin number (libgpiod uses chip offsets, not array indices)
+    int value = gpiod_line_request_get_value(lineRequest, static_cast<unsigned int>(pin));
+
     // With pull-up bias: ACTIVE = HIGH (not pressed), INACTIVE = LOW (pressed/grounded)
     // Our button logic expects: 0 = pressed, 1 = not pressed
     return value == GPIOD_LINE_VALUE_ACTIVE ? 1 : 0;
