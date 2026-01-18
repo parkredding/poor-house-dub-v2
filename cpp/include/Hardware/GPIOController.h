@@ -238,14 +238,14 @@ private:
         float volume = 0.7f;
         float filterFreq = 2000.0f;
         float baseFreq = 440.0f;
-        float delayFeedback = 0.5f;
+        float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
         float reverbMix = 0.35f;
-        
+
         // Bank B
         float release = 0.5f;
         float delayTime = 0.2f;
         float filterRes = 0.5f;
-        int oscWaveform = 0;
+        int oscWaveform = 1;  // Square wave for classic siren sound
         float reverbSize = 0.5f;
     };
     Parameters params;

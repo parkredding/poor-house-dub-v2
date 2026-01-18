@@ -899,12 +899,12 @@ void GPIOController::exitSecretMode() {
     params.filterFreq = 2000.0f;
     params.baseFreq = 440.0f;
     params.filterRes = 0.5f;
-    params.delayFeedback = 0.5f;
+    params.delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
     params.delayTime = 0.2f;
     params.reverbMix = 0.35f;
     params.reverbSize = 0.5f;
     params.release = 0.5f;
-    params.oscWaveform = 0;
+    params.oscWaveform = 1;  // Square wave for classic siren sound
     
     // Apply restored parameters
     engine.setVolume(params.volume);

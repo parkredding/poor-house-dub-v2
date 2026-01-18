@@ -32,7 +32,7 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     // Set initial parameters
     oscillator.setWaveform(Waveform::Sine);
     lfo.setFrequency(4.0f);
-    lfo.setDepth(0.0f);  // Disabled by default
+    lfo.setDepth(0.3f);  // Moderate LFO for filter modulation (siren effect)
     envelope.setAttack(0.01f);
     envelope.setRelease(0.5f);
     filter.setCutoff(2000.0f);
