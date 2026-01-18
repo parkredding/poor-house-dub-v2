@@ -235,7 +235,7 @@ private:
     // Parameter values
     struct Parameters {
         // Bank A
-        float volume = 0.7f;
+        float volume = 0.91f;  // 30% increase from 0.7
         float filterFreq = 2000.0f;
         float baseFreq = 440.0f;
         float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
