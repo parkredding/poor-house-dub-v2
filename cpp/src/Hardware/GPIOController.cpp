@@ -907,37 +907,37 @@ void GPIOController::applySecretModePreset() {
     if (currentMode == SecretMode::NJD) {
         // NJD Classic Dub Siren Presets
         // These are inspired by the classic NJD siren sounds
-        const char* presetNames[] = {"Classic", "Deep Bass", "Bright", "Wobble"};
-        
+        const char* presetNames[] = {"Classic", "Alert", "Bright", "Wobble"};
+
         switch (preset) {
             case 0: // Classic NJD - the original dub siren sound
                 params.baseFreq = 587.0f;     // D5 - classic siren note
                 params.filterFreq = 3000.0f;
-                params.filterRes = 0.3f;
+                params.filterRes = 0.5f;      // Increased for more character
                 params.release = 0.8f;
-                params.oscWaveform = 0;       // Sine
+                params.oscWaveform = 1;       // Square for more edge
                 params.delayTime = 0.375f;    // Dotted eighth for reggae feel
-                params.delayFeedback = 0.45f;
-                params.reverbSize = 0.6f;
-                params.reverbMix = 0.3f;
+                params.delayFeedback = 0.5f;  // Classic dub echoes
+                params.reverbSize = 0.65f;    // Deep dub space
+                params.reverbMix = 0.35f;
                 break;
-                
-            case 1: // Deep Bass - sub-heavy version
-                params.baseFreq = 147.0f;     // D3 - deep bass
-                params.filterFreq = 800.0f;
-                params.filterRes = 0.5f;
-                params.release = 1.2f;
-                params.oscWaveform = 0;       // Sine for clean sub
-                params.delayTime = 0.5f;
-                params.delayFeedback = 0.35f;
-                params.reverbSize = 0.7f;
-                params.reverbMix = 0.25f;
+
+            case 1: // Alert - emergency siren for rapid on/off triggering
+                params.baseFreq = 440.0f;     // A4 - mid-range wail
+                params.filterFreq = 2500.0f;
+                params.filterRes = 0.4f;
+                params.release = 0.3f;        // Short for clean toggling
+                params.oscWaveform = 1;       // Square for harsh siren sound
+                params.delayTime = 0.375f;    // Dotted eighth - classic dub
+                params.delayFeedback = 0.55f; // Spacey dub echoes
+                params.reverbSize = 0.7f;     // Large dub space
+                params.reverbMix = 0.4f;      // Wet for atmosphere
                 break;
-                
+
             case 2: // Bright - cutting through the mix
                 params.baseFreq = 880.0f;     // A5 - bright and piercing
                 params.filterFreq = 6000.0f;
-                params.filterRes = 0.2f;
+                params.filterRes = 0.3f;
                 params.release = 0.5f;
                 params.oscWaveform = 1;       // Square for edge
                 params.delayTime = 0.25f;
@@ -945,7 +945,7 @@ void GPIOController::applySecretModePreset() {
                 params.reverbSize = 0.4f;
                 params.reverbMix = 0.35f;
                 break;
-                
+
             case 3: // Wobble - with heavy resonance
                 params.baseFreq = 392.0f;     // G4
                 params.filterFreq = 1500.0f;
