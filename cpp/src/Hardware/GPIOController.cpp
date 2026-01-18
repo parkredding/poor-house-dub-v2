@@ -597,56 +597,57 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     float newValue;
     
     if (strcmp(paramName, "volume") == 0) {
-        step = 0.02f * direction;
+        step = 0.042f * direction;
         params.volume = clamp(params.volume + step, 0.0f, 1.0f);
         engine.setVolume(params.volume);
         newValue = params.volume;
     }
     else if (strcmp(paramName, "filter_freq") == 0) {
-        step = 50.0f * direction;
-        params.filterFreq = clamp(params.filterFreq + step, 20.0f, 20000.0f);
+        // Logarithmic control for full range in ~1 rotation (24 steps)
+        float multiplier = (direction > 0) ? 1.32f : (1.0f / 1.32f);
+        params.filterFreq = clamp(params.filterFreq * multiplier, 20.0f, 20000.0f);
         engine.setFilterCutoff(params.filterFreq);
         newValue = params.filterFreq;
     }
     else if (strcmp(paramName, "base_freq") == 0) {
-        // Logarithmic frequency control for musical response
-        float multiplier = (direction > 0) ? 1.05f : 0.95f;
+        // Logarithmic frequency control for full range in ~1 rotation (24 steps)
+        float multiplier = (direction > 0) ? 1.165f : (1.0f / 1.165f);
         params.baseFreq = clamp(params.baseFreq * multiplier, 50.0f, 2000.0f);
         engine.setFrequency(params.baseFreq);
         newValue = params.baseFreq;
     }
     else if (strcmp(paramName, "filter_res") == 0) {
-        step = 0.02f * direction;
+        step = 0.04f * direction;
         params.filterRes = clamp(params.filterRes + step, 0.0f, 0.95f);
         engine.setFilterResonance(params.filterRes);
         newValue = params.filterRes;
     }
     else if (strcmp(paramName, "delay_feedback") == 0) {
-        step = 0.02f * direction;
+        step = 0.04f * direction;
         params.delayFeedback = clamp(params.delayFeedback + step, 0.0f, 0.95f);
         engine.setDelayFeedback(params.delayFeedback);
         newValue = params.delayFeedback;
     }
     else if (strcmp(paramName, "reverb_mix") == 0) {
-        step = 0.02f * direction;
+        step = 0.042f * direction;
         params.reverbMix = clamp(params.reverbMix + step, 0.0f, 1.0f);
         engine.setReverbMix(params.reverbMix);
         newValue = params.reverbMix;
     }
     else if (strcmp(paramName, "release") == 0) {
-        step = 0.1f * direction;
+        step = 0.21f * direction;
         params.release = clamp(params.release + step, 0.01f, 5.0f);
         engine.setReleaseTime(params.release);
         newValue = params.release;
     }
     else if (strcmp(paramName, "delay_time") == 0) {
-        step = 0.05f * direction;
+        step = 0.083f * direction;
         params.delayTime = clamp(params.delayTime + step, 0.001f, 2.0f);
         engine.setDelayTime(params.delayTime);
         newValue = params.delayTime;
     }
     else if (strcmp(paramName, "reverb_size") == 0) {
-        step = 0.02f * direction;
+        step = 0.042f * direction;
         params.reverbSize = clamp(params.reverbSize + step, 0.0f, 1.0f);
         engine.setReverbSize(params.reverbSize);
         newValue = params.reverbSize;
