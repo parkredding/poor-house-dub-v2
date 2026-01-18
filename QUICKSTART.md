@@ -41,8 +41,7 @@ git clone https://github.com/parkredding/poor-house-dub-v2.git
 cd poor-house-dub-v2
 
 # Run setup (builds C++ and configures service)
-chmod +x setup.sh
-./setup.sh
+bash setup.sh
 ```
 
 ### Reboot Required

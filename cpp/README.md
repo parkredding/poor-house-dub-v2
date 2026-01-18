@@ -39,7 +39,7 @@ git clone https://github.com/parkredding/poor-house-dub-v2.git
 cd poor-house-dub-v2/cpp
 
 # Run setup (installs deps, configures audio, builds, creates service)
-./setup.sh
+bash setup.sh
 ```
 
 ## Building (Development)
