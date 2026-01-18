@@ -167,7 +167,7 @@ enum class SecretMode {
  * Control surface handler for the Dub Siren.
  *
  * 5 Encoders with bank switching:
- * - Bank A: Volume, Filter Freq, Base Freq, Delay Feedback, Reverb Mix
+ * - Bank A: Volume, Base Freq, Filter Freq, Delay Feedback, Reverb Mix
  * - Bank B: Release Time, Delay Time, Filter Res, Osc Waveform, Reverb Size
  *
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
@@ -237,7 +237,7 @@ private:
         float filterFreq = 2000.0f;
         float baseFreq = 440.0f;
         float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
-        float reverbMix = 0.35f;
+        float reverbMix = 0.55f;  // Higher wet signal for more spacious sound
 
         // Bank B
         float release = 0.5f;

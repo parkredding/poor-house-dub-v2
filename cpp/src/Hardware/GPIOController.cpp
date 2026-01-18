@@ -550,7 +550,7 @@ void GPIOController::start() {
     std::cout << "============================================================" << std::endl;
     std::cout << "  Control Surface Ready" << std::endl;
     std::cout << "============================================================" << std::endl;
-    std::cout << "\nBank A: Volume, Filter Freq, Base Freq, Delay FB, Reverb Mix" << std::endl;
+    std::cout << "\nBank A: Volume, Base Freq, Filter Freq, Delay FB, Reverb Mix" << std::endl;
     std::cout << "Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size" << std::endl;
     std::cout << "\nButtons: Trigger, Shift (Bank A/B), Shutdown" << std::endl;
     std::cout << "Pitch Env Switch: UP=rise | OFF=none | DOWN=fall" << std::endl;
@@ -586,7 +586,7 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     Bank bank = currentBank.load();
     
     // Bank A parameters
-    const char* bankAParams[] = {"volume", "filter_freq", "base_freq", "delay_feedback", "reverb_mix"};
+    const char* bankAParams[] = {"volume", "base_freq", "filter_freq", "delay_feedback", "reverb_mix"};
     // Bank B parameters
     const char* bankBParams[] = {"release", "delay_time", "filter_res", "osc_waveform", "reverb_size"};
     
@@ -614,6 +614,14 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         float multiplier = (direction > 0) ? 1.165f : (1.0f / 1.165f);
         params.baseFreq = clamp(params.baseFreq * multiplier, 50.0f, 2000.0f);
         engine.setFrequency(params.baseFreq);
+
+        // Modulate delay time inversely with pitch (higher pitch = shorter delay)
+        // This creates harmonic echo patterns common in dub sirens
+        float refFreq = 440.0f;
+        float scaledDelayTime = params.delayTime * (refFreq / params.baseFreq);
+        scaledDelayTime = clamp(scaledDelayTime, 0.01f, 2.0f);
+        engine.setDelayTime(scaledDelayTime);
+
         newValue = params.baseFreq;
     }
     else if (strcmp(paramName, "filter_res") == 0) {
