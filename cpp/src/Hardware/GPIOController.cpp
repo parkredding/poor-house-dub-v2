@@ -891,7 +891,7 @@ void GPIOController::exitSecretMode() {
 void GPIOController::cycleSecretModePreset() {
     SecretMode currentMode = secretMode.load();
     
-    int numPresets = (currentMode == SecretMode::NJD) ? 4 : 3;
+    int numPresets = (currentMode == SecretMode::NJD) ? 4 : 4;
     int currentPreset = secretModePreset.load();
     secretModePreset.store((currentPreset + 1) % numPresets);
     
@@ -964,10 +964,22 @@ void GPIOController::applySecretModePreset() {
                   
     } else if (currentMode == SecretMode::UFO) {
         // UFO Sci-Fi Presets
-        const char* presetNames[] = {"Flying Saucer", "Alien Signal", "Warp Drive"};
-        
+        const char* presetNames[] = {"Laser Blast", "Flying Saucer", "Alien Signal", "Warp Drive"};
+
         switch (preset) {
-            case 0: // Flying Saucer - classic UFO whoosh
+            case 0: // Laser Blast - Star Wars style pew pew
+                params.baseFreq = 1600.0f;    // Bright, sharp
+                params.filterFreq = 6000.0f;  // Very bright
+                params.filterRes = 0.3f;
+                params.release = 0.15f;       // Very short, snappy
+                params.oscWaveform = 1;       // Square for harsh edge
+                params.delayTime = 0.03f;     // Very short for texture
+                params.delayFeedback = 0.4f;  // Moderate
+                params.reverbSize = 0.2f;     // Minimal space
+                params.reverbMix = 0.15f;     // Dry, punchy
+                break;
+
+            case 1: // Flying Saucer - classic UFO whoosh
                 params.baseFreq = 1200.0f;    // High pitch
                 params.filterFreq = 4000.0f;
                 params.filterRes = 0.4f;
@@ -978,8 +990,8 @@ void GPIOController::applySecretModePreset() {
                 params.reverbSize = 0.9f;     // Huge space
                 params.reverbMix = 0.5f;
                 break;
-                
-            case 1: // Alien Signal - digital beeps
+
+            case 2: // Alien Signal - digital beeps
                 params.baseFreq = 1800.0f;    // Very high
                 params.filterFreq = 8000.0f;
                 params.filterRes = 0.6f;
@@ -990,8 +1002,8 @@ void GPIOController::applySecretModePreset() {
                 params.reverbSize = 0.3f;
                 params.reverbMix = 0.6f;
                 break;
-                
-            case 2: // Warp Drive - deep space rumble
+
+            case 3: // Warp Drive - deep space rumble
                 params.baseFreq = 80.0f;      // Sub bass
                 params.filterFreq = 2000.0f;
                 params.filterRes = 0.85f;     // Heavy resonance
@@ -1003,8 +1015,8 @@ void GPIOController::applySecretModePreset() {
                 params.reverbMix = 0.45f;
                 break;
         }
-        
-        std::cout << "[UFO MODE] Preset " << (preset + 1) << "/3: " 
+
+        std::cout << "[UFO MODE] Preset " << (preset + 1) << "/4: "
                   << presetNames[preset] << std::endl;
     }
     
