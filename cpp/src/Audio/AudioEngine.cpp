@@ -16,6 +16,7 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     , reverb(sampleRate)
     , volume(0.7f)
     , baseFrequency(440.0f)
+    , lfoPitchDepth(0.0f)  // Default to 0 (no pitch modulation)
     , pitchEnvMode(PitchEnvelopeMode::Up)  // Default to UP for classic dub siren
     , currentFrequency(440.0f)
     , frequencySmooth(440.0f, 0.02f)
@@ -45,11 +46,15 @@ void AudioEngine::process(float* output, int numFrames) {
     // Get pitch envelope mode
     PitchEnvelopeMode pitchMode = pitchEnvMode.get();
     float baseFreq = baseFrequency.get();
-    
+    float pitchDepth = lfoPitchDepth.get();
+
     // Generate envelope first (we need it for pitch envelope calculation)
     envelope.generate(envBuffer.data(), numFrames);
-    
-    // Generate oscillator with pitch envelope
+
+    // Generate LFO modulation (needed for pitch modulation)
+    lfo.generate(lfoBuffer.data(), numFrames);
+
+    // Generate oscillator with pitch envelope and LFO pitch modulation
     for (int i = 0; i < numFrames; ++i) {
         float targetFreq = baseFreq;
         
@@ -82,17 +87,23 @@ void AudioEngine::process(float* output, int numFrames) {
                 inReleasePhase = false;
             }
         }
-        
+
+        // Apply LFO pitch modulation (if enabled)
+        if (pitchDepth > 0.001f) {
+            // LFO modulates pitch by ±N octaves where N = pitchDepth
+            // lfoBuffer[i] ranges from -1 to +1, so we multiply by pitchDepth to get the octave range
+            float octaveShift = lfoBuffer[i] * pitchDepth;
+            float pitchMult = std::pow(2.0f, octaveShift);
+            targetFreq *= pitchMult;
+        }
+
         // Smooth frequency changes to avoid clicks
         frequencySmooth.setTarget(targetFreq);
         currentFrequency = frequencySmooth.getNext();
         oscillator.setFrequency(currentFrequency);
         oscBuffer[i] = oscillator.generateSample();
     }
-    
-    // Generate LFO modulation
-    lfo.generate(lfoBuffer.data(), numFrames);
-    
+
     // Apply LFO to filter cutoff and process
     float baseCutoff = filter.getCutoff();
     for (int i = 0; i < numFrames; ++i) {
@@ -209,6 +220,10 @@ void AudioEngine::setLfoRate(float rate) {
 
 void AudioEngine::setLfoDepth(float depth) {
     lfo.setDepth(depth);
+}
+
+void AudioEngine::setLfoPitchDepth(float depth) {
+    lfoPitchDepth.set(clamp(depth, 0.0f, 1.0f));
 }
 
 void AudioEngine::setLfoWaveform(Waveform wf) {
