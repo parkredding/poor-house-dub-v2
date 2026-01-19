@@ -436,8 +436,10 @@ GPIOController::GPIOController(AudioEngine& engine, ShutdownCallback shutdownCb)
     , currentBank(Bank::A)
     , shiftPressed(false)
     , secretMode(SecretMode::None)
-    // secretModePreset and lastPitchEnvPosition are initialized via brace-init in header
+    , lastBaseFreq(440.0f)
+    // secretModePreset, pitchDiveActive, and lastPitchEnvPosition are initialized via brace-init in header
 {
+    lastPitchChange = std::chrono::steady_clock::now();
 }
 
 GPIOController::~GPIOController() {
@@ -622,8 +624,39 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     else if (strcmp(paramName, "base_freq") == 0) {
         // Logarithmic frequency control for full range in ~1 rotation (24 steps)
         float multiplier = (direction > 0) ? 1.165f : (1.0f / 1.165f);
+        float oldFreq = params.baseFreq;
         params.baseFreq = clamp(params.baseFreq * multiplier, 50.0f, 2000.0f);
         engine.setFrequency(params.baseFreq);
+
+        // Detect rapid pitch changes for "dive bomb" effect
+        auto now = std::chrono::steady_clock::now();
+        float timeDelta = std::chrono::duration<float>(now - lastPitchChange).count();
+
+        if (timeDelta > 0.001f) {  // Avoid division by zero
+            // Calculate velocity as multiplier changes per second
+            float freqRatio = params.baseFreq / lastBaseFreq;
+            float velocity = std::abs(std::log(freqRatio)) / (timeDelta * std::log(1.165f));
+
+            // Activate pitch dive mode if encoder is moving rapidly
+            if (velocity > PITCH_DIVE_VELOCITY_THRESHOLD) {
+                pitchDiveActive.store(true);
+                pitchDiveStartTime = now;
+                std::cout << "🎸 Pitch dive activated! (velocity: " << velocity << " steps/sec)" << std::endl;
+            }
+        }
+
+        lastPitchChange = now;
+        lastBaseFreq = params.baseFreq;
+
+        // Apply pitch-to-delay coupling if in dive mode
+        updatePitchDiveState();
+        if (pitchDiveActive.load()) {
+            // Inverse coupling: higher pitch = shorter delay (dub siren style)
+            float refFreq = 440.0f;
+            float scaledDelayTime = params.delayTime * (refFreq / params.baseFreq);
+            scaledDelayTime = clamp(scaledDelayTime, 0.01f, 2.0f);
+            engine.setDelayTime(scaledDelayTime);
+        }
 
         newValue = params.baseFreq;
     }
@@ -1080,6 +1113,23 @@ void GPIOController::applySecretModePreset() {
 void GPIOController::updateLEDAudioLevel(float level) {
     if (ledController) {
         ledController->setAudioLevel(level);
+    }
+}
+
+void GPIOController::updatePitchDiveState() {
+    if (!pitchDiveActive.load()) {
+        return;  // Not in dive mode, nothing to do
+    }
+
+    // Check if dive mode should expire
+    auto now = std::chrono::steady_clock::now();
+    float timeSinceDiveStart = std::chrono::duration<float>(now - pitchDiveStartTime).count();
+
+    if (timeSinceDiveStart >= PITCH_DIVE_DURATION_SEC) {
+        pitchDiveActive.store(false);
+        // Restore normal delay time when dive mode expires
+        engine.setDelayTime(params.delayTime);
+        std::cout << "🎸 Pitch dive ended (returned to normal delay time)" << std::endl;
     }
 }
 
