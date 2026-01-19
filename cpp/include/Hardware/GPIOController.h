@@ -236,7 +236,7 @@ private:
         float volume = 0.6f;  // Reduced to prevent clipping with effects
 
         // Bank A (Auto Wail preset)
-        float lfoDepth = 0.5f;     // LFO pitch modulation depth (replaces volume encoder)
+        float lfoDepth = 0.5f;     // LFO filter modulation depth (replaces volume encoder)
         float filterFreq = 3000.0f;  // Standard filter setting for siren
         float baseFreq = 440.0f;  // A4 - standard siren pitch
         float delayFeedback = 0.55f;  // Spacey dub echoes

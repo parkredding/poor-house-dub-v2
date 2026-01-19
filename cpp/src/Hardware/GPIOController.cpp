@@ -527,10 +527,12 @@ void GPIOController::start() {
         }
     }
     
-    // Apply initial parameters
+    // Apply initial parameters (Auto Wail preset)
     engine.setVolume(params.volume);
-    engine.setLfoPitchDepth(params.lfoDepth);  // Auto Wail uses pitch modulation
+    engine.setLfoDepth(params.lfoDepth);        // Filter modulation depth
+    engine.setLfoPitchDepth(0.5f);              // Auto Wail pitch modulation (wee-woo)
     engine.setLfoRate(params.lfoRate);
+    engine.setLfoWaveform(Waveform::Triangle);  // Smooth pitch transitions
     engine.setFilterCutoff(params.filterFreq);
     engine.setFrequency(params.baseFreq);
     engine.setFilterResonance(params.filterRes);
@@ -539,6 +541,7 @@ void GPIOController::start() {
     engine.setReleaseTime(params.release);
     engine.setDelayTime(params.delayTime);
     engine.setReverbSize(params.reverbSize);
+    engine.setWaveform(params.oscWaveform);
 
     std::cout << "  Initial LFO: depth=" << params.lfoDepth << ", rate=" << params.lfoRate << "Hz" << std::endl;
     
@@ -604,7 +607,7 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     if (strcmp(paramName, "lfo_depth") == 0) {
         step = 0.042f * direction;
         params.lfoDepth = clamp(params.lfoDepth + step, 0.0f, 1.0f);
-        engine.setLfoPitchDepth(params.lfoDepth);  // Auto Wail uses pitch modulation
+        engine.setLfoDepth(params.lfoDepth);  // Filter modulation depth
         newValue = params.lfoDepth;
     }
     else if (strcmp(paramName, "filter_freq") == 0) {
@@ -877,7 +880,7 @@ void GPIOController::exitSecretMode() {
     
     // Restore default parameters (Auto Wail preset)
     params.volume = 0.6f;
-    params.lfoDepth = 0.5f;      // LFO pitch modulation depth
+    params.lfoDepth = 0.5f;      // LFO filter modulation depth
     params.lfoRate = 2.0f;       // 2 Hz - wee-woo every 0.5 seconds
     params.filterFreq = 3000.0f; // Standard filter setting for siren
     params.baseFreq = 440.0f;    // A4 - standard siren pitch
@@ -889,10 +892,12 @@ void GPIOController::exitSecretMode() {
     params.release = 0.5f;       // Medium release
     params.oscWaveform = 1;      // Square for classic siren sound
 
-    // Apply restored parameters
+    // Apply restored parameters (Auto Wail preset)
     engine.setVolume(params.volume);
-    engine.setLfoPitchDepth(params.lfoDepth);  // Auto Wail uses pitch modulation
+    engine.setLfoDepth(params.lfoDepth);        // Filter modulation depth
+    engine.setLfoPitchDepth(0.5f);              // Auto Wail pitch modulation (wee-woo)
     engine.setLfoRate(params.lfoRate);
+    engine.setLfoWaveform(Waveform::Triangle);  // Smooth pitch transitions
     engine.setFilterCutoff(params.filterFreq);
     engine.setFrequency(params.baseFreq);
     engine.setFilterResonance(params.filterRes);
