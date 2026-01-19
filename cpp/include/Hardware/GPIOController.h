@@ -232,19 +232,23 @@ private:
     
     // Parameter values
     struct Parameters {
-        // Bank A
-        float volume = 0.91f;  // 30% increase from 0.7
-        float filterFreq = 2000.0f;
-        float baseFreq = 440.0f;
-        float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
-        float reverbMix = 0.7f;  // High wet signal for spacious dub sound
+        // Master volume (no longer on encoder)
+        float volume = 0.6f;  // Reduced to prevent clipping with effects
 
-        // Bank B
-        float release = 0.5f;
-        float delayTime = 0.2f;
-        float filterRes = 0.5f;
-        int oscWaveform = 1;  // Square wave for classic siren sound
-        float reverbSize = 0.5f;
+        // Bank A (Auto Wail preset)
+        float lfoDepth = 0.5f;     // LFO filter modulation depth (replaces volume encoder)
+        float filterFreq = 3000.0f;  // Standard filter setting for siren
+        float baseFreq = 440.0f;  // A4 - standard siren pitch
+        float delayFeedback = 0.55f;  // Spacey dub echoes
+        float reverbMix = 0.4f;  // Wet for atmosphere
+
+        // Bank B (Auto Wail preset)
+        float lfoRate = 2.0f;      // 2 Hz - wee-woo every 0.5 seconds
+        float delayTime = 0.375f;  // Dotted eighth - classic dub
+        float filterRes = 0.5f;    // Standard resonance
+        int oscWaveform = 1;  // Square for classic siren sound
+        float reverbSize = 0.7f;   // Large dub space
+        float release = 0.5f;      // Moved from encoder control
     };
     Parameters params;
     

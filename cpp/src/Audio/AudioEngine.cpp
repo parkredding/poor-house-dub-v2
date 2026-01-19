@@ -30,16 +30,17 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     filterBuffer.resize(bufferSize);
     delayBuffer.resize(bufferSize);
     
-    // Set initial parameters
-    oscillator.setWaveform(Waveform::Sine);
-    lfo.setFrequency(4.0f);
-    lfo.setDepth(0.3f);  // Moderate LFO for filter modulation (siren effect)
+    // Set initial parameters (Auto Wail preset)
+    oscillator.setWaveform(Waveform::Square);  // Square for classic siren sound
+    lfo.setFrequency(2.0f);      // 2 Hz - wee-woo every 0.5 seconds
+    lfo.setDepth(0.5f);          // Filter modulation depth (controllable by encoder)
+    lfo.setWaveform(Waveform::Triangle);  // Smooth pitch transitions
     envelope.setAttack(0.01f);
     envelope.setRelease(0.5f);
-    filter.setCutoff(2000.0f);
+    filter.setCutoff(3000.0f);   // Standard filter setting for siren
     delay.setDryWet(0.3f);
-    delay.setFeedback(0.5f);
-    reverb.setDryWet(0.35f);
+    delay.setFeedback(0.55f);    // Spacey dub echoes
+    reverb.setDryWet(0.4f);      // Wet for atmosphere
 }
 
 void AudioEngine::process(float* output, int numFrames) {
@@ -107,9 +108,9 @@ void AudioEngine::process(float* output, int numFrames) {
     // Apply LFO to filter cutoff and process
     float baseCutoff = filter.getCutoff();
     for (int i = 0; i < numFrames; ++i) {
-        // LFO modulates filter cutoff by ±2 octaves
-        float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 2.0f);
-        modCutoff = clamp(modCutoff, 100.0f, 8000.0f);
+        // LFO modulates filter cutoff by up to ±3 octaves (scaled by depth)
+        float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 3.0f);
+        modCutoff = clamp(modCutoff, 20.0f, 12000.0f);
         filter.setCutoff(modCutoff);
         filterBuffer[i] = filter.processSample(oscBuffer[i]);
     }

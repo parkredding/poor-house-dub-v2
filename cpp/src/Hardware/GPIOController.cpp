@@ -527,8 +527,12 @@ void GPIOController::start() {
         }
     }
     
-    // Apply initial parameters
+    // Apply initial parameters (Auto Wail preset)
     engine.setVolume(params.volume);
+    engine.setLfoDepth(params.lfoDepth);        // Filter modulation depth
+    engine.setLfoPitchDepth(0.5f);              // Auto Wail pitch modulation (wee-woo)
+    engine.setLfoRate(params.lfoRate);
+    engine.setLfoWaveform(Waveform::Triangle);  // Smooth pitch transitions
     engine.setFilterCutoff(params.filterFreq);
     engine.setFrequency(params.baseFreq);
     engine.setFilterResonance(params.filterRes);
@@ -537,6 +541,9 @@ void GPIOController::start() {
     engine.setReleaseTime(params.release);
     engine.setDelayTime(params.delayTime);
     engine.setReverbSize(params.reverbSize);
+    engine.setWaveform(params.oscWaveform);
+
+    std::cout << "  Initial LFO: depth=" << params.lfoDepth << ", rate=" << params.lfoRate << "Hz" << std::endl;
     
     running.store(true);
     
@@ -550,8 +557,9 @@ void GPIOController::start() {
     std::cout << "============================================================" << std::endl;
     std::cout << "  Control Surface Ready" << std::endl;
     std::cout << "============================================================" << std::endl;
-    std::cout << "\nBank A: Volume, Base Freq, Filter Freq, Delay FB, Reverb Mix" << std::endl;
-    std::cout << "Bank B: Release, Delay Time, Filter Res, Osc Wave, Reverb Size" << std::endl;
+    std::cout << "\nBank A: LFO Depth, Base Freq, Filter Freq, Delay FB, Reverb Mix" << std::endl;
+    std::cout << "Bank B: LFO Rate, Delay Time, Filter Res, Osc Wave, Reverb Size" << std::endl;
+    std::cout << "\nMaster Volume: " << params.volume << " (fixed)" << std::endl;
     std::cout << "\nButtons: Trigger, Shift (Bank A/B), Shutdown" << std::endl;
     std::cout << "Pitch Env Switch: UP=rise | OFF=none | DOWN=fall" << std::endl;
     if (ledController && ledController->isAvailable()) {
@@ -584,23 +592,23 @@ void GPIOController::stop() {
 
 void GPIOController::handleEncoder(int encoderIndex, int direction) {
     Bank bank = currentBank.load();
-    
+
     // Bank A parameters
-    const char* bankAParams[] = {"volume", "base_freq", "filter_freq", "delay_feedback", "reverb_mix"};
+    const char* bankAParams[] = {"lfo_depth", "base_freq", "filter_freq", "delay_feedback", "reverb_mix"};
     // Bank B parameters
-    const char* bankBParams[] = {"release", "delay_time", "filter_res", "osc_waveform", "reverb_size"};
+    const char* bankBParams[] = {"lfo_rate", "delay_time", "filter_res", "osc_waveform", "reverb_size"};
     
     const char* paramName = (bank == Bank::A) ? bankAParams[encoderIndex] : bankBParams[encoderIndex];
     
     // Update parameter based on type
     float step;
     float newValue;
-    
-    if (strcmp(paramName, "volume") == 0) {
+
+    if (strcmp(paramName, "lfo_depth") == 0) {
         step = 0.042f * direction;
-        params.volume = clamp(params.volume + step, 0.0f, 1.0f);
-        engine.setVolume(params.volume);
-        newValue = params.volume;
+        params.lfoDepth = clamp(params.lfoDepth + step, 0.0f, 1.0f);
+        engine.setLfoDepth(params.lfoDepth);  // Filter modulation depth
+        newValue = params.lfoDepth;
     }
     else if (strcmp(paramName, "filter_freq") == 0) {
         // Logarithmic control for full range in ~1 rotation (24 steps)
@@ -642,11 +650,12 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         engine.setReverbMix(params.reverbMix);
         newValue = params.reverbMix;
     }
-    else if (strcmp(paramName, "release") == 0) {
-        step = 0.21f * direction;
-        params.release = clamp(params.release + step, 0.01f, 5.0f);
-        engine.setReleaseTime(params.release);
-        newValue = params.release;
+    else if (strcmp(paramName, "lfo_rate") == 0) {
+        // Logarithmic control for LFO rate (0.1 Hz to 20 Hz)
+        float multiplier = (direction > 0) ? 1.15f : (1.0f / 1.15f);
+        params.lfoRate = clamp(params.lfoRate * multiplier, 0.1f, 20.0f);
+        engine.setLfoRate(params.lfoRate);
+        newValue = params.lfoRate;
     }
     else if (strcmp(paramName, "delay_time") == 0) {
         step = 0.083f * direction;
@@ -869,20 +878,26 @@ void GPIOController::exitSecretMode() {
         ledController->setMode(LEDMode::Normal);
     }
     
-    // Restore default parameters
-    params.volume = 0.91f;  // 30% increase from 0.7
-    params.filterFreq = 2000.0f;
-    params.baseFreq = 440.0f;
-    params.filterRes = 0.5f;
-    params.delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
-    params.delayTime = 0.2f;
-    params.reverbMix = 0.35f;
-    params.reverbSize = 0.5f;
-    params.release = 0.5f;
-    params.oscWaveform = 1;  // Square wave for classic siren sound
-    
-    // Apply restored parameters
+    // Restore default parameters (Auto Wail preset)
+    params.volume = 0.6f;
+    params.lfoDepth = 0.5f;      // LFO filter modulation depth
+    params.lfoRate = 2.0f;       // 2 Hz - wee-woo every 0.5 seconds
+    params.filterFreq = 3000.0f; // Standard filter setting for siren
+    params.baseFreq = 440.0f;    // A4 - standard siren pitch
+    params.filterRes = 0.5f;     // Standard resonance
+    params.delayFeedback = 0.55f;// Spacey dub echoes
+    params.delayTime = 0.375f;   // Dotted eighth - classic dub
+    params.reverbMix = 0.4f;     // Wet for atmosphere
+    params.reverbSize = 0.7f;    // Large dub space
+    params.release = 0.5f;       // Medium release
+    params.oscWaveform = 1;      // Square for classic siren sound
+
+    // Apply restored parameters (Auto Wail preset)
     engine.setVolume(params.volume);
+    engine.setLfoDepth(params.lfoDepth);        // Filter modulation depth
+    engine.setLfoPitchDepth(0.5f);              // Auto Wail pitch modulation (wee-woo)
+    engine.setLfoRate(params.lfoRate);
+    engine.setLfoWaveform(Waveform::Triangle);  // Smooth pitch transitions
     engine.setFilterCutoff(params.filterFreq);
     engine.setFrequency(params.baseFreq);
     engine.setFilterResonance(params.filterRes);

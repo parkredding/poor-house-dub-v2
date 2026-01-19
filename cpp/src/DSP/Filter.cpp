@@ -10,12 +10,12 @@ namespace DubSiren {
 
 LowPassFilter::LowPassFilter(int sampleRate)
     : sampleRate(sampleRate)
-    , cutoff(2000.0f)
-    , cutoffCurrent(2000.0f)
+    , cutoff(3000.0f)  // Standard filter setting for siren
+    , cutoffCurrent(3000.0f)
     , resonance(1.0f)
     , resonanceCurrent(1.0f)
     , prevOutput(0.0f)
-    , smoothing(0.001f)
+    , smoothing(0.05f)  // Increased from 0.001 to allow LFO modulation to be audible
 {
 }
 
