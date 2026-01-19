@@ -15,7 +15,7 @@ LowPassFilter::LowPassFilter(int sampleRate)
     , resonance(1.0f)
     , resonanceCurrent(1.0f)
     , prevOutput(0.0f)
-    , smoothing(0.001f)
+    , smoothing(0.05f)  // Increased from 0.001 to allow LFO modulation to be audible
 {
 }
 
