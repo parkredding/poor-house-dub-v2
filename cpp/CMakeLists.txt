@@ -94,7 +94,8 @@ add_executable(dubsiren
 # Link libraries
 target_link_libraries(dubsiren
     PRIVATE
-    m  # math library
+    m        # math library
+    atomic   # atomic operations (needed for 32-bit ARM)
 )
 
 # Link pthreads (handle both CMake-detected and manual cases)
