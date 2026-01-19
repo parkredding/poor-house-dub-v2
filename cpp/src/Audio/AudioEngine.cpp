@@ -107,9 +107,9 @@ void AudioEngine::process(float* output, int numFrames) {
     // Apply LFO to filter cutoff and process
     float baseCutoff = filter.getCutoff();
     for (int i = 0; i < numFrames; ++i) {
-        // LFO modulates filter cutoff by ±2 octaves
-        float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 2.0f);
-        modCutoff = clamp(modCutoff, 100.0f, 8000.0f);
+        // LFO modulates filter cutoff by up to ±3 octaves (scaled by depth)
+        float modCutoff = baseCutoff * std::pow(2.0f, lfoBuffer[i] * 3.0f);
+        modCutoff = clamp(modCutoff, 20.0f, 12000.0f);
         filter.setCutoff(modCutoff);
         filterBuffer[i] = filter.processSample(oscBuffer[i]);
     }

@@ -245,7 +245,7 @@ private:
         // Bank B
         float lfoRate = 3.0f;      // LFO rate in Hz (replaces release encoder)
         float delayTime = 0.2f;
-        float filterRes = 0.5f;
+        float filterRes = 0.7f;    // Higher resonance to make LFO sweep more pronounced
         int oscWaveform = 1;  // Square wave for classic siren sound
         float reverbSize = 0.5f;
         float release = 0.5f;      // Moved from encoder control

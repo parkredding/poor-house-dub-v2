@@ -879,7 +879,7 @@ void GPIOController::exitSecretMode() {
     params.lfoRate = 3.0f;
     params.filterFreq = 2000.0f;
     params.baseFreq = 440.0f;
-    params.filterRes = 0.5f;
+    params.filterRes = 0.7f;
     params.delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
     params.delayTime = 0.2f;
     params.reverbMix = 0.7f;
