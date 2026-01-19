@@ -623,13 +623,6 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         params.baseFreq = clamp(params.baseFreq * multiplier, 50.0f, 2000.0f);
         engine.setFrequency(params.baseFreq);
 
-        // Modulate delay time inversely with pitch (higher pitch = shorter delay)
-        // This creates harmonic echo patterns common in dub sirens
-        float refFreq = 440.0f;
-        float scaledDelayTime = params.delayTime * (refFreq / params.baseFreq);
-        scaledDelayTime = clamp(scaledDelayTime, 0.01f, 2.0f);
-        engine.setDelayTime(scaledDelayTime);
-
         newValue = params.baseFreq;
     }
     else if (strcmp(paramName, "filter_res") == 0) {
