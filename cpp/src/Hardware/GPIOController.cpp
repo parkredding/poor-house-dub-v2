@@ -877,7 +877,7 @@ void GPIOController::exitSecretMode() {
     
     // Restore default parameters
     params.volume = 0.6f;
-    params.lfoDepth = 0.5f;
+    params.lfoDepth = 0.8f;
     params.lfoRate = 3.0f;
     params.filterFreq = 5000.0f;
     params.baseFreq = 440.0f;

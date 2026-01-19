@@ -236,7 +236,7 @@ private:
         float volume = 0.6f;  // Reduced to prevent clipping with effects
 
         // Bank A
-        float lfoDepth = 0.5f;     // LFO modulation depth (replaces volume encoder) - start at audible level
+        float lfoDepth = 0.8f;     // LFO modulation depth (replaces volume encoder) - start at very audible level
         float filterFreq = 5000.0f;  // Higher to preserve oscillator harmonics
         float baseFreq = 440.0f;
         float delayFeedback = 0.5f;  // Reduced to prevent gain buildup
