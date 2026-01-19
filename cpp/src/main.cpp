@@ -22,6 +22,10 @@
 #include <cstring>
 #include <cfenv>
 
+#if defined(__x86_64__) || defined(__i386__)
+#include <xmmintrin.h>
+#endif
+
 #include "Common.h"
 #include "Audio/AudioEngine.h"
 #include "Audio/AudioOutput.h"
@@ -45,7 +49,6 @@ void enableFlushToZero() {
     asm volatile("vmsr fpscr, %0" : : "r"(fpscr));
 #elif defined(__x86_64__) || defined(__i386__)
     // x86: Use MXCSR for SSE flush-to-zero
-    #include <xmmintrin.h>
     _mm_setcsr(_mm_getcsr() | 0x8040);  // FZ and DAZ bits
 #endif
 }
