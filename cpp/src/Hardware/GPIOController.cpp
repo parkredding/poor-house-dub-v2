@@ -539,6 +539,8 @@ void GPIOController::start() {
     engine.setReleaseTime(params.release);
     engine.setDelayTime(params.delayTime);
     engine.setReverbSize(params.reverbSize);
+
+    std::cout << "  Initial LFO: depth=" << params.lfoDepth << ", rate=" << params.lfoRate << "Hz" << std::endl;
     
     running.store(true);
     
@@ -875,7 +877,7 @@ void GPIOController::exitSecretMode() {
     
     // Restore default parameters
     params.volume = 0.7f;
-    params.lfoDepth = 0.0f;
+    params.lfoDepth = 0.5f;
     params.lfoRate = 3.0f;
     params.filterFreq = 2000.0f;
     params.baseFreq = 440.0f;
