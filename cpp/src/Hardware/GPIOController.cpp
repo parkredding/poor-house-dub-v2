@@ -713,11 +713,24 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
 void GPIOController::onTriggerPress() {
     std::cout << "Trigger: PRESSED" << std::endl;
     engine.trigger();
+
+    // Reset pitch dive mode for new trigger
+    if (pitchDiveActive.load()) {
+        pitchDiveActive.store(false);
+        engine.setDelayTime(params.delayTime);
+    }
 }
 
 void GPIOController::onTriggerRelease() {
     std::cout << "Trigger: RELEASED" << std::endl;
     engine.release();
+
+    // Deactivate pitch dive mode on release and restore normal delay time
+    if (pitchDiveActive.load()) {
+        pitchDiveActive.store(false);
+        engine.setDelayTime(params.delayTime);
+        std::cout << "🎸 Pitch dive ended (trigger released)" << std::endl;
+    }
 }
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
