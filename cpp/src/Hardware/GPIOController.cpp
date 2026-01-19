@@ -876,15 +876,15 @@ void GPIOController::exitSecretMode() {
     }
     
     // Restore default parameters
-    params.volume = 0.7f;
+    params.volume = 0.6f;
     params.lfoDepth = 0.5f;
     params.lfoRate = 3.0f;
     params.filterFreq = 5000.0f;
     params.baseFreq = 440.0f;
-    params.filterRes = 0.7f;
-    params.delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
+    params.filterRes = 0.5f;
+    params.delayFeedback = 0.5f;
     params.delayTime = 0.2f;
-    params.reverbMix = 0.7f;
+    params.reverbMix = 0.4f;
     params.reverbSize = 0.5f;
     params.release = 0.5f;
     params.oscWaveform = 1;  // Square wave for classic siren sound
