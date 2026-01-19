@@ -233,10 +233,8 @@ private:
     // Pitch dive state (velocity-triggered pitch-to-delay coupling)
     std::atomic<bool> pitchDiveActive{false};
     std::chrono::steady_clock::time_point lastPitchChange;
-    std::chrono::steady_clock::time_point pitchDiveStartTime;
     float lastBaseFreq;
     static constexpr float PITCH_DIVE_VELOCITY_THRESHOLD = 8.0f;  // Multiplier changes per second
-    static constexpr float PITCH_DIVE_DURATION_SEC = 2.5f;        // How long dive mode lasts
 
     // Parameter values
     struct Parameters {
@@ -285,9 +283,6 @@ private:
     void exitSecretMode();
     void cycleSecretModePreset();
     void applySecretModePreset();
-
-    // Pitch dive handling
-    void updatePitchDiveState();
 
     // Apply parameter to engine
     void applyParameter(const char* name, float value);

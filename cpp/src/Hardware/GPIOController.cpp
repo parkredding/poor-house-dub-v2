@@ -640,7 +640,6 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
             // Activate pitch dive mode if encoder is moving rapidly
             if (velocity > PITCH_DIVE_VELOCITY_THRESHOLD) {
                 pitchDiveActive.store(true);
-                pitchDiveStartTime = now;
                 std::cout << "🎸 Pitch dive activated! (velocity: " << velocity << " steps/sec)" << std::endl;
             }
         }
@@ -648,8 +647,7 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         lastPitchChange = now;
         lastBaseFreq = params.baseFreq;
 
-        // Apply pitch-to-delay coupling if in dive mode
-        updatePitchDiveState();
+        // Apply pitch-to-delay coupling if in dive mode (active until trigger release)
         if (pitchDiveActive.load()) {
             // Inverse coupling: higher pitch = shorter delay (dub siren style)
             float refFreq = 440.0f;
@@ -1126,23 +1124,6 @@ void GPIOController::applySecretModePreset() {
 void GPIOController::updateLEDAudioLevel(float level) {
     if (ledController) {
         ledController->setAudioLevel(level);
-    }
-}
-
-void GPIOController::updatePitchDiveState() {
-    if (!pitchDiveActive.load()) {
-        return;  // Not in dive mode, nothing to do
-    }
-
-    // Check if dive mode should expire
-    auto now = std::chrono::steady_clock::now();
-    float timeSinceDiveStart = std::chrono::duration<float>(now - pitchDiveStartTime).count();
-
-    if (timeSinceDiveStart >= PITCH_DIVE_DURATION_SEC) {
-        pitchDiveActive.store(false);
-        // Restore normal delay time when dive mode expires
-        engine.setDelayTime(params.delayTime);
-        std::cout << "🎸 Pitch dive ended (returned to normal delay time)" << std::endl;
     }
 }
 
