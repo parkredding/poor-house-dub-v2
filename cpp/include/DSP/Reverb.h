@@ -7,101 +7,133 @@
 namespace DubSiren {
 
 /**
- * Freeverb-style reverb effect.
- * 
- * Classic Schroeder-Moorer reverb algorithm:
- * - 8 parallel comb filters for decay
- * - 4 series allpass filters for diffusion
- * - Smooth, lush sound perfect for dub
+ * Physically-modeled spring reverb effect.
+ *
+ * Authentic spring reverb characteristics:
+ * - 3 parallel spring lines with dispersive delay
+ * - Modal resonances for metallic "boing" character
+ * - Input/output transducer modeling
+ * - Diffusion network for smooth decay
+ * - Perfect for drippy dub reverb tones
  */
 class ReverbEffect {
 public:
     explicit ReverbEffect(int sampleRate = DEFAULT_SAMPLE_RATE);
-    
+
     void process(const float* input, float* output, int numSamples);
-    
-    // Parameters
-    void setSize(float size);      // Room size (0.0 - 1.0)
+
+    // Parameters (same interface as before)
+    void setSize(float size);      // Spring decay time (0.0 - 1.0)
     void setDryWet(float mix);     // Dry/wet mix (0.0 - 1.0)
     void setDamping(float damp);   // High-frequency damping (0.0 - 1.0)
     void setWidth(float width);    // Stereo width (0.0 - 1.0)
-    
-    float getSize() const { return roomSize; }
+
+    float getSize() const { return springDecay; }
     float getDryWet() const { return wet; }
-    
+
 private:
     int sampleRate;
-    
-    // Freeverb uses 8 comb filters
-    static constexpr int NUM_COMBS = 8;
-    // And 4 allpass filters
+    float sampleRateInv;
+
+    // Spring reverb configuration
+    static constexpr int NUM_SPRINGS = 3;
     static constexpr int NUM_ALLPASS = 4;
-    
-    // Comb filter delay line lengths (in samples at 44100Hz, scaled for other rates)
-    // These are tuned to avoid metallic resonances
-    static constexpr int COMB_LENGTHS[NUM_COMBS] = {
-        1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617
+
+    // Spring delay lengths (in samples at 48kHz) - tuned for dub character
+    static constexpr int SPRING_LENGTHS[NUM_SPRINGS] = {
+        3491, 4177, 4831  // ~72ms, ~87ms, ~100ms - gives nice drippy decay
     };
-    
-    // Allpass filter delay line lengths
+
+    // Allpass lengths for diffusion
     static constexpr int ALLPASS_LENGTHS[NUM_ALLPASS] = {
-        556, 441, 341, 225
+        347, 431, 521, 619
     };
-    
-    // Comb filter state
-    struct CombFilter {
-        std::vector<float> buffer;
-        int bufferSize;
-        int index;
-        float filterStore;  // For damping lowpass
-        
-        CombFilter() : bufferSize(0), index(0), filterStore(0.0f) {}
-        void init(int size);
-        float process(float input, float feedback, float damp1, float damp2);
+
+    // Biquad filter (for transducers and modal resonances)
+    struct Biquad {
+        float b0, b1, b2, a1, a2;
+        float x1, x2, y1, y2;
+
+        Biquad() : b0(1), b1(0), b2(0), a1(0), a2(0), x1(0), x2(0), y1(0), y2(0) {}
+
+        void setLowpass(float freq, float q, float sampleRate);
+        void setBandpass(float freq, float q, float sampleRate);
+        void setHighpass(float freq, float q, float sampleRate);
+        float process(float input);
+        void reset();
     };
-    
-    // Allpass filter state
+
+    // Spring line with dispersive delay and modal resonances
+    struct SpringLine {
+        std::vector<float> delayBuffer;
+        int delayLength;
+        int writeIndex;
+
+        // Multi-tap delays for dispersion (high freqs travel faster)
+        static constexpr int NUM_TAPS = 5;
+        Biquad tapFilters[NUM_TAPS];  // Bandpass filters for each tap
+
+        // Modal resonances (spring natural frequencies)
+        static constexpr int NUM_MODES = 3;
+        Biquad modalFilters[NUM_MODES];
+
+        // Damping filter in feedback path
+        Biquad dampingFilter;
+
+        float feedback;
+
+        SpringLine() : delayLength(0), writeIndex(0), feedback(0.0f) {}
+        void init(int length, float sampleRate, int springIndex);
+        float process(float input);
+    };
+
+    // Allpass filter for diffusion
     struct AllpassFilter {
         std::vector<float> buffer;
         int bufferSize;
         int index;
-        
+
         AllpassFilter() : bufferSize(0), index(0) {}
         void init(int size);
         float process(float input);
     };
-    
-    std::array<CombFilter, NUM_COMBS> combL;
-    std::array<CombFilter, NUM_COMBS> combR;
+
+    // Input/output transducers
+    Biquad inputTransducer;   // Lowpass ~4kHz
+    Biquad outputLowcut;      // Highpass ~80Hz
+    Biquad outputHighcut;     // Lowpass ~6kHz
+
+    // Spring lines (stereo)
+    std::array<SpringLine, NUM_SPRINGS> springsL;
+    std::array<SpringLine, NUM_SPRINGS> springsR;
+
+    // Diffusion network
     std::array<AllpassFilter, NUM_ALLPASS> allpassL;
     std::array<AllpassFilter, NUM_ALLPASS> allpassR;
-    
+
     // Parameters
-    float roomSize;
+    float springDecay;
     float damping;
-    float wet, wet1, wet2;
+    float wet;
     float dry;
     float width;
-    
-    // Derived coefficients
-    float feedback;
-    float damp1, damp2;
-    
-    // Pre-allocated work buffer
-    std::vector<float> workBuffer;
-    
+
+    // Soft saturation for input transducer
+    inline float softClip(float x) {
+        // Soft clipping using tanh approximation
+        if (x > 1.5f) return 1.0f;
+        if (x < -1.5f) return -1.0f;
+        return x - (x * x * x) / 3.0f;
+    }
+
     void updateCoefficients();
-    
-    // Stereo spread (slight offset for right channel)
-    static constexpr int STEREO_SPREAD = 23;
-    
-    // Fixed gain to prevent clipping
-    static constexpr float FIXED_GAIN = 0.015f;
-    static constexpr float SCALE_WET = 3.0f;
-    static constexpr float SCALE_DRY = 2.0f;
-    static constexpr float SCALE_DAMP = 0.4f;
-    static constexpr float SCALE_ROOM = 0.28f;
-    static constexpr float OFFSET_ROOM = 0.7f;
+
+    // Stereo spread
+    static constexpr int STEREO_SPREAD = 47;
+
+    // Gains (tuned for spring reverb)
+    static constexpr float INPUT_GAIN = 0.8f;
+    static constexpr float OUTPUT_GAIN = 0.35f;
 };
 
 } // namespace DubSiren
