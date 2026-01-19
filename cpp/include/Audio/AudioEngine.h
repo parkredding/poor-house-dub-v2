@@ -70,6 +70,7 @@ public:
     // LFO
     void setLfoRate(float rate);
     void setLfoDepth(float depth);
+    void setLfoPitchDepth(float depth);  // LFO modulation depth for pitch (0.0-1.0, where 1.0 = ±1 octave)
     void setLfoWaveform(Waveform wf);
     void setLfoWaveform(int index);
     
@@ -115,6 +116,7 @@ private:
     // Thread-safe parameters
     AudioParameter<float> volume;
     AudioParameter<float> baseFrequency;
+    AudioParameter<float> lfoPitchDepth;  // LFO pitch modulation depth
     AudioParameter<PitchEnvelopeMode> pitchEnvMode;
     
     // Internal state

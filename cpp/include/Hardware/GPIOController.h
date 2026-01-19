@@ -155,26 +155,26 @@ private:
 
 /**
  * Secret mode enumeration.
- * Triggered by rapidly toggling the pitch envelope switch.
+ * Triggered by rapidly pressing the shift button.
  */
 enum class SecretMode {
     None,   // Normal operation
-    NJD,    // Classic NJD siren mode (5 toggles in 1 second)
-    UFO     // UFO/Sci-fi mode (10 toggles in 2 seconds)
+    NJD,    // Classic NJD siren mode (5 rapid presses)
+    UFO     // UFO/Sci-fi mode (10 rapid presses)
 };
 
 /**
  * Control surface handler for the Dub Siren.
- * 
+ *
  * 5 Encoders with bank switching:
- * - Bank A: Volume, Filter Freq, Base Freq, Delay Feedback, Reverb Mix
+ * - Bank A: Volume, Base Freq, Filter Freq, Delay Feedback, Reverb Mix
  * - Bank B: Release Time, Delay Time, Filter Res, Osc Waveform, Reverb Size
- * 
+ *
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
- * 
- * Secret Modes (triggered by rapid pitch envelope toggling):
- * - NJD Mode: 5 toggles in 1 second - Classic dub siren presets
- * - UFO Mode: 10 toggles in 2 seconds - Sci-fi UFO presets
+ *
+ * Secret Modes (triggered by rapid shift button presses):
+ * - NJD Mode: 5 rapid presses - Classic dub siren presets
+ * - UFO Mode: 10 rapid presses - Sci-fi UFO presets
  */
 class GPIOController {
 public:
@@ -224,28 +224,26 @@ private:
     // Secret mode state
     std::atomic<SecretMode> secretMode;
     std::atomic<int> secretModePreset{0};  // Current preset within secret mode (0-indexed)
-    
-    // Toggle tracking for secret mode activation
-    // Protected by togglesMutex for thread-safe access
-    mutable std::mutex togglesMutex;
-    std::vector<std::chrono::steady_clock::time_point> recentToggles;
-    std::atomic<SwitchPosition> lastPitchEnvPosition{SwitchPosition::Off};
-    std::atomic<bool> toggleTrackingInitialized{false};  // First extreme-to-extreme transition initializes tracking
+
+    // Shift button press tracking for secret mode activation
+    // Protected by pressesMutex for thread-safe access
+    mutable std::mutex pressesMutex;
+    std::vector<std::chrono::steady_clock::time_point> recentShiftPresses;
     
     // Parameter values
     struct Parameters {
         // Bank A
-        float volume = 0.7f;
+        float volume = 0.91f;  // 30% increase from 0.7
         float filterFreq = 2000.0f;
         float baseFreq = 440.0f;
-        float delayFeedback = 0.5f;
-        float reverbMix = 0.35f;
-        
+        float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
+        float reverbMix = 0.7f;  // High wet signal for spacious dub sound
+
         // Bank B
         float release = 0.5f;
         float delayTime = 0.2f;
         float filterRes = 0.5f;
-        int oscWaveform = 0;
+        int oscWaveform = 1;  // Square wave for classic siren sound
         float reverbSize = 0.5f;
     };
     Parameters params;
