@@ -114,7 +114,7 @@ float ReverbEffect::SpringLine::process(float input) {
     // Apply modal resonances to create spring character
     float modal = delayed;
     for (int i = 0; i < NUM_MODES; ++i) {
-        modal += modalFilters[i].process(delayed) * 0.15f;  // Add modal coloration
+        modal += modalFilters[i].process(delayed) * 0.06f;  // Reduced from 0.15 to prevent buildup
     }
 
     // Apply damping (high-frequency absorption in feedback)
@@ -124,12 +124,18 @@ float ReverbEffect::SpringLine::process(float input) {
     // This creates the characteristic "drip" of spring reverb
     float dispersed = 0.0f;
     for (int i = 0; i < NUM_TAPS; ++i) {
-        float tapGain = 0.15f / NUM_TAPS;  // Distribute energy across taps
+        float tapGain = 0.08f / NUM_TAPS;  // Reduced from 0.15 to prevent feedback loop
         dispersed += tapFilters[i].process(damped) * tapGain;
     }
 
-    // Write to delay line with feedback
-    delayBuffer[writeIndex] = input + (damped * feedback) + dispersed;
+    // Write to delay line with feedback (with safety limiting)
+    float feedbackSig = input + (damped * feedback) + dispersed;
+
+    // Hard limit to prevent runaway feedback
+    if (feedbackSig > 2.0f) feedbackSig = 2.0f;
+    if (feedbackSig < -2.0f) feedbackSig = -2.0f;
+
+    delayBuffer[writeIndex] = feedbackSig;
 
     // Prevent denormals
     if (std::abs(delayBuffer[writeIndex]) < 1e-10f) {
@@ -176,7 +182,7 @@ float ReverbEffect::AllpassFilter::process(float input) {
 ReverbEffect::ReverbEffect(int sampleRate)
     : sampleRate(sampleRate)
     , sampleRateInv(1.0f / sampleRate)
-    , springDecay(0.75f)      // Default: long decay for dub
+    , springDecay(0.65f)      // Default: moderate-long decay (safer)
     , damping(0.65f)          // Default: dark character
     , wet(0.35f)              // Default: 35% wet
     , dry(0.65f)
@@ -212,13 +218,14 @@ ReverbEffect::ReverbEffect(int sampleRate)
 void ReverbEffect::updateCoefficients() {
     // Update spring feedback based on decay parameter
     // Higher decay = longer reverb tail
-    float feedbackAmount = 0.7f + (springDecay * 0.25f);  // Range: 0.7 - 0.95
-    feedbackAmount = std::min(feedbackAmount, 0.95f);
+    // Reduced range to prevent feedback loops when combined with delay
+    float feedbackAmount = 0.5f + (springDecay * 0.25f);  // Range: 0.5 - 0.75 (safer)
+    feedbackAmount = std::min(feedbackAmount, 0.75f);
 
     for (int i = 0; i < NUM_SPRINGS; ++i) {
         // Slightly different feedback for each spring to avoid buildup
-        springsL[i].feedback = feedbackAmount * (0.95f + i * 0.02f);
-        springsR[i].feedback = feedbackAmount * (0.95f + i * 0.02f);
+        springsL[i].feedback = feedbackAmount * (0.92f + i * 0.015f);
+        springsR[i].feedback = feedbackAmount * (0.92f + i * 0.015f);
 
         // Update damping filter based on damping parameter
         float dampFreq = 2000.0f + (1.0f - damping) * 4000.0f;  // 2kHz - 6kHz
@@ -270,7 +277,13 @@ void ReverbEffect::process(const float* input, float* output, int numSamples) {
         float wetMix = (springOutL + springOutR) * 0.5f * wet * OUTPUT_GAIN;
         float dryMix = inSample * dry;
 
-        output[i] = wetMix + dryMix;
+        float finalOut = wetMix + dryMix;
+
+        // Safety limiter to prevent clipping from feedback loops
+        if (finalOut > 1.0f) finalOut = 1.0f;
+        if (finalOut < -1.0f) finalOut = -1.0f;
+
+        output[i] = finalOut;
     }
 }
 
