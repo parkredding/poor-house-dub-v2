@@ -10,8 +10,8 @@ namespace DubSiren {
 
 LowPassFilter::LowPassFilter(int sampleRate)
     : sampleRate(sampleRate)
-    , cutoff(1500.0f)  // Lower default for wobble bass character
-    , cutoffCurrent(1500.0f)
+    , cutoff(3000.0f)  // Standard filter setting for siren
+    , cutoffCurrent(3000.0f)
     , resonance(1.0f)
     , resonanceCurrent(1.0f)
     , prevOutput(0.0f)

@@ -529,7 +529,7 @@ void GPIOController::start() {
     
     // Apply initial parameters
     engine.setVolume(params.volume);
-    engine.setLfoDepth(params.lfoDepth);
+    engine.setLfoPitchDepth(params.lfoDepth);  // Auto Wail uses pitch modulation
     engine.setLfoRate(params.lfoRate);
     engine.setFilterCutoff(params.filterFreq);
     engine.setFrequency(params.baseFreq);
@@ -604,7 +604,7 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     if (strcmp(paramName, "lfo_depth") == 0) {
         step = 0.042f * direction;
         params.lfoDepth = clamp(params.lfoDepth + step, 0.0f, 1.0f);
-        engine.setLfoDepth(params.lfoDepth);
+        engine.setLfoPitchDepth(params.lfoDepth);  // Auto Wail uses pitch modulation
         newValue = params.lfoDepth;
     }
     else if (strcmp(paramName, "filter_freq") == 0) {
@@ -875,23 +875,23 @@ void GPIOController::exitSecretMode() {
         ledController->setMode(LEDMode::Normal);
     }
     
-    // Restore default parameters
+    // Restore default parameters (Auto Wail preset)
     params.volume = 0.6f;
-    params.lfoDepth = 0.8f;
-    params.lfoRate = 3.0f;
-    params.filterFreq = 1500.0f;
-    params.baseFreq = 392.0f;
-    params.filterRes = 0.75f;
-    params.delayFeedback = 0.5f;
-    params.delayTime = 0.2f;
-    params.reverbMix = 0.4f;
-    params.reverbSize = 0.5f;
-    params.release = 0.5f;
-    params.oscWaveform = 2;  // Sawtooth for wobble bass
+    params.lfoDepth = 0.5f;      // LFO pitch modulation depth
+    params.lfoRate = 2.0f;       // 2 Hz - wee-woo every 0.5 seconds
+    params.filterFreq = 3000.0f; // Standard filter setting for siren
+    params.baseFreq = 440.0f;    // A4 - standard siren pitch
+    params.filterRes = 0.5f;     // Standard resonance
+    params.delayFeedback = 0.55f;// Spacey dub echoes
+    params.delayTime = 0.375f;   // Dotted eighth - classic dub
+    params.reverbMix = 0.4f;     // Wet for atmosphere
+    params.reverbSize = 0.7f;    // Large dub space
+    params.release = 0.5f;       // Medium release
+    params.oscWaveform = 1;      // Square for classic siren sound
 
     // Apply restored parameters
     engine.setVolume(params.volume);
-    engine.setLfoDepth(params.lfoDepth);
+    engine.setLfoPitchDepth(params.lfoDepth);  // Auto Wail uses pitch modulation
     engine.setLfoRate(params.lfoRate);
     engine.setFilterCutoff(params.filterFreq);
     engine.setFrequency(params.baseFreq);

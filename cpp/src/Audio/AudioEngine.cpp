@@ -30,16 +30,17 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     filterBuffer.resize(bufferSize);
     delayBuffer.resize(bufferSize);
     
-    // Set initial parameters
-    oscillator.setWaveform(Waveform::Saw);  // Sawtooth for wobble bass
-    lfo.setFrequency(4.0f);
-    lfo.setDepth(0.8f);  // High depth for dramatic wobble
+    // Set initial parameters (Auto Wail preset)
+    oscillator.setWaveform(Waveform::Square);  // Square for classic siren sound
+    lfo.setFrequency(2.0f);      // 2 Hz - wee-woo every 0.5 seconds
+    lfo.setDepth(0.0f);          // No filter modulation (Auto Wail uses pitch modulation)
+    lfo.setWaveform(Waveform::Triangle);  // Smooth pitch transitions
     envelope.setAttack(0.01f);
     envelope.setRelease(0.5f);
-    filter.setCutoff(1500.0f);  // Lower for wobble bass character
+    filter.setCutoff(3000.0f);   // Standard filter setting for siren
     delay.setDryWet(0.3f);
-    delay.setFeedback(0.5f);
-    reverb.setDryWet(0.35f);
+    delay.setFeedback(0.55f);    // Spacey dub echoes
+    reverb.setDryWet(0.4f);      // Wet for atmosphere
 }
 
 void AudioEngine::process(float* output, int numFrames) {

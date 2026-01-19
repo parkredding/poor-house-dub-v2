@@ -235,19 +235,19 @@ private:
         // Master volume (no longer on encoder)
         float volume = 0.6f;  // Reduced to prevent clipping with effects
 
-        // Bank A
-        float lfoDepth = 0.8f;     // LFO modulation depth (replaces volume encoder) - start at very audible level
-        float filterFreq = 1500.0f;  // Lower for dubstep wobble bass character
-        float baseFreq = 392.0f;  // G4 - lower pitch for wobble bass
-        float delayFeedback = 0.5f;  // Reduced to prevent gain buildup
-        float reverbMix = 0.4f;  // Reduced to prevent muddiness
+        // Bank A (Auto Wail preset)
+        float lfoDepth = 0.5f;     // LFO pitch modulation depth (replaces volume encoder)
+        float filterFreq = 3000.0f;  // Standard filter setting for siren
+        float baseFreq = 440.0f;  // A4 - standard siren pitch
+        float delayFeedback = 0.55f;  // Spacey dub echoes
+        float reverbMix = 0.4f;  // Wet for atmosphere
 
-        // Bank B
-        float lfoRate = 3.0f;      // LFO rate in Hz (replaces release encoder)
-        float delayTime = 0.2f;
-        float filterRes = 0.75f;    // High resonance for wobble "wub" sound
-        int oscWaveform = 2;  // Sawtooth for rich harmonics (wobble bass)
-        float reverbSize = 0.5f;
+        // Bank B (Auto Wail preset)
+        float lfoRate = 2.0f;      // 2 Hz - wee-woo every 0.5 seconds
+        float delayTime = 0.375f;  // Dotted eighth - classic dub
+        float filterRes = 0.5f;    // Standard resonance
+        int oscWaveform = 1;  // Square for classic siren sound
+        float reverbSize = 0.7f;   // Large dub space
         float release = 0.5f;      // Moved from encoder control
     };
     Parameters params;
