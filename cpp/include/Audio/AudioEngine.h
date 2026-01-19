@@ -82,6 +82,8 @@ public:
     void setDelayTime(float seconds);
     void setDelayFeedback(float feedback);
     void setDelayMix(float mix);
+    void setDelayModDepth(float depth);  // Delay time modulation depth (0.0-0.01 seconds)
+    void setDelayModRate(float rate);    // Delay time modulation rate (0.1-5.0 Hz)
     
     // Reverb
     void setReverbSize(float size);

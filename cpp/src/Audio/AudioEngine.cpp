@@ -255,6 +255,14 @@ void AudioEngine::setDelayMix(float mix) {
     delay.setDryWet(mix);
 }
 
+void AudioEngine::setDelayModDepth(float depth) {
+    delay.setModDepth(depth);
+}
+
+void AudioEngine::setDelayModRate(float rate) {
+    delay.setModRate(rate);
+}
+
 void AudioEngine::setReverbSize(float size) {
     reverb.setSize(size);
 }

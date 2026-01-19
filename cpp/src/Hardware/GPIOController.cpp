@@ -540,6 +540,8 @@ void GPIOController::start() {
     engine.setReverbMix(params.reverbMix);
     engine.setReleaseTime(params.release);
     engine.setDelayTime(params.delayTime);
+    engine.setDelayModDepth(0.01f);                 // Dub-style delay modulation (10ms depth)
+    engine.setDelayModRate(0.25f);                  // Slow sweep (0.25 Hz) to prevent resonance buildup
     engine.setReverbSize(params.reverbSize);
     engine.setWaveform(params.oscWaveform);
 
