@@ -879,15 +879,15 @@ void GPIOController::exitSecretMode() {
     params.volume = 0.6f;
     params.lfoDepth = 0.8f;
     params.lfoRate = 3.0f;
-    params.filterFreq = 5000.0f;
-    params.baseFreq = 440.0f;
-    params.filterRes = 0.5f;
+    params.filterFreq = 1500.0f;
+    params.baseFreq = 392.0f;
+    params.filterRes = 0.75f;
     params.delayFeedback = 0.5f;
     params.delayTime = 0.2f;
     params.reverbMix = 0.4f;
     params.reverbSize = 0.5f;
     params.release = 0.5f;
-    params.oscWaveform = 1;  // Square wave for classic siren sound
+    params.oscWaveform = 2;  // Sawtooth for wobble bass
 
     // Apply restored parameters
     engine.setVolume(params.volume);

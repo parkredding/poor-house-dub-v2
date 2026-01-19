@@ -237,16 +237,16 @@ private:
 
         // Bank A
         float lfoDepth = 0.8f;     // LFO modulation depth (replaces volume encoder) - start at very audible level
-        float filterFreq = 5000.0f;  // Higher to preserve oscillator harmonics
-        float baseFreq = 440.0f;
+        float filterFreq = 1500.0f;  // Lower for dubstep wobble bass character
+        float baseFreq = 392.0f;  // G4 - lower pitch for wobble bass
         float delayFeedback = 0.5f;  // Reduced to prevent gain buildup
         float reverbMix = 0.4f;  // Reduced to prevent muddiness
 
         // Bank B
         float lfoRate = 3.0f;      // LFO rate in Hz (replaces release encoder)
         float delayTime = 0.2f;
-        float filterRes = 0.5f;    // Reduced resonance to prevent distortion
-        int oscWaveform = 1;  // Square wave for classic siren sound
+        float filterRes = 0.75f;    // High resonance for wobble "wub" sound
+        int oscWaveform = 2;  // Sawtooth for rich harmonics (wobble bass)
         float reverbSize = 0.5f;
         float release = 0.5f;      // Moved from encoder control
     };

@@ -31,12 +31,12 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     delayBuffer.resize(bufferSize);
     
     // Set initial parameters
-    oscillator.setWaveform(Waveform::Sine);
+    oscillator.setWaveform(Waveform::Saw);  // Sawtooth for wobble bass
     lfo.setFrequency(4.0f);
-    lfo.setDepth(0.3f);  // Moderate LFO for filter modulation (siren effect)
+    lfo.setDepth(0.8f);  // High depth for dramatic wobble
     envelope.setAttack(0.01f);
     envelope.setRelease(0.5f);
-    filter.setCutoff(5000.0f);  // Higher to preserve oscillator harmonics
+    filter.setCutoff(1500.0f);  // Lower for wobble bass character
     delay.setDryWet(0.3f);
     delay.setFeedback(0.5f);
     reverb.setDryWet(0.35f);
