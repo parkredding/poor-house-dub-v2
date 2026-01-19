@@ -232,19 +232,23 @@ private:
     
     // Parameter values
     struct Parameters {
+        // Master volume (no longer on encoder)
+        float volume = 0.7f;
+
         // Bank A
-        float volume = 0.91f;  // 30% increase from 0.7
+        float lfoDepth = 0.0f;     // LFO modulation depth (replaces volume encoder)
         float filterFreq = 2000.0f;
         float baseFreq = 440.0f;
         float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
         float reverbMix = 0.7f;  // High wet signal for spacious dub sound
 
         // Bank B
-        float release = 0.5f;
+        float lfoRate = 3.0f;      // LFO rate in Hz (replaces release encoder)
         float delayTime = 0.2f;
         float filterRes = 0.5f;
         int oscWaveform = 1;  // Square wave for classic siren sound
         float reverbSize = 0.5f;
+        float release = 0.5f;      // Moved from encoder control
     };
     Parameters params;
     
