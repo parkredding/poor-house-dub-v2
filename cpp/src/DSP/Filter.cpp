@@ -10,8 +10,8 @@ namespace DubSiren {
 
 LowPassFilter::LowPassFilter(int sampleRate)
     : sampleRate(sampleRate)
-    , cutoff(2000.0f)
-    , cutoffCurrent(2000.0f)
+    , cutoff(5000.0f)  // Higher default to preserve oscillator harmonics
+    , cutoffCurrent(5000.0f)
     , resonance(1.0f)
     , resonanceCurrent(1.0f)
     , prevOutput(0.0f)

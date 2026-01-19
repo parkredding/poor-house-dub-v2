@@ -36,7 +36,7 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     lfo.setDepth(0.3f);  // Moderate LFO for filter modulation (siren effect)
     envelope.setAttack(0.01f);
     envelope.setRelease(0.5f);
-    filter.setCutoff(2000.0f);
+    filter.setCutoff(5000.0f);  // Higher to preserve oscillator harmonics
     delay.setDryWet(0.3f);
     delay.setFeedback(0.5f);
     reverb.setDryWet(0.35f);

@@ -237,7 +237,7 @@ private:
 
         // Bank A
         float lfoDepth = 0.5f;     // LFO modulation depth (replaces volume encoder) - start at audible level
-        float filterFreq = 2000.0f;
+        float filterFreq = 5000.0f;  // Higher to preserve oscillator harmonics
         float baseFreq = 440.0f;
         float delayFeedback = 0.7f;  // Higher delay wet/dry for dub effect
         float reverbMix = 0.7f;  // High wet signal for spacious dub sound
