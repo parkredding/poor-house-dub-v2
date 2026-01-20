@@ -158,9 +158,10 @@ private:
  * Triggered by rapidly pressing the shift button.
  */
 enum class SecretMode {
-    None,   // Normal operation
-    NJD,    // Classic NJD siren mode (5 rapid presses)
-    UFO     // UFO/Sci-fi mode (10 rapid presses)
+    None,       // Normal operation
+    PitchDelay, // Pitch-delay linked mode (3 rapid presses)
+    NJD,        // Classic NJD siren mode (5 rapid presses)
+    UFO         // UFO/Sci-fi mode (10 rapid presses)
 };
 
 /**
@@ -173,6 +174,7 @@ enum class SecretMode {
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
  *
  * Secret Modes (triggered by rapid shift button presses):
+ * - Pitch-Delay Mode: 3 rapid presses - Links pitch and delay inversely
  * - NJD Mode: 5 rapid presses - Classic dub siren presets
  * - UFO Mode: 10 rapid presses - Sci-fi UFO presets
  */
