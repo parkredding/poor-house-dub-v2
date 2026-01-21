@@ -700,6 +700,11 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
     {
         std::lock_guard<std::mutex> lock(cyclesMutex);
 
+        // Debug: show current state
+        const char* posStr = (position == SwitchPosition::Up) ? "Up" : (position == SwitchPosition::Down) ? "Down" : "Off";
+        const char* lastPosStr = (lastPitchPosition == SwitchPosition::Up) ? "Up" : (lastPitchPosition == SwitchPosition::Down) ? "Down" : "Off";
+        std::cout << "  [DEBUG] last=" << lastPosStr << " → new=" << posStr << " | inCycle=" << (inCycle ? "YES" : "NO") << std::endl;
+
         // State machine for cycle detection
         // Cycle: Off(start) → Up/Down → Off → Down/Up → Off(complete)
 
