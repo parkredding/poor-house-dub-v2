@@ -623,12 +623,14 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         params.baseFreq = clamp(params.baseFreq * multiplier, 50.0f, 2000.0f);
         engine.setFrequency(params.baseFreq);
 
-        // Modulate delay time inversely with pitch (higher pitch = shorter delay)
-        // This creates harmonic echo patterns common in dub sirens
-        float refFreq = 440.0f;
-        float scaledDelayTime = params.delayTime * (refFreq / params.baseFreq);
-        scaledDelayTime = clamp(scaledDelayTime, 0.01f, 2.0f);
-        engine.setDelayTime(scaledDelayTime);
+        // Only modulate delay time inversely with pitch in PitchDelay secret mode
+        // (higher pitch = shorter delay - creates harmonic echo patterns common in dub sirens)
+        if (secretMode.load() == SecretMode::PitchDelay) {
+            float refFreq = 440.0f;
+            float scaledDelayTime = params.delayTime * (refFreq / params.baseFreq);
+            scaledDelayTime = clamp(scaledDelayTime, 0.01f, 2.0f);
+            engine.setDelayTime(scaledDelayTime);
+        }
 
         newValue = params.baseFreq;
     }
@@ -717,7 +719,14 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
 
     SecretMode currentMode = secretMode.load();
     if (currentMode != SecretMode::None) {
-        const char* modeStr = (currentMode == SecretMode::NJD) ? "NJD" : "UFO";
+        const char* modeStr;
+        if (currentMode == SecretMode::NJD) {
+            modeStr = "NJD";
+        } else if (currentMode == SecretMode::UFO) {
+            modeStr = "UFO";
+        } else {
+            modeStr = "PITCH-DELAY";
+        }
         std::cout << "[" << modeStr << " MODE] Pitch envelope: " << modeName << std::endl;
     } else {
         std::cout << "Pitch envelope: " << modeName << std::endl;
@@ -736,8 +745,15 @@ void GPIOController::onShiftPress() {
 
     SecretMode currentMode = secretMode.load();
     if (currentMode != SecretMode::None) {
-        // In secret mode, shift cycles through presets
-        cycleSecretModePreset();
+        // In NJD or UFO secret mode, shift cycles through presets
+        // In PitchDelay mode, shift just switches banks (no presets to cycle)
+        if (currentMode == SecretMode::NJD || currentMode == SecretMode::UFO) {
+            cycleSecretModePreset();
+        } else {
+            // PitchDelay mode - switch to Bank B
+            currentBank.store(Bank::B);
+            std::cout << "Bank B active" << std::endl;
+        }
     } else {
         // Normal operation - switch to Bank B
         currentBank.store(Bank::B);
@@ -747,14 +763,14 @@ void GPIOController::onShiftPress() {
 
 void GPIOController::onShiftRelease() {
     shiftPressed.store(false);
-    
+
     SecretMode currentMode = secretMode.load();
-    if (currentMode == SecretMode::None) {
-        // Normal operation - switch back to Bank A
+    if (currentMode == SecretMode::None || currentMode == SecretMode::PitchDelay) {
+        // Normal operation or PitchDelay mode - switch back to Bank A
         currentBank.store(Bank::A);
         std::cout << "Bank A active" << std::endl;
     }
-    // In secret mode, don't change bank on release
+    // In NJD/UFO secret mode, don't change bank on release
 }
 
 void GPIOController::onShutdownPress() {
@@ -779,6 +795,7 @@ void GPIOController::checkSecretModeActivation() {
     auto now = std::chrono::steady_clock::now();
 
     int pressCount = 0;
+    bool activatePitchDelay = false;
     bool activateNJD = false;
     bool activateUFO = false;
 
@@ -805,6 +822,10 @@ void GPIOController::checkSecretModeActivation() {
         else if (pressCount == 5) {
             activateNJD = true;
         }
+        // Check for Pitch-Delay mode (3 presses)
+        else if (pressCount == 3) {
+            activatePitchDelay = true;
+        }
     }
 
     // Activate outside the lock to avoid potential deadlock with other callbacks
@@ -812,6 +833,8 @@ void GPIOController::checkSecretModeActivation() {
         activateSecretMode(SecretMode::UFO);
     } else if (activateNJD) {
         activateSecretMode(SecretMode::NJD);
+    } else if (activatePitchDelay) {
+        activateSecretMode(SecretMode::PitchDelay);
     }
 }
 
@@ -832,44 +855,69 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     // Enter the new mode
     secretMode.store(mode);
     secretModePreset.store(0);
-    
+
     // Update LED mode for secret modes
     if (ledController) {
         if (mode == SecretMode::NJD) {
             ledController->setMode(LEDMode::NJD);
         } else if (mode == SecretMode::UFO) {
             ledController->setMode(LEDMode::UFO);
+        } else if (mode == SecretMode::PitchDelay) {
+            // Use a different LED color for PitchDelay mode (could use NJD or UFO, or Normal)
+            ledController->setMode(LEDMode::Normal);
         }
     }
-    
-    const char* modeName = (mode == SecretMode::NJD) ? "NJD SIREN" : "UFO";
-    
+
+    const char* modeName;
+    if (mode == SecretMode::NJD) {
+        modeName = "NJD SIREN";
+    } else if (mode == SecretMode::UFO) {
+        modeName = "UFO";
+    } else {
+        modeName = "PITCH-DELAY LINK";
+    }
+
     std::cout << "\n";
     std::cout << "╔══════════════════════════════════════════════════════════╗" << std::endl;
     std::cout << "║              🎵 SECRET MODE ACTIVATED! 🎵                ║" << std::endl;
     std::cout << "╠══════════════════════════════════════════════════════════╣" << std::endl;
     std::cout << "║  Mode: " << modeName << std::string(49 - strlen(modeName), ' ') << "║" << std::endl;
-    std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
+    if (mode == SecretMode::PitchDelay) {
+        std::cout << "║  Pitch and delay are now inversely linked                ║" << std::endl;
+        std::cout << "║  (higher pitch = shorter delay)                          ║" << std::endl;
+    } else {
+        std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
+    }
     std::cout << "║  Press SHIFT rapidly again to exit                       ║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
-    
-    applySecretModePreset();
+
+    // Only apply presets for NJD and UFO modes (not PitchDelay)
+    if (mode == SecretMode::NJD || mode == SecretMode::UFO) {
+        applySecretModePreset();
+    }
 }
 
 void GPIOController::exitSecretMode() {
     SecretMode currentMode = secretMode.load();
     if (currentMode == SecretMode::None) return;
-    
-    const char* modeName = (currentMode == SecretMode::NJD) ? "NJD SIREN" : "UFO";
-    
+
+    const char* modeName;
+    if (currentMode == SecretMode::NJD) {
+        modeName = "NJD SIREN";
+    } else if (currentMode == SecretMode::UFO) {
+        modeName = "UFO";
+    } else {
+        modeName = "PITCH-DELAY LINK";
+    }
+
     std::cout << "\n";
     std::cout << "╔══════════════════════════════════════════════════════════╗" << std::endl;
     std::cout << "║              SECRET MODE DEACTIVATED                     ║" << std::endl;
     std::cout << "║  Exiting " << modeName << " mode..." << std::string(43 - strlen(modeName), ' ') << "║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
-    
+
     secretMode.store(SecretMode::None);
     secretModePreset.store(0);
 
@@ -877,38 +925,42 @@ void GPIOController::exitSecretMode() {
     if (ledController) {
         ledController->setMode(LEDMode::Normal);
     }
-    
-    // Restore default parameters (Auto Wail preset)
-    params.volume = 0.6f;
-    params.lfoDepth = 0.5f;      // LFO filter modulation depth
-    params.lfoRate = 2.0f;       // 2 Hz - wee-woo every 0.5 seconds
-    params.filterFreq = 3000.0f; // Standard filter setting for siren
-    params.baseFreq = 440.0f;    // A4 - standard siren pitch
-    params.filterRes = 0.5f;     // Standard resonance
-    params.delayFeedback = 0.55f;// Spacey dub echoes
-    params.delayTime = 0.375f;   // Dotted eighth - classic dub
-    params.reverbMix = 0.4f;     // Wet for atmosphere
-    params.reverbSize = 0.7f;    // Large dub space
-    params.release = 0.5f;       // Medium release
-    params.oscWaveform = 1;      // Square for classic siren sound
 
-    // Apply restored parameters (Auto Wail preset)
-    engine.setVolume(params.volume);
-    engine.setLfoDepth(params.lfoDepth);        // Filter modulation depth
-    engine.setLfoPitchDepth(0.5f);              // Auto Wail pitch modulation (wee-woo)
-    engine.setLfoRate(params.lfoRate);
-    engine.setLfoWaveform(Waveform::Triangle);  // Smooth pitch transitions
-    engine.setFilterCutoff(params.filterFreq);
-    engine.setFrequency(params.baseFreq);
-    engine.setFilterResonance(params.filterRes);
-    engine.setDelayFeedback(params.delayFeedback);
-    engine.setDelayTime(params.delayTime);
-    engine.setReverbMix(params.reverbMix);
-    engine.setReverbSize(params.reverbSize);
-    engine.setReleaseTime(params.release);
-    engine.setWaveform(params.oscWaveform);
-    
-    std::cout << "Parameters restored to defaults" << std::endl;
+    // Only restore default parameters when exiting NJD or UFO modes
+    // (PitchDelay mode doesn't change parameters, just behavior)
+    if (currentMode == SecretMode::NJD || currentMode == SecretMode::UFO) {
+        // Restore default parameters (Auto Wail preset)
+        params.volume = 0.6f;
+        params.lfoDepth = 0.5f;      // LFO filter modulation depth
+        params.lfoRate = 2.0f;       // 2 Hz - wee-woo every 0.5 seconds
+        params.filterFreq = 3000.0f; // Standard filter setting for siren
+        params.baseFreq = 440.0f;    // A4 - standard siren pitch
+        params.filterRes = 0.5f;     // Standard resonance
+        params.delayFeedback = 0.55f;// Spacey dub echoes
+        params.delayTime = 0.375f;   // Dotted eighth - classic dub
+        params.reverbMix = 0.4f;     // Wet for atmosphere
+        params.reverbSize = 0.7f;    // Large dub space
+        params.release = 0.5f;       // Medium release
+        params.oscWaveform = 1;      // Square for classic siren sound
+
+        // Apply restored parameters (Auto Wail preset)
+        engine.setVolume(params.volume);
+        engine.setLfoDepth(params.lfoDepth);        // Filter modulation depth
+        engine.setLfoPitchDepth(0.5f);              // Auto Wail pitch modulation (wee-woo)
+        engine.setLfoRate(params.lfoRate);
+        engine.setLfoWaveform(Waveform::Triangle);  // Smooth pitch transitions
+        engine.setFilterCutoff(params.filterFreq);
+        engine.setFrequency(params.baseFreq);
+        engine.setFilterResonance(params.filterRes);
+        engine.setDelayFeedback(params.delayFeedback);
+        engine.setDelayTime(params.delayTime);
+        engine.setReverbMix(params.reverbMix);
+        engine.setReverbSize(params.reverbSize);
+        engine.setReleaseTime(params.release);
+        engine.setWaveform(params.oscWaveform);
+
+        std::cout << "Parameters restored to defaults" << std::endl;
+    }
 }
 
 void GPIOController::cycleSecretModePreset() {
