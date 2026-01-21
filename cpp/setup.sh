@@ -389,6 +389,50 @@ echo -e "${GREEN}✓ Build complete${NC}"
 echo ""
 
 # ============================================================================
+# Setup MP3 Directory
+# ============================================================================
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}  MP3 Playback Mode Setup${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+MP3_DIR="$USER_HOME/dubsiren/mp3s"
+REPO_MP3_DIR="$PROJECT_DIR/mp3s"
+
+echo -e "${GREEN}📦 Creating MP3 directory...${NC}"
+mkdir -p "$MP3_DIR"
+chown $INSTALL_USER:$INSTALL_USER "$MP3_DIR"
+
+# Copy MP3 files from repo if any exist
+if [ -d "$REPO_MP3_DIR" ]; then
+    MP3_COUNT=$(find "$REPO_MP3_DIR" -maxdepth 1 -name "*.mp3" 2>/dev/null | wc -l)
+    if [ "$MP3_COUNT" -gt 0 ]; then
+        echo -e "${GREEN}📁 Copying $MP3_COUNT MP3 file(s) from repository...${NC}"
+        cp -f "$REPO_MP3_DIR"/*.mp3 "$MP3_DIR/" 2>/dev/null || true
+        chown $INSTALL_USER:$INSTALL_USER "$MP3_DIR"/*.mp3 2>/dev/null || true
+        echo -e "${GREEN}✓ MP3 files copied${NC}"
+    else
+        echo -e "${YELLOW}ℹ  No MP3 files found in repository${NC}"
+    fi
+
+    # Copy test script if it exists
+    if [ -f "$REPO_MP3_DIR/test-tone.sh" ]; then
+        cp -f "$REPO_MP3_DIR/test-tone.sh" "$MP3_DIR/"
+        chmod +x "$MP3_DIR/test-tone.sh"
+        chown $INSTALL_USER:$INSTALL_USER "$MP3_DIR/test-tone.sh"
+    fi
+fi
+
+echo -e "${GREEN}✓ MP3 directory created at: ${CYAN}$MP3_DIR${NC}"
+echo ""
+echo -e "${YELLOW}To use MP3 mode:${NC}"
+echo "  1. Place MP3 files in: $MP3_DIR"
+echo "  2. Toggle pitch envelope OFF→ON 5 times within 2 seconds"
+echo "  3. Press TRIGGER to play, SHIFT to cycle files"
+echo "  4. Mode auto-exits when playback finishes"
+echo ""
+
+# ============================================================================
 # Create systemd Service
 # ============================================================================
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
