@@ -721,6 +721,7 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
                     // Cycle complete!
                     recentPitchCycles.push_back(std::chrono::steady_clock::now());
                     inCycle = false;
+                    std::cout << "🎵 Cycle complete! Total: " << recentPitchCycles.size() << "/10" << std::endl;
                     checkPitchCycleActivation();
                 }
             } else {
@@ -729,6 +730,7 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
                     // Cycle complete!
                     recentPitchCycles.push_back(std::chrono::steady_clock::now());
                     inCycle = false;
+                    std::cout << "🎵 Cycle complete! Total: " << recentPitchCycles.size() << "/10" << std::endl;
                     checkPitchCycleActivation();
                 }
             }
@@ -886,10 +888,13 @@ void GPIOController::checkPitchCycleActivation() {
     auto now = std::chrono::steady_clock::now();
 
     int cycleCount = 0;
+    int beforeCleanup = 0;
     bool activateCustomAudio = false;
 
     {
         std::lock_guard<std::mutex> lock(cyclesMutex);
+
+        beforeCleanup = static_cast<int>(recentPitchCycles.size());
 
         // Remove old cycles (older than 5 seconds)
         recentPitchCycles.erase(
@@ -902,6 +907,12 @@ void GPIOController::checkPitchCycleActivation() {
 
         // Count recent cycles within 5 second window
         cycleCount = static_cast<int>(recentPitchCycles.size());
+
+        // Debug: show cleanup
+        if (cycleCount != beforeCleanup) {
+            std::cout << "  [Cleaned up " << (beforeCleanup - cycleCount) << " old cycles, "
+                      << cycleCount << " remain]" << std::endl;
+        }
 
         // Check for Custom Audio mode (10 cycles in 5 seconds)
         if (cycleCount >= 10) {
