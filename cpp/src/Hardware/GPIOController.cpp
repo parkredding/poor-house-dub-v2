@@ -696,27 +696,27 @@ void GPIOController::onTriggerRelease() {
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
     // Track pitch envelope cycles for Custom Audio mode activation
-    // A complete cycle is: Up→Off→Down or Down→Off→Up
+    // A complete cycle is: Off→Up→Off→Down→Off or Off→Down→Off→Up→Off
     {
         std::lock_guard<std::mutex> lock(cyclesMutex);
 
         // State machine for cycle detection
+        // Cycle: Off(start) → Up/Down → Off → Down/Up → Off(complete)
+
         if (!inCycle) {
-            // Start a new cycle when moving from Off to Up or Down
-            if (lastPitchPosition == SwitchPosition::Off) {
-                if (position == SwitchPosition::Up) {
-                    inCycle = true;
-                    cycleWentUp = true;
-                } else if (position == SwitchPosition::Down) {
-                    inCycle = true;
-                    cycleWentUp = false;
-                }
+            // Start a new cycle: Off → Up or Off → Down
+            if (lastPitchPosition == SwitchPosition::Off && position != SwitchPosition::Off) {
+                inCycle = true;
+                cycleWentUp = (position == SwitchPosition::Up);
+                std::cout << "  [Cycle started: " << (cycleWentUp ? "Up" : "Down") << " first]" << std::endl;
             }
         } else {
-            // We're in a cycle - check for completion
-            // Cycle completes when we go: Start→Off→Opposite→Off
+            // We're in a cycle - track progress toward completion
+            // If we started with Up: need Off→Down→Off
+            // If we started with Down: need Off→Up→Off
+
             if (cycleWentUp) {
-                // Started with Up, need to see: Up→Off→Down→Off
+                // Started Off→Up, now looking for: →Off→Down→Off
                 if (lastPitchPosition == SwitchPosition::Down && position == SwitchPosition::Off) {
                     // Cycle complete!
                     recentPitchCycles.push_back(std::chrono::steady_clock::now());
@@ -725,7 +725,7 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
                     checkPitchCycleActivation();
                 }
             } else {
-                // Started with Down, need to see: Down→Off→Up→Off
+                // Started Off→Down, now looking for: →Off→Up→Off
                 if (lastPitchPosition == SwitchPosition::Up && position == SwitchPosition::Off) {
                     // Cycle complete!
                     recentPitchCycles.push_back(std::chrono::steady_clock::now());
