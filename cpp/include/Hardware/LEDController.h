@@ -72,7 +72,8 @@ enum class LEDMode {
     Startup,        // Amber during boot, lime green when ready
     Normal,         // Slow color cycling over minutes
     NJD,            // Rasta colors, faster cycling
-    UFO             // Green/purple alien theme
+    UFO,            // Green/purple alien theme
+    MP3             // Slow flash pattern for MP3 mode
 };
 
 /**
@@ -129,6 +130,7 @@ public:
     
     // Direct color control (overrides cycling)
     void setColor(const Color& color);
+    void setColor(uint8_t r, uint8_t g, uint8_t b);
     void setColorWithPulse(const Color& color, float pulseIntensity);
     
     // Configuration
@@ -175,6 +177,7 @@ private:
     Color getNormalModeColor();
     Color getNJDModeColor();
     Color getUFOModeColor();
+    Color getMP3ModeColor();
     
     // Apply audio pulse to color
     Color applyAudioPulse(const Color& baseColor);
@@ -194,6 +197,7 @@ private:
     static constexpr float NORMAL_CYCLE_DURATION = 180.0f;  // 3 minutes per full cycle
     static constexpr float NJD_CYCLE_DURATION = 3.0f;       // 3 seconds per rasta cycle
     static constexpr float UFO_CYCLE_DURATION = 5.0f;       // 5 seconds per UFO cycle
+    static constexpr float MP3_CYCLE_DURATION = 2.0f;       // 2 seconds slow flash (1s on, 1s off)
     static constexpr float PATH_CHANGE_PROBABILITY = 0.1f;  // 10% chance to change path at cycle end
     
     // Audio pulse settings

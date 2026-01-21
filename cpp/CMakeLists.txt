@@ -66,6 +66,7 @@ set(DSP_SOURCES
 set(AUDIO_SOURCES
     src/Audio/AudioEngine.cpp
     src/Audio/AudioOutput.cpp
+    src/Audio/AudioFilePlayer.cpp
 )
 
 set(HARDWARE_SOURCES
@@ -81,6 +82,7 @@ set(MAIN_SOURCES
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
 # Create the executable

@@ -155,13 +155,14 @@ private:
 
 /**
  * Secret mode enumeration.
- * Triggered by rapidly pressing the shift button.
+ * Triggered by rapidly pressing the shift button or toggling pitch envelope.
  */
 enum class SecretMode {
     None,       // Normal operation
     PitchDelay, // Pitch-delay linked mode (3 rapid presses)
     NJD,        // Classic NJD siren mode (5 rapid presses)
-    UFO         // UFO/Sci-fi mode (10 rapid presses)
+    UFO,        // UFO/Sci-fi mode (10 rapid presses)
+    MP3         // MP3 playback mode (5 rapid pitch envelope toggles)
 };
 
 /**
@@ -210,6 +211,12 @@ public:
      * Call this from the audio callback with the current output level.
      */
     void updateLEDAudioLevel(float level);
+
+    /**
+     * Check if MP3 playback has finished and auto-exit mode.
+     * Should be called periodically from main loop or LED update thread.
+     */
+    void checkMP3PlaybackStatus();
     
     /**
      * Get the LED controller (may be nullptr if not available).
@@ -231,6 +238,12 @@ private:
     // Protected by pressesMutex for thread-safe access
     mutable std::mutex pressesMutex;
     std::vector<std::chrono::steady_clock::time_point> recentShiftPresses;
+
+    // Pitch envelope toggle tracking for MP3 mode activation
+    // Protected by pitchEnvMutex for thread-safe access
+    mutable std::mutex pitchEnvMutex;
+    std::vector<std::chrono::steady_clock::time_point> recentPitchEnvToggles;
+    SwitchPosition lastPitchEnvPosition{SwitchPosition::Off};
     
     // Parameter values
     struct Parameters {
@@ -275,6 +288,7 @@ private:
     
     // Secret mode handling
     void checkSecretModeActivation();
+    void checkPitchEnvMP3Activation();
     void activateSecretMode(SecretMode mode);
     void exitSecretMode();
     void cycleSecretModePreset();

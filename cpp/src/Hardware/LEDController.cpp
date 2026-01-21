@@ -184,6 +184,7 @@ void LEDController::setMode(LEDMode mode) {
             case LEDMode::Normal: modeName = "Normal"; break;
             case LEDMode::NJD: modeName = "NJD (Rasta)"; break;
             case LEDMode::UFO: modeName = "UFO (Alien)"; break;
+            case LEDMode::MP3: modeName = "MP3 (Flash)"; break;
         }
         std::cout << "LED: Mode changed to " << modeName << std::endl;
     }
@@ -213,6 +214,10 @@ void LEDController::showReadyColor() {
 void LEDController::setColor(const Color& color) {
     colorOverride.store(true);
     overrideColor = color;
+}
+
+void LEDController::setColor(uint8_t r, uint8_t g, uint8_t b) {
+    setColor(Color(r, g, b));
 }
 
 void LEDController::setColorWithPulse(const Color& color, float pulseIntensity) {
@@ -264,6 +269,9 @@ void LEDController::updateLoop() {
                 break;
             case LEDMode::UFO:
                 cycleDuration = UFO_CYCLE_DURATION;
+                break;
+            case LEDMode::MP3:
+                cycleDuration = MP3_CYCLE_DURATION;
                 break;
             default:
                 cycleDuration = NORMAL_CYCLE_DURATION;
@@ -324,6 +332,9 @@ Color LEDController::calculateColor() {
         case LEDMode::UFO:
             baseColor = getUFOModeColor();
             break;
+        case LEDMode::MP3:
+            baseColor = getMP3ModeColor();
+            break;
     }
     
     return applyAudioPulse(baseColor);
@@ -378,6 +389,27 @@ Color LEDController::getUFOModeColor() {
         Color blueGreen(0, 200, 150);
         return Color::lerp(blueGreen, Color::UFOGreen(), (pos - 0.8f) * 5.0f);
     }
+}
+
+Color LEDController::getMP3ModeColor() {
+    // MP3 mode: Slow flash between full brightness and off (using override color or white)
+    // Cycle position goes from 0.0 to 1.0
+    // Flash pattern: fade in for 1 second, fade out for 1 second
+
+    float pos = cyclePosition;
+    float brightness;
+
+    if (pos < 0.5f) {
+        // First half: fade in from 0 to 1
+        brightness = pos * 2.0f;
+    } else {
+        // Second half: fade out from 1 to 0
+        brightness = (1.0f - pos) * 2.0f;
+    }
+
+    // Use override color if set, otherwise white
+    Color baseColor = colorOverride.load() ? overrideColor : Color::White();
+    return baseColor.scaled(brightness);
 }
 
 Color LEDController::applyAudioPulse(const Color& baseColor) {

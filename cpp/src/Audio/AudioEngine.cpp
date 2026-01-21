@@ -1,4 +1,5 @@
 #include "Audio/AudioEngine.h"
+#include <iostream>
 #include <cstring>
 #include <cmath>
 #include <algorithm>
@@ -14,10 +15,12 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     , filter(sampleRate)
     , delay(sampleRate)
     , reverb(sampleRate)
+    , mp3Player(std::make_unique<AudioFilePlayer>())
     , volume(0.7f)
     , baseFrequency(440.0f)
     , lfoPitchDepth(0.0f)  // Default to 0 (no pitch modulation)
     , pitchEnvMode(PitchEnvelopeMode::Up)  // Default to UP for classic dub siren
+    , audioMode(AudioMode::Synthesis)  // Default to synthesis mode
     , currentFrequency(440.0f)
     , frequencySmooth(440.0f, 0.08f)  // Increased smoothing to reduce zipper noise
     , inReleasePhase(false)
@@ -44,6 +47,13 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
 }
 
 void AudioEngine::process(float* output, int numFrames) {
+    // Check if in MP3 playback mode
+    if (audioMode.get() == AudioMode::MP3Playback && mp3Player) {
+        mp3Player->fillBuffer(output, numFrames);
+        return;
+    }
+
+    // Normal synthesis mode
     // Get pitch envelope mode
     PitchEnvelopeMode pitchMode = pitchEnvMode.get();
     float baseFreq = baseFrequency.get();
@@ -269,6 +279,87 @@ void AudioEngine::setReverbDamping(float damping) {
 
 void AudioEngine::setPitchEnvelopeMode(PitchEnvelopeMode mode) {
     pitchEnvMode.set(mode);
+}
+
+// ============================================================================
+// MP3 Playback Methods
+// ============================================================================
+
+bool AudioEngine::enableMP3Mode(const std::string& directory) {
+    if (!mp3Player) {
+        mp3Player = std::make_unique<AudioFilePlayer>();
+    }
+
+    if (mp3Player->loadFilesFromDirectory(directory)) {
+        audioMode.set(AudioMode::MP3Playback);
+        std::cout << "MP3 mode enabled with " << mp3Player->getFileCount() << " file(s)" << std::endl;
+        return true;
+    }
+
+    std::cerr << "Failed to load MP3 files from: " << directory << std::endl;
+    return false;
+}
+
+void AudioEngine::disableMP3Mode() {
+    audioMode.set(AudioMode::Synthesis);
+    if (mp3Player) {
+        mp3Player->stop();
+    }
+    std::cout << "MP3 mode disabled, returning to synthesis" << std::endl;
+}
+
+void AudioEngine::startMP3Playback() {
+    if (mp3Player && audioMode.get() == AudioMode::MP3Playback) {
+        mp3Player->play();
+        std::cout << "Playing MP3: " << mp3Player->getCurrentFileName() << std::endl;
+    }
+}
+
+void AudioEngine::stopMP3Playback() {
+    if (mp3Player) {
+        mp3Player->stop();
+    }
+}
+
+void AudioEngine::selectMP3File(int index) {
+    if (mp3Player) {
+        mp3Player->selectFile(index);
+    }
+}
+
+int AudioEngine::getCurrentMP3Index() const {
+    if (mp3Player) {
+        return mp3Player->getCurrentFileIndex();
+    }
+    return 0;
+}
+
+int AudioEngine::getMP3FileCount() const {
+    if (mp3Player) {
+        return mp3Player->getFileCount();
+    }
+    return 0;
+}
+
+std::string AudioEngine::getCurrentMP3FileName() const {
+    if (mp3Player) {
+        return mp3Player->getCurrentFileName();
+    }
+    return "";
+}
+
+bool AudioEngine::hasMP3Finished() const {
+    if (mp3Player) {
+        return mp3Player->hasFinished();
+    }
+    return false;
+}
+
+AudioFilePlayer::Color AudioEngine::getMP3Color() const {
+    if (mp3Player) {
+        return mp3Player->getColorForCurrentFile();
+    }
+    return {255, 255, 255};  // Default white
 }
 
 } // namespace DubSiren

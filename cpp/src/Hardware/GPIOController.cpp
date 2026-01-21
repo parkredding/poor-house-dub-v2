@@ -685,16 +685,48 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
 }
 
 void GPIOController::onTriggerPress() {
-    std::cout << "Trigger: PRESSED" << std::endl;
-    engine.trigger();
+    SecretMode currentMode = secretMode.load();
+
+    if (currentMode == SecretMode::MP3) {
+        // In MP3 mode, trigger starts playback
+        std::cout << "Trigger: STARTING MP3 PLAYBACK" << std::endl;
+        engine.startMP3Playback();
+    } else {
+        std::cout << "Trigger: PRESSED" << std::endl;
+        engine.trigger();
+    }
 }
 
 void GPIOController::onTriggerRelease() {
-    std::cout << "Trigger: RELEASED" << std::endl;
-    engine.release();
+    SecretMode currentMode = secretMode.load();
+
+    if (currentMode == SecretMode::MP3) {
+        // In MP3 mode, release doesn't do anything (one-shot playback)
+        // MP3 will auto-exit when finished
+    } else {
+        std::cout << "Trigger: RELEASED" << std::endl;
+        engine.release();
+    }
 }
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
+    // Track toggles for MP3 mode activation (off->on transitions count as toggles)
+    {
+        std::lock_guard<std::mutex> lock(pitchEnvMutex);
+
+        // Check if this is a transition from Off to On (either Up or Down)
+        if (lastPitchEnvPosition == SwitchPosition::Off && position != SwitchPosition::Off) {
+            // Record this toggle
+            auto now = std::chrono::steady_clock::now();
+            recentPitchEnvToggles.push_back(now);
+
+            // Check for MP3 mode activation
+            checkPitchEnvMP3Activation();
+        }
+
+        lastPitchEnvPosition = position;
+    }
+
     // Apply pitch envelope (works in normal and secret modes)
     PitchEnvelopeMode mode;
     const char* modeName;
@@ -724,6 +756,8 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
             modeStr = "NJD";
         } else if (currentMode == SecretMode::UFO) {
             modeStr = "UFO";
+        } else if (currentMode == SecretMode::MP3) {
+            modeStr = "MP3";
         } else {
             modeStr = "PITCH-DELAY";
         }
@@ -747,8 +781,23 @@ void GPIOController::onShiftPress() {
     if (currentMode != SecretMode::None) {
         // In NJD or UFO secret mode, shift cycles through presets
         // In PitchDelay mode, shift just switches banks (no presets to cycle)
+        // In MP3 mode, shift cycles through MP3 files
         if (currentMode == SecretMode::NJD || currentMode == SecretMode::UFO) {
             cycleSecretModePreset();
+        } else if (currentMode == SecretMode::MP3) {
+            // Cycle to next MP3 file
+            int currentIndex = engine.getCurrentMP3Index();
+            int fileCount = engine.getMP3FileCount();
+            int nextIndex = (currentIndex + 1) % fileCount;
+            engine.selectMP3File(nextIndex);
+
+            // Update LED color for new file
+            if (ledController) {
+                auto color = engine.getMP3Color();
+                ledController->setColor(color.r, color.g, color.b);
+            }
+
+            std::cout << "[MP3] Selected: " << engine.getCurrentMP3FileName() << std::endl;
         } else {
             // PitchDelay mode - switch to Bank B
             currentBank.store(Bank::B);
@@ -838,6 +887,30 @@ void GPIOController::checkSecretModeActivation() {
     }
 }
 
+void GPIOController::checkPitchEnvMP3Activation() {
+    auto now = std::chrono::steady_clock::now();
+
+    // Remove old toggles (older than 2 seconds)
+    recentPitchEnvToggles.erase(
+        std::remove_if(recentPitchEnvToggles.begin(), recentPitchEnvToggles.end(),
+            [&now](const auto& t) {
+                return std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count() > 2000;
+            }),
+        recentPitchEnvToggles.end()
+    );
+
+    // Check if we have 5 toggles in 2 seconds
+    if (static_cast<int>(recentPitchEnvToggles.size()) == 5) {
+        // Clear the toggles so we don't re-trigger
+        recentPitchEnvToggles.clear();
+
+        // Activate MP3 mode (outside the mutex lock to avoid deadlock)
+        // We need to schedule this activation after releasing the lock
+        // For now, we'll just activate directly since we're in a different mutex than pressesMutex
+        activateSecretMode(SecretMode::MP3);
+    }
+}
+
 void GPIOController::activateSecretMode(SecretMode mode) {
     SecretMode currentMode = secretMode.load();
 
@@ -865,6 +938,8 @@ void GPIOController::activateSecretMode(SecretMode mode) {
         } else if (mode == SecretMode::PitchDelay) {
             // Use a different LED color for PitchDelay mode (could use NJD or UFO, or Normal)
             ledController->setMode(LEDMode::Normal);
+        } else if (mode == SecretMode::MP3) {
+            ledController->setMode(LEDMode::MP3);
         }
     }
 
@@ -873,6 +948,8 @@ void GPIOController::activateSecretMode(SecretMode mode) {
         modeName = "NJD SIREN";
     } else if (mode == SecretMode::UFO) {
         modeName = "UFO";
+    } else if (mode == SecretMode::MP3) {
+        modeName = "MP3 PLAYER";
     } else {
         modeName = "PITCH-DELAY LINK";
     }
@@ -885,14 +962,31 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     if (mode == SecretMode::PitchDelay) {
         std::cout << "║  Pitch and delay are now inversely linked                ║" << std::endl;
         std::cout << "║  (higher pitch = shorter delay)                          ║" << std::endl;
+    } else if (mode == SecretMode::MP3) {
+        // Load MP3 files from directory
+        if (engine.enableMP3Mode("/home/pi/dubsiren/mp3s")) {
+            int fileCount = engine.getMP3FileCount();
+            std::string fileName = engine.getCurrentMP3FileName();
+            std::cout << "║  Loaded " << fileCount << " MP3 file(s)" << std::string(34 - std::to_string(fileCount).length(), ' ') << "║" << std::endl;
+            std::cout << "║  Current: " << fileName << std::string(45 - fileName.length(), ' ') << "║" << std::endl;
+            std::cout << "║  Press TRIGGER to play                                   ║" << std::endl;
+            if (fileCount > 1) {
+                std::cout << "║  Press SHIFT to cycle files                              ║" << std::endl;
+            }
+        } else {
+            std::cout << "║  ERROR: Failed to load MP3 files                         ║" << std::endl;
+            std::cout << "║  Place MP3 files in /home/pi/dubsiren/mp3s               ║" << std::endl;
+        }
     } else {
         std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
     }
-    std::cout << "║  Press SHIFT rapidly again to exit                       ║" << std::endl;
+    if (mode != SecretMode::MP3) {
+        std::cout << "║  Press SHIFT rapidly again to exit                       ║" << std::endl;
+    }
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
 
-    // Only apply presets for NJD and UFO modes (not PitchDelay)
+    // Only apply presets for NJD and UFO modes (not PitchDelay or MP3)
     if (mode == SecretMode::NJD || mode == SecretMode::UFO) {
         applySecretModePreset();
     }
@@ -907,6 +1001,8 @@ void GPIOController::exitSecretMode() {
         modeName = "NJD SIREN";
     } else if (currentMode == SecretMode::UFO) {
         modeName = "UFO";
+    } else if (currentMode == SecretMode::MP3) {
+        modeName = "MP3 PLAYER";
     } else {
         modeName = "PITCH-DELAY LINK";
     }
@@ -917,6 +1013,11 @@ void GPIOController::exitSecretMode() {
     std::cout << "║  Exiting " << modeName << " mode..." << std::string(43 - strlen(modeName), ' ') << "║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
+
+    // If exiting MP3 mode, disable it in the engine
+    if (currentMode == SecretMode::MP3) {
+        engine.disableMP3Mode();
+    }
 
     secretMode.store(SecretMode::None);
     secretModePreset.store(0);
@@ -1137,6 +1238,18 @@ void GPIOController::applySecretModePreset() {
 void GPIOController::updateLEDAudioLevel(float level) {
     if (ledController) {
         ledController->setAudioLevel(level);
+    }
+}
+
+void GPIOController::checkMP3PlaybackStatus() {
+    SecretMode currentMode = secretMode.load();
+
+    if (currentMode == SecretMode::MP3) {
+        // Check if MP3 has finished playing
+        if (engine.hasMP3Finished()) {
+            std::cout << "\n[MP3] Playback finished - returning to synthesis mode" << std::endl;
+            exitSecretMode();
+        }
     }
 }
 
