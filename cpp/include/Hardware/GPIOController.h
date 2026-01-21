@@ -146,8 +146,8 @@ private:
     
     SwitchPosition lastPosition;
     std::chrono::steady_clock::time_point lastChange;
-    
-    static constexpr int DEBOUNCE_MS = 20;
+
+    static constexpr int DEBOUNCE_MS = 5;  // Reduced from 20ms to allow rapid cycling
     
     void pollLoop();
     SwitchPosition readPosition();
