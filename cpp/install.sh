@@ -22,6 +22,8 @@ echo -e "${CYAN}  Raspberry Pi Zero 2W + PCM5102 DAC${NC}"
 echo -e "${CYAN}  High-Performance Native Build${NC}"
 echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
 echo ""
+echo -e "${YELLOW}📍 Installing from branch: ${CYAN}$BRANCH${NC}"
+echo ""
 
 # Check if running on Raspberry Pi
 if [ ! -f /proc/cpuinfo ] || ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
@@ -93,6 +95,19 @@ fi
 # Change to C++ directory
 cd "$INSTALL_DIR/cpp"
 
+# Verify and display current branch
+CURRENT_BRANCH=$(cd "$INSTALL_DIR" && git rev-parse --abbrev-ref HEAD)
+CURRENT_COMMIT=$(cd "$INSTALL_DIR" && git rev-parse --short HEAD)
+
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✓ Repository ready${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "  Branch:  ${CYAN}$CURRENT_BRANCH${NC}"
+echo -e "  Commit:  ${CYAN}$CURRENT_COMMIT${NC}"
+echo -e "  Path:    ${CYAN}$INSTALL_DIR${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
 # Make scripts executable
 chmod +x setup.sh build.sh
 
@@ -108,6 +123,8 @@ echo -e "${GREEN}✅ Installation Complete!${NC}"
 echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "📍 Installation directory: ${CYAN}$INSTALL_DIR/cpp${NC}"
+echo -e "🌿 Branch: ${CYAN}$CURRENT_BRANCH${NC}"
+echo -e "📝 Commit: ${CYAN}$CURRENT_COMMIT${NC}"
 echo ""
 echo -e "${YELLOW}Next Steps:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
