@@ -403,24 +403,24 @@ void ThreePositionSwitch::pollLoop() {
     while (running.load()) {
         SwitchPosition currentPos = readPosition();
         auto now = std::chrono::steady_clock::now();
-        
-        // Debounce
+        SwitchPosition storedPos = position.load();
+
+        // Detect position change
         if (currentPos != lastPosition) {
             lastPosition = currentPos;
             lastChange = now;
         }
-        
+
+        // Debounce: only accept the change after it's been stable for DEBOUNCE_MS
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastChange).count();
-        if (elapsed >= DEBOUNCE_MS) {
-            SwitchPosition storedPos = position.load();
-            if (currentPos != storedPos) {
-                position.store(currentPos);
-                if (callback) {
-                    callback(currentPos);
-                }
+        if (elapsed >= DEBOUNCE_MS && currentPos != storedPos) {
+            // Position has been stable for debounce period and is different from stored
+            position.store(currentPos);
+            if (callback) {
+                callback(currentPos);
             }
         }
-        
+
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 }
