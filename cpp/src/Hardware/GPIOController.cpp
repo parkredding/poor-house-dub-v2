@@ -695,6 +695,48 @@ void GPIOController::onTriggerRelease() {
 }
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
+    // Track pitch envelope cycles for Custom Audio mode activation
+    // A complete cycle is: Up→Off→Down or Down→Off→Up
+    {
+        std::lock_guard<std::mutex> lock(cyclesMutex);
+
+        // State machine for cycle detection
+        if (!inCycle) {
+            // Start a new cycle when moving from Off to Up or Down
+            if (lastPitchPosition == SwitchPosition::Off) {
+                if (position == SwitchPosition::Up) {
+                    inCycle = true;
+                    cycleWentUp = true;
+                } else if (position == SwitchPosition::Down) {
+                    inCycle = true;
+                    cycleWentUp = false;
+                }
+            }
+        } else {
+            // We're in a cycle - check for completion
+            // Cycle completes when we go: Start→Off→Opposite→Off
+            if (cycleWentUp) {
+                // Started with Up, need to see: Up→Off→Down→Off
+                if (lastPitchPosition == SwitchPosition::Down && position == SwitchPosition::Off) {
+                    // Cycle complete!
+                    recentPitchCycles.push_back(std::chrono::steady_clock::now());
+                    inCycle = false;
+                    checkPitchCycleActivation();
+                }
+            } else {
+                // Started with Down, need to see: Down→Off→Up→Off
+                if (lastPitchPosition == SwitchPosition::Up && position == SwitchPosition::Off) {
+                    // Cycle complete!
+                    recentPitchCycles.push_back(std::chrono::steady_clock::now());
+                    inCycle = false;
+                    checkPitchCycleActivation();
+                }
+            }
+        }
+
+        lastPitchPosition = position;
+    }
+
     // Apply pitch envelope (works in normal and secret modes)
     PitchEnvelopeMode mode;
     const char* modeName;
@@ -724,6 +766,8 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
             modeStr = "NJD";
         } else if (currentMode == SecretMode::UFO) {
             modeStr = "UFO";
+        } else if (currentMode == SecretMode::CustomAudio) {
+            modeStr = "CUSTOM AUDIO";
         } else {
             modeStr = "PITCH-DELAY";
         }
@@ -796,7 +840,6 @@ void GPIOController::checkSecretModeActivation() {
 
     int pressCount = 0;
     bool activatePitchDelay = false;
-    bool activateCustomAudio = false;
     bool activateNJD = false;
     bool activateUFO = false;
 
@@ -823,10 +866,6 @@ void GPIOController::checkSecretModeActivation() {
         else if (pressCount == 5) {
             activateNJD = true;
         }
-        // Check for Custom Audio mode (4 presses)
-        else if (pressCount == 4) {
-            activateCustomAudio = true;
-        }
         // Check for Pitch-Delay mode (3 presses)
         else if (pressCount == 3) {
             activatePitchDelay = true;
@@ -838,10 +877,44 @@ void GPIOController::checkSecretModeActivation() {
         activateSecretMode(SecretMode::UFO);
     } else if (activateNJD) {
         activateSecretMode(SecretMode::NJD);
-    } else if (activateCustomAudio) {
-        activateSecretMode(SecretMode::CustomAudio);
     } else if (activatePitchDelay) {
         activateSecretMode(SecretMode::PitchDelay);
+    }
+}
+
+void GPIOController::checkPitchCycleActivation() {
+    auto now = std::chrono::steady_clock::now();
+
+    int cycleCount = 0;
+    bool activateCustomAudio = false;
+
+    {
+        std::lock_guard<std::mutex> lock(cyclesMutex);
+
+        // Remove old cycles (older than 5 seconds)
+        recentPitchCycles.erase(
+            std::remove_if(recentPitchCycles.begin(), recentPitchCycles.end(),
+                [&now](const auto& t) {
+                    return std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count() > 5000;
+                }),
+            recentPitchCycles.end()
+        );
+
+        // Count recent cycles within 5 second window
+        cycleCount = static_cast<int>(recentPitchCycles.size());
+
+        // Check for Custom Audio mode (10 cycles in 5 seconds)
+        if (cycleCount >= 10) {
+            activateCustomAudio = true;
+            // Clear the cycles after activation to prevent repeated triggers
+            recentPitchCycles.clear();
+        }
+    }
+
+    // Activate outside the lock to avoid potential deadlock with other callbacks
+    if (activateCustomAudio) {
+        std::cout << "\n🎵 " << cycleCount << " pitch envelope cycles detected!" << std::endl;
+        activateSecretMode(SecretMode::CustomAudio);
     }
 }
 
@@ -899,10 +972,11 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     } else if (mode == SecretMode::CustomAudio) {
         std::cout << "║  Custom MP3 playback mode                                ║" << std::endl;
         std::cout << "║  Press TRIGGER to play your custom audio                ║" << std::endl;
+        std::cout << "║  Cycle pitch envelope 10x to exit                       ║" << std::endl;
     } else {
         std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
+        std::cout << "║  Press SHIFT rapidly again to exit                       ║" << std::endl;
     }
-    std::cout << "║  Press SHIFT rapidly again to exit                       ║" << std::endl;
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
 
@@ -918,7 +992,7 @@ void GPIOController::activateSecretMode(SecretMode mode) {
             std::cout << "Custom audio loaded successfully!" << std::endl;
         } else {
             std::cerr << "Failed to load custom.mp3 - check assets/audio/ directory" << std::endl;
-            std::cout << "You can still exit this mode by pressing SHIFT 4 times" << std::endl;
+            std::cout << "You can still exit this mode by cycling pitch envelope 10 times" << std::endl;
         }
     }
     // Only apply presets for NJD and UFO modes (not PitchDelay or CustomAudio)

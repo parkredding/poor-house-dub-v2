@@ -155,14 +155,13 @@ private:
 
 /**
  * Secret mode enumeration.
- * Triggered by rapidly pressing the shift button.
  */
 enum class SecretMode {
     None,        // Normal operation
-    PitchDelay,  // Pitch-delay linked mode (3 rapid presses)
-    CustomAudio, // Custom MP3 playback mode (4 rapid presses)
-    NJD,         // Classic NJD siren mode (5 rapid presses)
-    UFO          // UFO/Sci-fi mode (10 rapid presses)
+    PitchDelay,  // Pitch-delay linked mode (3 rapid shift presses)
+    CustomAudio, // Custom MP3 playback mode (10 pitch envelope cycles in 5 seconds)
+    NJD,         // Classic NJD siren mode (5 rapid shift presses)
+    UFO          // UFO/Sci-fi mode (10 rapid shift presses)
 };
 
 /**
@@ -174,11 +173,11 @@ enum class SecretMode {
  *
  * 4 Buttons: Trigger, Pitch Envelope, Shift, Shutdown
  *
- * Secret Modes (triggered by rapid shift button presses):
- * - Pitch-Delay Mode: 3 rapid presses - Links pitch and delay inversely
- * - Custom Audio Mode: 4 rapid presses - Plays custom MP3 file
- * - NJD Mode: 5 rapid presses - Classic dub siren presets
- * - UFO Mode: 10 rapid presses - Sci-fi UFO presets
+ * Secret Modes:
+ * - Pitch-Delay Mode: 3 rapid shift presses - Links pitch and delay inversely
+ * - Custom Audio Mode: 10 pitch envelope cycles in 5 seconds - Plays custom MP3 file
+ * - NJD Mode: 5 rapid shift presses - Classic dub siren presets
+ * - UFO Mode: 10 rapid shift presses - Sci-fi UFO presets
  */
 class GPIOController {
 public:
@@ -233,6 +232,14 @@ private:
     // Protected by pressesMutex for thread-safe access
     mutable std::mutex pressesMutex;
     std::vector<std::chrono::steady_clock::time_point> recentShiftPresses;
+
+    // Pitch envelope cycle tracking for Custom Audio mode activation
+    // A cycle is: Up→Off→Down or Down→Off→Up
+    mutable std::mutex cyclesMutex;
+    std::vector<std::chrono::steady_clock::time_point> recentPitchCycles;
+    SwitchPosition lastPitchPosition{SwitchPosition::Off};
+    bool inCycle{false};
+    bool cycleWentUp{false};  // Track which direction the cycle went first
     
     // Parameter values
     struct Parameters {
@@ -277,6 +284,7 @@ private:
     
     // Secret mode handling
     void checkSecretModeActivation();
+    void checkPitchCycleActivation();  // Check for Custom Audio mode via pitch cycles
     void activateSecretMode(SecretMode mode);
     void exitSecretMode();
     void cycleSecretModePreset();

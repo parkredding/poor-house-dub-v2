@@ -4,7 +4,9 @@ This directory contains custom audio files for the Custom Audio secret mode.
 
 ## Custom Audio Secret Mode
 
-**Activation**: Press the SHIFT button 4 times rapidly (within 2 seconds)
+**Activation**: Perform 10 pitch envelope cycles within 5 seconds
+
+A cycle is moving the pitch envelope switch: **Up → Off → Down → Off** OR **Down → Off → Up → Off**
 
 When activated, pressing the TRIGGER button will play your custom MP3 file instead of the synth.
 
@@ -41,10 +43,11 @@ wget -O ~/poor-house-dub-v2/assets/audio/custom.mp3 https://example.com/myaudio.
 
 1. Upload your `custom.mp3` file to this directory
 2. Start the dub siren
-3. Press SHIFT 4 times rapidly
-4. You'll see: "🎵 SECRET MODE ACTIVATED! 🎵 - CUSTOM AUDIO"
-5. Press TRIGGER to play your custom audio
-6. Press SHIFT 4 times again to exit
+3. Rapidly cycle the pitch envelope switch 10 times (Up-Off-Down-Off or Down-Off-Up-Off)
+4. You'll see: "🎵 10 pitch envelope cycles detected!"
+5. Then: "🎵 SECRET MODE ACTIVATED! 🎵 - CUSTOM AUDIO"
+6. Press TRIGGER to play your custom audio
+7. Exit by rapidly cycling the pitch envelope 10 times again OR press SHIFT 3-5 times to enter a different secret mode
 
 ## Tips
 
