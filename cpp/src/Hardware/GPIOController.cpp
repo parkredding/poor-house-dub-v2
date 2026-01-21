@@ -695,9 +695,12 @@ void GPIOController::onTriggerRelease() {
 }
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
+    // SIMPLEST POSSIBLE DEBUG - NO FORMATTING
+    std::cout << "CALLBACK!" << std::flush;
+
     // Debug output BEFORE entering critical section
     const char* posStr = (position == SwitchPosition::Up) ? "Up" : (position == SwitchPosition::Down) ? "Down" : "Off";
-    std::cout << "  [CALLBACK FIRED] new position = " << posStr << std::endl;
+    std::cout << " pos=" << posStr << std::endl;
 
     // Track pitch envelope cycles for Custom Audio mode activation
     // A complete cycle is: Off→Up→Off→Down→Off or Off→Down→Off→Up→Off
