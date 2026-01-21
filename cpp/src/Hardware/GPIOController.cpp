@@ -1,6 +1,7 @@
 #include "Hardware/GPIOController.h"
 #include <iostream>
 #include <cstring>
+#include <cstdlib>
 #include <vector>
 #include <algorithm>
 
@@ -863,17 +864,25 @@ void GPIOController::checkSecretModeActivation() {
         // Count recent presses within 2 second window
         pressCount = static_cast<int>(recentShiftPresses.size());
 
+        // Debug output for press counting
+        if (pressCount >= 2) {
+            std::cout << "[DEBUG] Shift presses in window: " << pressCount << " (need 3/5/10)" << std::endl;
+        }
+
         // Check for UFO mode first (10 presses) - takes priority
         if (pressCount == 10) {
             activateUFO = true;
+            recentShiftPresses.clear();  // Clear to prevent re-trigger
         }
         // Check for NJD mode (5 presses)
         else if (pressCount == 5) {
             activateNJD = true;
+            recentShiftPresses.clear();  // Clear to prevent re-trigger
         }
         // Check for Pitch-Delay mode (3 presses)
         else if (pressCount == 3) {
             activatePitchDelay = true;
+            recentShiftPresses.clear();  // Clear to prevent re-trigger
         }
     }
 
@@ -899,8 +908,15 @@ void GPIOController::checkPitchEnvMP3Activation() {
         recentPitchEnvToggles.end()
     );
 
+    int toggleCount = static_cast<int>(recentPitchEnvToggles.size());
+
+    // Debug output for toggle counting
+    if (toggleCount >= 2) {
+        std::cout << "[DEBUG] Pitch envelope toggles in window: " << toggleCount << " (need 5)" << std::endl;
+    }
+
     // Check if we have 5 toggles in 2 seconds
-    if (static_cast<int>(recentPitchEnvToggles.size()) == 5) {
+    if (toggleCount == 5) {
         // Clear the toggles so we don't re-trigger
         recentPitchEnvToggles.clear();
 
@@ -963,19 +979,40 @@ void GPIOController::activateSecretMode(SecretMode mode) {
         std::cout << "║  Pitch and delay are now inversely linked                ║" << std::endl;
         std::cout << "║  (higher pitch = shorter delay)                          ║" << std::endl;
     } else if (mode == SecretMode::MP3) {
-        // Load MP3 files from directory
+        // Load MP3 files from directory (try multiple locations)
+        bool loaded = false;
+        std::string mp3Dir;
+
+        // Try Pi location first
         if (engine.enableMP3Mode("/home/pi/dubsiren/mp3s")) {
+            loaded = true;
+            mp3Dir = "/home/pi/dubsiren/mp3s";
+        }
+        // Try current user's home
+        else if (engine.enableMP3Mode(std::string(getenv("HOME") ? getenv("HOME") : ".") + "/dubsiren/mp3s")) {
+            loaded = true;
+            mp3Dir = std::string(getenv("HOME") ? getenv("HOME") : ".") + "/dubsiren/mp3s";
+        }
+        // Try repo location (for development)
+        else if (engine.enableMP3Mode("../mp3s")) {
+            loaded = true;
+            mp3Dir = "../mp3s";
+        }
+
+        if (loaded) {
             int fileCount = engine.getMP3FileCount();
             std::string fileName = engine.getCurrentMP3FileName();
             std::cout << "║  Loaded " << fileCount << " MP3 file(s)" << std::string(34 - std::to_string(fileCount).length(), ' ') << "║" << std::endl;
             std::cout << "║  Current: " << fileName << std::string(45 - fileName.length(), ' ') << "║" << std::endl;
+            std::cout << "║  From: " << mp3Dir << std::string(51 - mp3Dir.length(), ' ') << "║" << std::endl;
             std::cout << "║  Press TRIGGER to play                                   ║" << std::endl;
             if (fileCount > 1) {
                 std::cout << "║  Press SHIFT to cycle files                              ║" << std::endl;
             }
         } else {
             std::cout << "║  ERROR: Failed to load MP3 files                         ║" << std::endl;
-            std::cout << "║  Place MP3 files in /home/pi/dubsiren/mp3s               ║" << std::endl;
+            std::cout << "║  Tried: /home/pi/dubsiren/mp3s, ~/dubsiren/mp3s, ../mp3s║" << std::endl;
+            std::cout << "║  Place MP3 files in one of these directories             ║" << std::endl;
         }
     } else {
         std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
