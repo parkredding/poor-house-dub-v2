@@ -695,13 +695,15 @@ void GPIOController::onTriggerRelease() {
 }
 
 void GPIOController::onPitchEnvChange(SwitchPosition position) {
+    // Debug output BEFORE entering critical section
+    const char* posStr = (position == SwitchPosition::Up) ? "Up" : (position == SwitchPosition::Down) ? "Down" : "Off";
+    std::cout << "  [CALLBACK FIRED] new position = " << posStr << std::endl;
+
     // Track pitch envelope cycles for Custom Audio mode activation
     // A complete cycle is: Off→Up→Off→Down→Off or Off→Down→Off→Up→Off
     {
         std::lock_guard<std::mutex> lock(cyclesMutex);
 
-        // Debug: show current state
-        const char* posStr = (position == SwitchPosition::Up) ? "Up" : (position == SwitchPosition::Down) ? "Down" : "Off";
         const char* lastPosStr = (lastPitchPosition == SwitchPosition::Up) ? "Up" : (lastPitchPosition == SwitchPosition::Down) ? "Down" : "Off";
         std::cout << "  [DEBUG] last=" << lastPosStr << " → new=" << posStr << " | inCycle=" << (inCycle ? "YES" : "NO") << std::endl;
 
