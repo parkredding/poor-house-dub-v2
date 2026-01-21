@@ -909,11 +909,12 @@ void GPIOController::checkPitchEnvMP3Activation() {
 
     // Debug output for toggle counting
     if (toggleCount >= 2) {
-        std::cout << "[DEBUG] Pitch envelope toggles in window: " << toggleCount << " (need 5)" << std::endl;
+        std::cout << "[DEBUG] Pitch envelope toggles in window: " << toggleCount << " (need 5+)" << std::endl;
     }
 
     // Check if we have 5 or more toggles in 2 seconds
-    if (toggleCount >= 5) {
+    // Only activate if not already in MP3 mode (prevents re-triggering/exiting on extra toggles)
+    if (toggleCount >= 5 && secretMode.load() != SecretMode::MP3) {
         // Activate MP3 mode (clearing happens in activateSecretMode)
         activateSecretMode(SecretMode::MP3);
     }
