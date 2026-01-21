@@ -746,11 +746,11 @@ void GPIOController::onShiftPress() {
     SecretMode currentMode = secretMode.load();
     if (currentMode != SecretMode::None) {
         // In NJD or UFO secret mode, shift cycles through presets
-        // In PitchDelay mode, shift just switches banks (no presets to cycle)
+        // In PitchDelay or CustomAudio mode, shift just switches banks (no presets to cycle)
         if (currentMode == SecretMode::NJD || currentMode == SecretMode::UFO) {
             cycleSecretModePreset();
         } else {
-            // PitchDelay mode - switch to Bank B
+            // PitchDelay or CustomAudio mode - switch to Bank B
             currentBank.store(Bank::B);
             std::cout << "Bank B active" << std::endl;
         }
@@ -765,8 +765,8 @@ void GPIOController::onShiftRelease() {
     shiftPressed.store(false);
 
     SecretMode currentMode = secretMode.load();
-    if (currentMode == SecretMode::None || currentMode == SecretMode::PitchDelay) {
-        // Normal operation or PitchDelay mode - switch back to Bank A
+    if (currentMode == SecretMode::None || currentMode == SecretMode::PitchDelay || currentMode == SecretMode::CustomAudio) {
+        // Normal operation, PitchDelay, or CustomAudio mode - switch back to Bank A
         currentBank.store(Bank::A);
         std::cout << "Bank A active" << std::endl;
     }
@@ -796,6 +796,7 @@ void GPIOController::checkSecretModeActivation() {
 
     int pressCount = 0;
     bool activatePitchDelay = false;
+    bool activateCustomAudio = false;
     bool activateNJD = false;
     bool activateUFO = false;
 
@@ -822,6 +823,10 @@ void GPIOController::checkSecretModeActivation() {
         else if (pressCount == 5) {
             activateNJD = true;
         }
+        // Check for Custom Audio mode (4 presses)
+        else if (pressCount == 4) {
+            activateCustomAudio = true;
+        }
         // Check for Pitch-Delay mode (3 presses)
         else if (pressCount == 3) {
             activatePitchDelay = true;
@@ -833,6 +838,8 @@ void GPIOController::checkSecretModeActivation() {
         activateSecretMode(SecretMode::UFO);
     } else if (activateNJD) {
         activateSecretMode(SecretMode::NJD);
+    } else if (activateCustomAudio) {
+        activateSecretMode(SecretMode::CustomAudio);
     } else if (activatePitchDelay) {
         activateSecretMode(SecretMode::PitchDelay);
     }
@@ -863,8 +870,10 @@ void GPIOController::activateSecretMode(SecretMode mode) {
         } else if (mode == SecretMode::UFO) {
             ledController->setMode(LEDMode::UFO);
         } else if (mode == SecretMode::PitchDelay) {
-            // Use a different LED color for PitchDelay mode (could use NJD or UFO, or Normal)
             ledController->setMode(LEDMode::Normal);
+        } else if (mode == SecretMode::CustomAudio) {
+            // Use UFO LED mode for custom audio (could be changed)
+            ledController->setMode(LEDMode::UFO);
         }
     }
 
@@ -873,6 +882,8 @@ void GPIOController::activateSecretMode(SecretMode mode) {
         modeName = "NJD SIREN";
     } else if (mode == SecretMode::UFO) {
         modeName = "UFO";
+    } else if (mode == SecretMode::CustomAudio) {
+        modeName = "CUSTOM AUDIO";
     } else {
         modeName = "PITCH-DELAY LINK";
     }
@@ -885,6 +896,9 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     if (mode == SecretMode::PitchDelay) {
         std::cout << "║  Pitch and delay are now inversely linked                ║" << std::endl;
         std::cout << "║  (higher pitch = shorter delay)                          ║" << std::endl;
+    } else if (mode == SecretMode::CustomAudio) {
+        std::cout << "║  Custom MP3 playback mode                                ║" << std::endl;
+        std::cout << "║  Press TRIGGER to play your custom audio                ║" << std::endl;
     } else {
         std::cout << "║  Press SHIFT to cycle presets                            ║" << std::endl;
     }
@@ -892,8 +906,23 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     std::cout << "╚══════════════════════════════════════════════════════════╝" << std::endl;
     std::cout << std::endl;
 
-    // Only apply presets for NJD and UFO modes (not PitchDelay)
-    if (mode == SecretMode::NJD || mode == SecretMode::UFO) {
+    // Handle mode-specific setup
+    if (mode == SecretMode::CustomAudio) {
+        // Load custom MP3 file
+        SamplePlayer* player = engine.getSamplePlayer();
+        bool loaded = player->loadMP3("assets/audio/custom.mp3");
+        if (loaded) {
+            engine.setSamplePlaybackMode(true);
+            player->setVolume(0.8f);
+            player->setLoop(false);
+            std::cout << "Custom audio loaded successfully!" << std::endl;
+        } else {
+            std::cerr << "Failed to load custom.mp3 - check assets/audio/ directory" << std::endl;
+            std::cout << "You can still exit this mode by pressing SHIFT 4 times" << std::endl;
+        }
+    }
+    // Only apply presets for NJD and UFO modes (not PitchDelay or CustomAudio)
+    else if (mode == SecretMode::NJD || mode == SecretMode::UFO) {
         applySecretModePreset();
     }
 }
@@ -907,6 +936,8 @@ void GPIOController::exitSecretMode() {
         modeName = "NJD SIREN";
     } else if (currentMode == SecretMode::UFO) {
         modeName = "UFO";
+    } else if (currentMode == SecretMode::CustomAudio) {
+        modeName = "CUSTOM AUDIO";
     } else {
         modeName = "PITCH-DELAY LINK";
     }
@@ -921,13 +952,19 @@ void GPIOController::exitSecretMode() {
     secretMode.store(SecretMode::None);
     secretModePreset.store(0);
 
+    // Exit sample playback mode if we were in CustomAudio mode
+    if (currentMode == SecretMode::CustomAudio) {
+        engine.setSamplePlaybackMode(false);
+        engine.getSamplePlayer()->stop();
+    }
+
     // Return LED to normal mode
     if (ledController) {
         ledController->setMode(LEDMode::Normal);
     }
 
     // Only restore default parameters when exiting NJD or UFO modes
-    // (PitchDelay mode doesn't change parameters, just behavior)
+    // (PitchDelay and CustomAudio modes don't change parameters, just behavior)
     if (currentMode == SecretMode::NJD || currentMode == SecretMode::UFO) {
         // Restore default parameters (Auto Wail preset)
         params.volume = 0.6f;

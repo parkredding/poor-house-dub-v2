@@ -14,10 +14,12 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     , filter(sampleRate)
     , delay(sampleRate)
     , reverb(sampleRate)
+    , samplePlayer(sampleRate)
     , volume(0.7f)
     , baseFrequency(440.0f)
     , lfoPitchDepth(0.0f)  // Default to 0 (no pitch modulation)
     , pitchEnvMode(PitchEnvelopeMode::Up)  // Default to UP for classic dub siren
+    , samplePlaybackMode(false)
     , currentFrequency(440.0f)
     , frequencySmooth(440.0f, 0.08f)  // Increased smoothing to reduce zipper noise
     , inReleasePhase(false)
@@ -29,6 +31,7 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
     lfoBuffer.resize(bufferSize);
     filterBuffer.resize(bufferSize);
     delayBuffer.resize(bufferSize);
+    sampleBuffer.resize(bufferSize * 2);  // Stereo interleaved
     
     // Set initial parameters (Auto Wail preset)
     oscillator.setWaveform(Waveform::Square);  // Square for classic siren sound
@@ -44,6 +47,13 @@ AudioEngine::AudioEngine(int sampleRate, int bufferSize)
 }
 
 void AudioEngine::process(float* output, int numFrames) {
+    // Check if we're in sample playback mode
+    if (samplePlaybackMode.load() && samplePlayer.isLoaded()) {
+        // Play sample instead of synth
+        samplePlayer.process(output, numFrames);
+        return;
+    }
+
     // Get pitch envelope mode
     PitchEnvelopeMode pitchMode = pitchEnvMode.get();
     float baseFreq = baseFrequency.get();
@@ -147,6 +157,14 @@ void AudioEngine::process(float* output, int numFrames) {
 
 void AudioEngine::trigger() {
     std::lock_guard<std::mutex> lock(triggerMutex);
+
+    // If in sample playback mode, trigger sample playback
+    if (samplePlaybackMode.load()) {
+        samplePlayer.trigger();
+        return;
+    }
+
+    // Normal synth mode
     oscillator.resetPhase();
     envelope.trigger();
     inReleasePhase = false;  // We're in attack/sustain phase
@@ -154,6 +172,14 @@ void AudioEngine::trigger() {
 
 void AudioEngine::release() {
     std::lock_guard<std::mutex> lock(triggerMutex);
+
+    // If in sample playback mode, stop sample playback
+    if (samplePlaybackMode.load()) {
+        samplePlayer.stop();
+        return;
+    }
+
+    // Normal synth mode
     // Capture envelope level at start of release for pitch envelope
     pitchEnvStartLevel = envelope.getCurrentValue();
     inReleasePhase = true;  // Start release phase (enables pitch envelope)
@@ -269,6 +295,10 @@ void AudioEngine::setReverbDamping(float damping) {
 
 void AudioEngine::setPitchEnvelopeMode(PitchEnvelopeMode mode) {
     pitchEnvMode.set(mode);
+}
+
+void AudioEngine::setSamplePlaybackMode(bool enabled) {
+    samplePlaybackMode.store(enabled);
 }
 
 } // namespace DubSiren

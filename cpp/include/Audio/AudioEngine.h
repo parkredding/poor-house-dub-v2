@@ -7,6 +7,7 @@
 #include "DSP/Filter.h"
 #include "DSP/Delay.h"
 #include "DSP/Reverb.h"
+#include "Audio/SamplePlayer.h"
 #include <memory>
 #include <mutex>
 
@@ -90,20 +91,25 @@ public:
     
     // Pitch Envelope
     void setPitchEnvelopeMode(PitchEnvelopeMode mode);
-    
+
+    // Sample Player
+    void setSamplePlaybackMode(bool enabled);
+    SamplePlayer* getSamplePlayer() { return &samplePlayer; }
+
     // ========================================================================
     // Getters
     // ========================================================================
-    
+
     float getVolume() const { return volume.get(); }
     float getFrequency() const { return baseFrequency.get(); }
-    bool isPlaying() const { return envelope.isActive() || envelope.getCurrentValue() > 0.001f; }
+    bool isPlaying() const { return envelope.isActive() || envelope.getCurrentValue() > 0.001f || samplePlayer.isPlaying(); }
     PitchEnvelopeMode getPitchEnvelopeMode() const { return pitchEnvMode.get(); }
+    bool isSamplePlaybackMode() const { return samplePlaybackMode.load(); }
     
 private:
     int sampleRate;
     int bufferSize;
-    
+
     // DSP Components
     Oscillator oscillator;
     LFO lfo;
@@ -112,13 +118,15 @@ private:
     DCBlocker dcBlocker;
     DelayEffect delay;
     ReverbEffect reverb;
+    SamplePlayer samplePlayer;
     
     // Thread-safe parameters
     AudioParameter<float> volume;
     AudioParameter<float> baseFrequency;
     AudioParameter<float> lfoPitchDepth;  // LFO pitch modulation depth
     AudioParameter<PitchEnvelopeMode> pitchEnvMode;
-    
+    std::atomic<bool> samplePlaybackMode;  // When true, play samples instead of synth
+
     // Internal state
     float currentFrequency;
     SmoothedValue frequencySmooth;
@@ -133,6 +141,7 @@ private:
     std::vector<float> lfoBuffer;
     std::vector<float> filterBuffer;
     std::vector<float> delayBuffer;
+    std::vector<float> sampleBuffer;
     
     // Mutex for trigger/release operations
     std::mutex triggerMutex;

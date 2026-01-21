@@ -66,6 +66,7 @@ set(DSP_SOURCES
 set(AUDIO_SOURCES
     src/Audio/AudioEngine.cpp
     src/Audio/AudioOutput.cpp
+    src/Audio/SamplePlayer.cpp
 )
 
 set(HARDWARE_SOURCES
