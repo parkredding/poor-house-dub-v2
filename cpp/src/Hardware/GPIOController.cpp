@@ -870,19 +870,16 @@ void GPIOController::checkSecretModeActivation() {
         }
 
         // Check for UFO mode first (10 presses) - takes priority
-        if (pressCount == 10) {
+        if (pressCount >= 10) {
             activateUFO = true;
-            recentShiftPresses.clear();  // Clear to prevent re-trigger
         }
         // Check for NJD mode (5 presses)
-        else if (pressCount == 5) {
+        else if (pressCount >= 5) {
             activateNJD = true;
-            recentShiftPresses.clear();  // Clear to prevent re-trigger
         }
         // Check for Pitch-Delay mode (3 presses)
-        else if (pressCount == 3) {
+        else if (pressCount >= 3) {
             activatePitchDelay = true;
-            recentShiftPresses.clear();  // Clear to prevent re-trigger
         }
     }
 
@@ -915,14 +912,9 @@ void GPIOController::checkPitchEnvMP3Activation() {
         std::cout << "[DEBUG] Pitch envelope toggles in window: " << toggleCount << " (need 5)" << std::endl;
     }
 
-    // Check if we have 5 toggles in 2 seconds
-    if (toggleCount == 5) {
-        // Clear the toggles so we don't re-trigger
-        recentPitchEnvToggles.clear();
-
-        // Activate MP3 mode (outside the mutex lock to avoid deadlock)
-        // We need to schedule this activation after releasing the lock
-        // For now, we'll just activate directly since we're in a different mutex than pressesMutex
+    // Check if we have 5 or more toggles in 2 seconds
+    if (toggleCount >= 5) {
+        // Activate MP3 mode (clearing happens in activateSecretMode)
         activateSecretMode(SecretMode::MP3);
     }
 }
@@ -944,6 +936,17 @@ void GPIOController::activateSecretMode(SecretMode mode) {
     // Enter the new mode
     secretMode.store(mode);
     secretModePreset.store(0);
+
+    // Clear activation triggers to prevent re-triggering
+    if (mode == SecretMode::MP3) {
+        // MP3 mode is activated by pitch envelope toggles
+        std::lock_guard<std::mutex> lock(pitchEnvMutex);
+        recentPitchEnvToggles.clear();
+    } else {
+        // Other modes are activated by shift button presses
+        std::lock_guard<std::mutex> lock(pressesMutex);
+        recentShiftPresses.clear();
+    }
 
     // Update LED mode for secret modes
     if (ledController) {
