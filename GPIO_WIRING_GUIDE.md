@@ -38,9 +38,9 @@ The pin assignments below carefully avoid these pins.
 
 | Encoder | Function (Bank A / Bank B) | CLK Pin | DT Pin | Physical Pins |
 |---------|---------------------------|---------|--------|---------------|
-| **Encoder 1** | Volume / Release Time | GPIO 17 | GPIO 2 | Pin 11, Pin 3 |
-| **Encoder 2** | Filter Freq / Delay Time | GPIO 27 | GPIO 22 | Pin 13, Pin 15 |
-| **Encoder 3** | Base Freq / Filter Res | GPIO 23 | GPIO 24 | Pin 16, Pin 18 |
+| **Encoder 1** | LFO Depth / LFO Rate | GPIO 17 | GPIO 2 | Pin 11, Pin 3 |
+| **Encoder 2** | Base Freq / Delay Time | GPIO 27 | GPIO 22 | Pin 13, Pin 15 |
+| **Encoder 3** | Filter Freq / Filter Res | GPIO 23 | GPIO 24 | Pin 16, Pin 18 |
 | **Encoder 4** | Delay Feedback / Osc Wave | GPIO 20 | GPIO 26 | Pin 38, Pin 37 |
 | **Encoder 5** | Reverb Mix / Reverb Size | GPIO 14 | GPIO 13 | Pin 8, Pin 33 |
 
@@ -89,14 +89,14 @@ WS2812D-F5 RGB LED for visual status indication:
 ## Parameter Bank Mapping
 
 ### Bank A (Normal - no shift)
-1. **Volume** - Master output level (0-100%)
-2. **Filter Frequency** - Low-pass filter cutoff (20-20000 Hz)
-3. **Base Frequency** - Oscillator pitch (50-2000 Hz)
+1. **LFO Depth** - Filter modulation intensity (0-100%)
+2. **Base Frequency** - Oscillator pitch (50-2000 Hz)
+3. **Filter Frequency** - Low-pass filter cutoff (20-20000 Hz)
 4. **Delay Feedback** - Echo repeats (0-95%)
 5. **Reverb Mix** - Reverb dry/wet (0-100%)
 
 ### Bank B (Hold Shift)
-1. **Release Time** - Envelope decay (0.001-5.0s)
+1. **LFO Rate** - Auto-wail speed (0.1-20 Hz)
 2. **Delay Time** - Echo timing (0.001-2.0s)
 3. **Filter Resonance** - Filter emphasis (0-95%)
 4. **Osc Waveform** - Oscillator shape (Sine/Square/Saw/Triangle)
@@ -157,21 +157,21 @@ Note: Pin order may vary by manufacturer - check your encoder's datasheet.
       Some encoders label pins as A/B/C or have different arrangements.
 ```
 
-**Encoder 1 (Volume / Release Time):**
+**Encoder 1 (LFO Depth / LFO Rate):**
 ```
 CLK (A) → Pin 11 (GPIO 17)
 DT (B)  → Pin 3  (GPIO 2)
 GND     → Pin 9  (GND)
 ```
 
-**Encoder 2 (Filter Freq / Delay Time):**
+**Encoder 2 (Base Freq / Delay Time):**
 ```
 CLK (A) → Pin 13 (GPIO 27)
 DT (B)  → Pin 15 (GPIO 22)
 GND     → Pin 9  (GND)
 ```
 
-**Encoder 3 (Base Freq / Filter Res):**
+**Encoder 3 (Filter Freq / Filter Res):**
 ```
 CLK (A) → Pin 16 (GPIO 23)
 DT (B)  → Pin 18 (GPIO 24)
@@ -369,15 +369,15 @@ sudo journalctl -u dubsiren.service -f
 
 ### 2. Test Each Encoder (Bank A)
 
-**Encoder 1 (Volume):**
-- Turn clockwise → Should see `[Bank A] volume: 0.520`
-- Turn counter-clockwise → Should see `[Bank A] volume: 0.480`
+**Encoder 1 (LFO Depth):**
+- Turn clockwise → Should see `[Bank A] lfo_depth: 0.542`
+- Turn counter-clockwise → Should see `[Bank A] lfo_depth: 0.458`
 
-**Encoder 2 (Filter Frequency):**
-- Turn → Should see `[Bank A] filter_freq: XXXX.000`
-
-**Encoder 3 (Base Frequency):**
+**Encoder 2 (Base Frequency):**
 - Turn → Should see `[Bank A] base_freq: XXX.XXX`
+
+**Encoder 3 (Filter Frequency):**
+- Turn → Should see `[Bank A] filter_freq: XXXX.000`
 
 **Encoder 4 (Delay Feedback):**
 - Turn → Should see `[Bank A] delay_feedback: 0.XXX`
@@ -389,7 +389,7 @@ sudo journalctl -u dubsiren.service -f
 
 **Hold Shift and turn encoders:**
 - Should see `Bank B active`
-- Encoder 1 → `[Bank B] release: X.XXX`
+- Encoder 1 → `[Bank B] lfo_rate: X.XXX`
 - Encoder 2 → `[Bank B] delay_time: X.XXX`
 - Encoder 3 → `[Bank B] filter_res: 0.XXX`
 - Encoder 4 → `[Bank B] osc_waveform: Sine/Square/Saw/Triangle`
@@ -470,7 +470,7 @@ For a permanent enclosure build:
 ┌──────────────────────────────────┐
 │                                  │
 │  [1]    [2]    [3]    [4]   [5]  │  ← Encoders
-│  Vol  Filter Pitch  Delay  Rev   │
+│  LFO  Pitch  Filter Delay  Rev   │
 │                                  │
 │  (Trigger)   ↑|○|↓   (Shift)     │  ← Buttons + 3-pos switch
 │              PITCH                │
@@ -482,9 +482,9 @@ For a permanent enclosure build:
 ### Tips
 - Use **panel-mount encoders** with mounting nuts
 - **Label each knob** with bank functions:
-  - `VOL / REL` (Volume / Release Time)
-  - `FILT / DLY` (Filter Freq / Delay Time)
-  - `PITCH / RES` (Base Freq / Filter Res)
+  - `LFO D / LFO R` (LFO Depth / LFO Rate)
+  - `PITCH / DLY` (Base Freq / Delay Time)
+  - `FILT / RES` (Filter Freq / Filter Res)
   - `FB / WAVE` (Delay Feedback / Osc Wave)
   - `MIX / SIZE` (Reverb Mix / Reverb Size)
 - Mount **Shift button** in easy reach
