@@ -32,8 +32,9 @@ struct gpiod_chip* gpioChip = nullptr;
 struct gpiod_line_request* lineRequest = nullptr;
 
 // All GPIO pins we need to monitor
+// Note: GPIO 5, 6, 7, 8 are optional (for waveform rotary switch)
 const unsigned int ALL_PINS[] = {
-    2, 3, 4, 9, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27
 };
 const size_t NUM_PINS = sizeof(ALL_PINS) / sizeof(ALL_PINS[0]);
 
@@ -426,6 +427,119 @@ void ThreePositionSwitch::pollLoop() {
 }
 
 // ============================================================================
+// FourPositionSwitch Implementation
+// ============================================================================
+
+FourPositionSwitch::FourPositionSwitch(int pin1, int pin2, int pin3, int pin4, PositionCallback onChange)
+    : pin1(pin1)
+    , pin2(pin2)
+    , pin3(pin3)
+    , pin4(pin4)
+    , callback(std::move(onChange))
+    , position(RotaryPosition::Position1)
+    , running(false)
+    , lastPosition(RotaryPosition::Position1)
+{
+    lastChange = std::chrono::steady_clock::now();
+}
+
+FourPositionSwitch::~FourPositionSwitch() {
+    stop();
+}
+
+void FourPositionSwitch::start() {
+    if (running.load()) return;
+
+#ifdef HAVE_PIGPIO
+    setupInputPin(pin1);
+    setupInputPin(pin2);
+    setupInputPin(pin3);
+    setupInputPin(pin4);
+#endif
+
+    // Read initial position
+    lastPosition = readPosition();
+    position.store(lastPosition);
+
+    running.store(true);
+    pollThread = std::thread(&FourPositionSwitch::pollLoop, this);
+}
+
+void FourPositionSwitch::stop() {
+    running.store(false);
+    if (pollThread.joinable()) {
+        pollThread.join();
+    }
+}
+
+RotaryPosition FourPositionSwitch::readPosition() {
+    // With pull-ups enabled:
+    // - Pin reads LOW (0) when connected to GND (switch in that position)
+    // - Pin reads HIGH (1) when not connected (switch in other position)
+    int state1 = readPin(pin1);
+    int state2 = readPin(pin2);
+    int state3 = readPin(pin3);
+    int state4 = readPin(pin4);
+
+#if DEBUG_INPUTS
+    static int lastLogged1 = -1, lastLogged2 = -1, lastLogged3 = -1, lastLogged4 = -1;
+    if (state1 != lastLogged1 || state2 != lastLogged2 || state3 != lastLogged3 || state4 != lastLogged4) {
+        const char* pos = (state1 == 0) ? "POS1 (SINE)" :
+                         (state2 == 0) ? "POS2 (SQUARE)" :
+                         (state3 == 0) ? "POS3 (SAW)" :
+                         (state4 == 0) ? "POS4 (TRIANGLE)" : "UNKNOWN";
+        std::cout << "[WAVEFORM SW] pin1(" << pin1 << ")=" << state1
+                  << " pin2(" << pin2 << ")=" << state2
+                  << " pin3(" << pin3 << ")=" << state3
+                  << " pin4(" << pin4 << ")=" << state4
+                  << " -> " << pos << std::endl;
+        lastLogged1 = state1;
+        lastLogged2 = state2;
+        lastLogged3 = state3;
+        lastLogged4 = state4;
+    }
+#endif
+
+    if (state1 == 0) {
+        return RotaryPosition::Position1;
+    } else if (state2 == 0) {
+        return RotaryPosition::Position2;
+    } else if (state3 == 0) {
+        return RotaryPosition::Position3;
+    } else if (state4 == 0) {
+        return RotaryPosition::Position4;
+    }
+    // Default to position 1 if no pin is grounded (shouldn't happen with a proper rotary switch)
+    return RotaryPosition::Position1;
+}
+
+void FourPositionSwitch::pollLoop() {
+    while (running.load()) {
+        RotaryPosition currentPos = readPosition();
+        auto now = std::chrono::steady_clock::now();
+
+        // Debounce
+        if (currentPos != lastPosition) {
+            lastPosition = currentPos;
+            lastChange = now;
+        }
+
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastChange).count();
+        if (elapsed >= DEBOUNCE_MS) {
+            RotaryPosition storedPos = position.load();
+            if (currentPos != storedPos) {
+                position.store(currentPos);
+                if (callback) {
+                    callback(currentPos);
+                }
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+}
+
+// ============================================================================
 // GPIOController Implementation
 // ============================================================================
 
@@ -515,7 +629,24 @@ void GPIOController::start() {
         
         // Apply initial pitch envelope from switch position
         onPitchEnvChange(pitchEnvSwitch->getPosition());
-        
+
+        // Initialize optional 4-position waveform rotary switch
+        // Note: This is optional hardware - comment out if not installed
+        #ifdef ENABLE_WAVEFORM_SWITCH
+        waveformSwitch = std::make_unique<FourPositionSwitch>(
+            GPIO::WAVEFORM_SW_POS1, GPIO::WAVEFORM_SW_POS2,
+            GPIO::WAVEFORM_SW_POS3, GPIO::WAVEFORM_SW_POS4,
+            [this](RotaryPosition pos) { onWaveformChange(pos); }
+        );
+        waveformSwitch->start();
+        std::cout << "  ✓ waveform switch initialized (GPIO " << GPIO::WAVEFORM_SW_POS1
+                  << ", " << GPIO::WAVEFORM_SW_POS2 << ", " << GPIO::WAVEFORM_SW_POS3
+                  << ", " << GPIO::WAVEFORM_SW_POS4 << ")" << std::endl;
+
+        // Apply initial waveform from switch position
+        onWaveformChange(waveformSwitch->getPosition());
+        #endif
+
         // Initialize optional WS2812 LED controller
         ledController = std::make_unique<LEDController>(GPIO::LED_DATA);
         if (ledController->init()) {
@@ -582,7 +713,9 @@ void GPIOController::stop() {
     }
     
     if (pitchEnvSwitch) pitchEnvSwitch->stop();
-    
+
+    if (waveformSwitch) waveformSwitch->stop();
+
     if (ledController) ledController->stop();
     
     cleanupGPIO();
@@ -730,6 +863,54 @@ void GPIOController::onPitchEnvChange(SwitchPosition position) {
         std::cout << "[" << modeStr << " MODE] Pitch envelope: " << modeName << std::endl;
     } else {
         std::cout << "Pitch envelope: " << modeName << std::endl;
+    }
+}
+
+void GPIOController::onWaveformChange(RotaryPosition position) {
+    // Map rotary switch position to waveform
+    int waveform;
+    const char* waveformName;
+
+    switch (position) {
+        case RotaryPosition::Position1:
+            waveform = 0;  // Sine
+            waveformName = "Sine";
+            break;
+        case RotaryPosition::Position2:
+            waveform = 1;  // Square
+            waveformName = "Square";
+            break;
+        case RotaryPosition::Position3:
+            waveform = 2;  // Sawtooth
+            waveformName = "Sawtooth";
+            break;
+        case RotaryPosition::Position4:
+            waveform = 3;  // Triangle
+            waveformName = "Triangle";
+            break;
+        default:
+            waveform = 1;  // Default to square
+            waveformName = "Square (default)";
+            break;
+    }
+
+    // Update the parameter and engine
+    params.oscWaveform = waveform;
+    engine.setWaveform(waveform);
+
+    SecretMode currentMode = secretMode.load();
+    if (currentMode != SecretMode::None) {
+        const char* modeStr;
+        if (currentMode == SecretMode::NJD) {
+            modeStr = "NJD";
+        } else if (currentMode == SecretMode::UFO) {
+            modeStr = "UFO";
+        } else {
+            modeStr = "PITCH-DELAY";
+        }
+        std::cout << "[" << modeStr << " MODE] Waveform: " << waveformName << std::endl;
+    } else {
+        std::cout << "Waveform: " << waveformName << std::endl;
     }
 }
 

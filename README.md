@@ -28,8 +28,9 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
   - 5 rotary encoders with bank switching (10 parameters total)
   - 3 momentary switches (trigger, shift, shutdown)
   - 3-position toggle switch for pitch envelope (up/off/down)
+  - Optional: 4-position rotary switch for direct waveform selection
   - Shift button for accessing Bank A/B parameters
-  - Uses 15 GPIO pins (avoids I2S conflict)
+  - Uses 15-20 GPIO pins (avoids I2S conflict)
   - Secret modes: NJD (rasta presets) and UFO (sci-fi presets)
 
 - **Optional Status LED**
@@ -61,6 +62,7 @@ A professional dub siren synthesizer built on Raspberry Pi Zero 2 with PCM5102 I
 - MicroSD card (8GB+)
 - 5V 2.5A power supply
 - Optional: WS2812D-F5 RGB LED for status indication
+- Optional: Single pole 4 throw (SP4T) rotary switch for waveform selection
 
 ### Installation
 

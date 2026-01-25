@@ -43,6 +43,12 @@ namespace GPIO {
     
     // Optional WS2812 LED data pin (supports PWM)
     constexpr int LED_DATA = 12;        // Pin 32 (PWM0)
+
+    // Optional 4-position rotary switch for waveform selection
+    constexpr int WAVEFORM_SW_POS1 = 5;  // Pin 29 - Sine
+    constexpr int WAVEFORM_SW_POS2 = 6;  // Pin 31 - Square
+    constexpr int WAVEFORM_SW_POS3 = 7;  // Pin 26 - Sawtooth
+    constexpr int WAVEFORM_SW_POS4 = 8;  // Pin 24 - Triangle
 }
 
 /**
@@ -154,6 +160,44 @@ private:
 };
 
 /**
+ * Four-position rotary switch handler with debouncing.
+ * Used for waveform selection: Sine / Square / Sawtooth / Triangle
+ */
+enum class RotaryPosition {
+    Position1,  // Sine wave
+    Position2,  // Square wave
+    Position3,  // Sawtooth wave
+    Position4   // Triangle wave
+};
+
+class FourPositionSwitch {
+public:
+    using PositionCallback = std::function<void(RotaryPosition)>;
+
+    FourPositionSwitch(int pin1, int pin2, int pin3, int pin4, PositionCallback onChange = nullptr);
+    ~FourPositionSwitch();
+
+    void start();
+    void stop();
+    RotaryPosition getPosition() const { return position.load(); }
+
+private:
+    int pin1, pin2, pin3, pin4;
+    PositionCallback callback;
+    std::atomic<RotaryPosition> position;
+    std::atomic<bool> running;
+    std::thread pollThread;
+
+    RotaryPosition lastPosition;
+    std::chrono::steady_clock::time_point lastChange;
+
+    static constexpr int DEBOUNCE_MS = 20;
+
+    void pollLoop();
+    RotaryPosition readPosition();
+};
+
+/**
  * Secret mode enumeration.
  * Triggered by rapidly pressing the shift button.
  */
@@ -258,6 +302,7 @@ private:
     std::array<std::unique_ptr<RotaryEncoder>, 5> encoders;
     std::array<std::unique_ptr<MomentarySwitch>, 3> buttons;  // Trigger, Shift, Shutdown
     std::unique_ptr<ThreePositionSwitch> pitchEnvSwitch;      // 3-position pitch envelope
+    std::unique_ptr<FourPositionSwitch> waveformSwitch;       // Optional 4-position waveform selector
     std::unique_ptr<LEDController> ledController;             // Optional WS2812 status LED
     
     // Encoder handlers
@@ -272,7 +317,10 @@ private:
     
     // Pitch envelope switch handler
     void onPitchEnvChange(SwitchPosition position);
-    
+
+    // Waveform switch handler
+    void onWaveformChange(RotaryPosition position);
+
     // Secret mode handling
     void checkSecretModeActivation();
     void activateSecretMode(SecretMode mode);

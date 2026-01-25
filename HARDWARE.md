@@ -12,6 +12,7 @@
 
 ### Optional Components
 - **WS2812D-F5 RGB LED** - 5mm through-hole addressable LED for status indication
+- **Single Pole 4 Throw (SP4T) Rotary Switch** - For direct waveform selection (Sine/Square/Saw/Triangle)
 - Enclosure/case
 - Knobs for rotary encoders
 - PCB or perfboard for mounting
@@ -69,7 +70,7 @@ Raspberry Pi Zero 2 (Top View)
 
 The design uses **5 rotary encoders** with **bank switching** to access 10 parameters. A shift button switches between Bank A (normal mode) and Bank B (shift held).
 
-**Total GPIO pins used: 15-16** (10 encoder pins + 3 button pins + 2 pitch switch pins + 1 optional LED pin)
+**Total GPIO pins used: 15-20** (10 encoder pins + 3 button pins + 2 pitch switch pins + 1 optional LED pin + 4 optional waveform switch pins)
 
 ⚠️ **Critical:** This design avoids GPIO 18, 19, and 21 which are reserved for I2S audio (PCM5102 DAC).
 
@@ -98,6 +99,17 @@ The design uses **5 rotary encoders** with **bank switching** to access 10 param
 | **UP** | GPIO 10 | Pitch rises on release |
 | **OFF** | — | No pitch envelope |
 | **DOWN** | GPIO 9 | Pitch falls on release |
+
+#### Optional Waveform Rotary Switch (4-position SP4T)
+
+| Position | Waveform | GPIO Pin | Function |
+|----------|----------|----------|----------|
+| **Position 1** | Sine | GPIO 5 | Smooth sine wave |
+| **Position 2** | Square | GPIO 6 | Classic siren wave |
+| **Position 3** | Sawtooth | GPIO 7 | Bright harmonics |
+| **Position 4** | Triangle | GPIO 8 | Mellow triangle wave |
+
+**Note:** This is an optional alternative to Bank B Encoder 4 for waveform selection. Provides more intuitive direct selection.
 
 ### Rotary Encoder Wiring
 
@@ -150,10 +162,11 @@ Switch Wiring:
 │  Bank A:  Vol   Filter  Pitch   D.FB   R.Mix   │
 │  Bank B:  Rel   Delay   F.Res  Osc.W  R.Size   │
 │                                                  │
-│  ┌─────┐  ↑|○|↓   ┌─────┐ ┌─────┐   ◉         │
-│  │  ⏺  │  PITCH   │  ⏺  │ │  ⏺  │  LED       │
-│  └─────┘   ENV    └─────┘ └─────┘             │
-│  TRIGGER (toggle) SHIFT  SHUTDOWN              │
+│  ┌─────┐  ↑|○|↓   ┌─────┐  ┌────┐  ┌─────┐  ◉  │
+│  │  ⏺  │  PITCH   │  ⏺  │  │ ↻W │  │  ⏺  │ LED │
+│  └─────┘   ENV    └─────┘  └────┘  └─────┘     │
+│  TRIGGER (toggle) SHIFT   WAVEFORM SHUTDOWN     │
+│                          (optional)             │
 │                                                  │
 └──────────────────────────────────────────────────┘
 ```
@@ -178,7 +191,9 @@ Switch Wiring:
 - **GPIO 19** - I2S BCLK (Bit Clock)
 - **GPIO 21** - I2S DOUT (Data)
 
-The 15-16 GPIO pins used by the control surface (GPIO 2, 3, 4, 9, 10, 12, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27) are all safe to use alongside I2S.
+The 15-20 GPIO pins used by the control surface (GPIO 2, 3, 4, 5*, 6*, 7*, 8*, 9, 10, 12, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27) are all safe to use alongside I2S.
+
+*GPIO 5, 6, 7, 8 are optional and only used if the waveform rotary switch is installed.
 
 ### Bank Switching Operation
 

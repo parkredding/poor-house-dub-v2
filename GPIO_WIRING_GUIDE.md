@@ -6,7 +6,7 @@ Complete wiring instructions for the Poor House Dub V2 control surface with shif
 
 The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 10 parameters across 2 banks, plus 3 function buttons, a 3-position pitch envelope switch, and an optional status LED.
 
-**Total GPIO pins: 15-16** (10 for encoders + 3 for buttons + 2 for pitch envelope switch + 1 optional for LED)
+**Total GPIO pins: 15-20** (10 for encoders + 3 for buttons + 2 for pitch envelope switch + 1 optional for LED + 4 optional for waveform switch)
 
 ### Bank System
 - **Bank A (Normal):** Primary dub controls (volume, filter, delay, reverb)
@@ -78,6 +78,19 @@ WS2812D-F5 RGB LED for visual status indication:
 - **Green/purple** alien theme in UFO secret mode
 - **Pulses with audio** for sound-reactive feedback
 
+### Optional Waveform Rotary Switch (4 GPIO pins)
+
+Single pole 4 throw (SP4T) rotary switch for direct waveform selection:
+
+| Position | Waveform | GPIO Pin | Physical Pin |
+|----------|----------|----------|--------------|
+| **Position 1** | Sine | GPIO 5 | Pin 29 |
+| **Position 2** | Square | GPIO 6 | Pin 31 |
+| **Position 3** | Sawtooth | GPIO 7 | Pin 26 |
+| **Position 4** | Triangle | GPIO 8 | Pin 24 |
+
+**Note:** This is an optional alternative to using Encoder 4 in Bank B for waveform selection. If installed, the rotary switch will override the encoder waveform control for more intuitive waveform selection.
+
 ### Power Connections
 
 | Connection | Pin(s) |
@@ -120,11 +133,11 @@ Raspberry Pi Zero 2W GPIO Header (40-pin)
 │ 17 3.3V        [GPIO 24] 18│  ← Enc3-DT
 │ 19 [GPIO 10]   [GND]    20 │  ← Pitch Env UP, Switch GND
 │ 21 [GPIO 9]    GPIO 25  22 │  ← Pitch Env DOWN
-│ 23 GPIO 11     GPIO 8   24 │
-│ 25 [GND]       GPIO 7   26 │
+│ 23 GPIO 11     [GPIO 8]  24 │  ← (Optional) Waveform Pos4
+│ 25 [GND]       [GPIO 7]  26 │  ← (Optional) Waveform Pos3
 │ 27 ID_SD       ID_SC    28 │
-│ 29 GPIO 5      [GND]    30 │
-│ 31 GPIO 6      GPIO 12  32 │
+│ 29 [GPIO 5]    [GND]    30 │  ← (Optional) Waveform Pos1
+│ 31 [GPIO 6]    [GPIO 12] 32 │  ← (Optional) Waveform Pos2, LED
 │ 33 [GPIO 13]   [GND]    34 │  ← Enc5-DT
 │ 35 GPIO 19     GPIO 16  36 │  ← I2S (DO NOT USE 19!)
 │ 37 [GPIO 26]   [GPIO 20] 38│  ← Enc4-DT, Enc4-CLK
@@ -279,6 +292,45 @@ GND (VSS)  → Pin 6, 9, or any GND
 - GPIO 12 supports hardware PWM which is ideal for WS2812 timing
 - If you have signal issues, add a 300-500Ω resistor in series with the data line
 - Add a 100µF capacitor across VCC and GND near the LED if you see flickering
+
+### Optional 4-Position Waveform Rotary Switch
+
+A single pole 4 throw (SP4T) rotary switch provides direct waveform selection without needing to use the encoder.
+
+```
+SP4T Rotary Switch (4 positions)
+┌─────────────────────────────────┐
+│         (top view)              │
+│           ┌───┐                 │
+│           │ ● │ ← Rotary knob   │
+│           └───┘                 │
+│     [1] [2] [C] [3] [4]         │
+│                                 │
+│  Position 1: Sine Wave          │
+│  Position 2: Square Wave        │
+│  Position 3: Sawtooth Wave      │
+│  Position 4: Triangle Wave      │
+└─────────────────────────────────┘
+
+Wiring:
+  Terminal 1 (Pos 1) → Pin 29 (GPIO 5)  - Sine
+  Terminal 2 (Pos 2) → Pin 31 (GPIO 6)  - Square
+  Terminal C (Common) → Pin 30 (GND)    - Common ground
+  Terminal 3 (Pos 3) → Pin 26 (GPIO 7)  - Sawtooth
+  Terminal 4 (Pos 4) → Pin 24 (GPIO 8)  - Triangle
+```
+
+**Switch operation:**
+- When rotated to any position, that terminal connects to Common (GND)
+- The selected GPIO reads LOW (0) = waveform selected
+- All other GPIOs read HIGH (1) = not selected
+- Internal pull-up resistors are enabled in software
+
+**To enable this feature:**
+The waveform switch is optional and disabled by default. To enable it:
+1. Wire the switch according to the diagram above
+2. Recompile with the flag: `cmake -DENABLE_WAVEFORM_SWITCH=ON ..`
+3. The switch will override Bank B Encoder 4 (Osc Waveform) control
 
 ## Breadboard Layout Example
 
@@ -516,6 +568,13 @@ For a permanent enclosure build:
   - Shows startup status, mode indication, audio-reactive pulsing
 - **100µF electrolytic capacitor** (for LED power filtering)
 - **330Ω resistor** (optional, for data line protection)
+
+### Optional Waveform Rotary Switch
+- **Single Pole 4 Throw (SP4T) rotary switch** (panel mount recommended)
+  - Also known as: 1P4T rotary selector switch
+  - Provides direct waveform selection (Sine/Square/Saw/Triangle)
+  - Alternative to using encoder for waveform control
+  - Makes waveform selection more intuitive and tactile
 
 ### Optional Components
 - **0.1µF ceramic capacitors** (10-pack) for encoder noise reduction (CLK/DT to GND)
