@@ -1,231 +1,223 @@
-# Dub Siren V2 - PCB Layout Specification
+# Dub Siren V2 - PCB Layout Specification (Pi HAT Version)
 ## For PCB Designer
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Date:** 2026-01-27
-**Project:** Poor House Dub Siren V2 Control Surface PCB
+**Project:** Poor House Dub Siren V2 - Raspberry Pi Zero 2 W HAT with Edge Breakouts
 
 ---
 
 ## Overview
 
-This document specifies the physical layout for a front-panel mounted control surface PCB. All rotary encoders, switches, and buttons mount **through the PCB to the front panel** of the enclosure, with the PCB positioned behind the panel. The front panel will have pre-cut mounting holes aligned with this layout.
+This PCB is a **Raspberry Pi Zero 2 W HAT** that provides breakout connections for an external control surface. The design philosophy:
 
-**Key Design Principles:**
-- All user controls mount to front panel (panel-mount components)
-- PCB sits behind front panel and provides electrical connections only
-- 45mm center-to-center spacing for all controls (allows large knobs)
-- 3×3 matrix layout for intuitive operation
-- Compact design suitable for desktop/rack mounting
+- **Pi HAT format:** Mounts directly onto Raspberry Pi Zero 2 W via 40-pin female header
+- **Dual-sided design:**
+  - **TOP side:** Breakout pads for external control wiring
+  - **BOTTOM side:** Female GPIO header, Pi Zero 2 W mounts here
+- **Edge breakouts:** Through-hole pads at board edges for flexible component choice
+- **External mounting:** All switches, encoders, and buttons mount to front panel enclosure and wire to breakout pads
+- **Maximum flexibility:** Builder can choose any compatible components
 
 ---
 
 ## Board Dimensions
 
-**Recommended PCB Size:** 150mm (W) × 180mm (H)
+**PCB Size:** 65mm (W) × 120mm (H) × 1.6mm thickness
 
-This provides:
-- 30mm left/right margins from outer controls
-- 30mm top margin (LED at 15mm from top)
-- 30mm bottom margin
-- Adequate space for routing and mounting holes
+**Rationale:**
+- Width matches Raspberry Pi Zero 2 W (65mm)
+- Height provides 110mm of vertical space for breakout pads
+- Standard 1.6mm FR4 thickness
 
----
-
-## Component Layout Matrix
-
-### Grid Overview (3×3 Matrix + LED)
-
-```
-                    ┌─────────────────────────────┐
-                    │         [  LED  ]           │  ← 15mm from top
-                    │                             │
-     Row 1 (30mm) → │  [E1]    [E2]    [E3]      │
-                    │                             │
-                    │                             │
-     Row 2 (75mm) → │  [E4]    [E5]  [PITCH]     │
-                    │                             │
-                    │                             │
-    Row 3 (120mm) → │ [WAVE]  [BANK]  [TRIG]     │
-                    │                             │
-                    └─────────────────────────────┘
-
-    Column X-Pos:      30mm    75mm    120mm
-```
-
-### Component Positions (Center Coordinates)
-
-All measurements from **TOP-LEFT corner** of PCB (0,0).
-
-| Component | Type | Row | Column | X (mm) | Y (mm) | Notes |
-|-----------|------|-----|--------|--------|--------|-------|
-| **LED** | WS2812 5mm | - | Center | 75 | 15 | Status indicator |
-| **Encoder 1** | Rotary Encoder | 1 | 1 | 30 | 45 | Volume / Release |
-| **Encoder 2** | Rotary Encoder | 1 | 2 | 75 | 45 | Filter Freq / Delay Time |
-| **Encoder 3** | Rotary Encoder | 1 | 3 | 120 | 45 | Base Freq / Filter Res |
-| **Encoder 4** | Rotary Encoder | 2 | 1 | 30 | 90 | Delay Feedback |
-| **Encoder 5** | Rotary Encoder | 2 | 2 | 75 | 90 | Reverb Mix / Size |
-| **Pitch Switch** | 3-Pos Toggle (ON/OFF/ON) | 2 | 3 | 120 | 90 | Pitch envelope control |
-| **Waveform Switch** | SP4T Rotary Switch | 3 | 1 | 30 | 135 | Waveform selection |
-| **Bank Button** | Momentary SPST | 3 | 2 | 75 | 135 | Shift button (Bank A/B) |
-| **Trigger Button** | Momentary SPST | 3 | 3 | 120 | 135 | Main trigger |
+**Layer Stack:** 2-layer PCB
+- Top: Breakout pads, silkscreen labels, LED
+- Bottom: Female GPIO header, Pi mounting holes, ground plane
 
 ---
 
-## Spacing Verification
+## Raspberry Pi Zero 2 W Integration
 
-### Horizontal Spacing
-- Column 1 to Column 2: **45mm** ✓
-- Column 2 to Column 3: **45mm** ✓
-- Total width of controls: **90mm**
+### GPIO Header (Bottom Side)
+- **Type:** 2×20 pin (40-pin) female header
+- **Pitch:** 2.54mm (0.1" standard)
+- **Position:** Centered on board width, starting 5mm from bottom edge
+- **Height:** Standard through-hole female header (8.5mm pin length)
+- **Orientation:** Pins face DOWN (Pi Zero mounts underneath)
 
-### Vertical Spacing
-- Row 1 to Row 2: **45mm** ✓
-- Row 2 to Row 3: **45mm** ✓
-- Total height of controls: **90mm**
+### Mounting Holes
+- **4× mounting holes** matching Pi Zero 2 W footprint
+- **Hole diameter:** 2.75mm (M2.5 screws)
+- **Positions (from GPIO header pin 1):**
+  - Hole 1: 3.5mm, 3.5mm (near Pin 1)
+  - Hole 2: 61.5mm, 3.5mm (near Pin 2)
+  - Hole 3: 3.5mm, 52.5mm (near Pin 39)
+  - Hole 4: 61.5mm, 52.5mm (near Pin 40)
 
-### LED Position
-- Horizontal: **75mm** from left (centered on Column 2)
-- Vertical: **15mm** from top edge
-- Clearance to Row 1: **30mm** (15mm above Row 1 at 45mm)
-
----
-
-## Component Specifications
-
-### Rotary Encoders (5 units)
-- **Part Type:** EC11 series rotary encoder (or equivalent)
-- **Mounting:** Panel mount, threaded bushing with nut
-- **Footprint:** 5-pin through-hole
-  - CLK, DT, GND pins required
-  - Push-switch pins (SW, SW) not used
-- **Shaft:** 6mm D-shaft (knurled/flatted for knob attachment)
-- **Thread:** M7 × 0.75 (standard for EC11)
-- **Panel Hole Size:** 7mm diameter
-- **Bushing Length:** 10-15mm (adjust based on panel thickness)
-
-**Pin Assignment (each encoder):**
-```
-     [CLK] [DT] [GND] [SW] [SW]
-       |    |    |     |    |
-       |    |    |     └────┴─── Not connected
-       |    |    └───────────── Ground
-       |    └────────────────── Data (DT)
-       └─────────────────────── Clock (CLK)
-```
-
-### Momentary Push Buttons (2 units)
-- **Part Type:** 16mm momentary push button (SPST NO)
-- **Mounting:** Panel mount, threaded bushing with nut
-- **Footprint:** 2-pin through-hole
-- **Thread:** M16 × 0.75
-- **Panel Hole Size:** 16mm diameter
-- **LED Illumination:** Not required (optional)
-- **Wiring:** Active-low (one pin to GPIO, one pin to GND)
-
-**Pin Assignment:**
-```
-  [Pin 1] ──→ GPIO (signal)
-  [Pin 2] ──→ GND (ground)
-```
-
-### 3-Position Toggle Switch (1 unit)
-- **Part Type:** ON/OFF/ON toggle switch (SPDT with center-off)
-- **Mounting:** Panel mount, threaded bushing with nut
-- **Footprint:** 3-pin through-hole
-- **Thread:** M6 × 0.75 (or M12, depending on switch body size)
-- **Panel Hole Size:** 6mm or 12mm diameter (specify based on part)
-- **Toggle Travel:** ±30° from center
-
-**Pin Assignment:**
-```
-  [UP]  [COMMON]  [DOWN]
-    |       |       |
-    |       └───────┴──→ Ground (common)
-    └──────────────────→ GPIO 10 (UP position)
-    └──────────────────→ GPIO 9 (DOWN position)
-```
-
-### 4-Position Rotary Switch (1 unit)
-- **Part Type:** Single Pole 4 Throw (SP4T) rotary selector switch
-- **Mounting:** Panel mount, threaded bushing with nut
-- **Footprint:** 5-pin through-hole (4 positions + common)
-- **Rotation:** 90° per position (4 × 90° = 360° total, or 4 × 30° detents)
-- **Thread:** M12 × 0.75
-- **Panel Hole Size:** 12mm diameter
-- **Detents:** 4 positions with positive click detents
-
-**Pin Assignment:**
-```
-  [POS1] [POS2] [COMMON] [POS3] [POS4]
-     |      |       |       |      |
-     |      |       └───────┴──────┴──→ Ground (common)
-     └──────┴───────────────────────→ GPIO 5, 6, 7, 8
-```
-
-### WS2812 LED (1 unit)
-- **Part Type:** WS2812D-F5 (5mm through-hole addressable RGB LED)
-- **Mounting:** Press-fit into 5mm hole or LED holder clip
-- **Footprint:** 4-pin through-hole
-- **Panel Hole Size:** 5mm diameter
-- **Polarity:** Check datasheet - VCC, GND, DIN, DOUT
-
-**Pin Assignment:**
-```
-  [VCC] [GND] [DIN] [DOUT]
-    |     |     |      |
-    |     |     |      └───→ Not connected
-    |     |     └──────────→ GPIO 12 (data in)
-    |     └────────────────→ Ground
-    └──────────────────────→ +5V (NOT 3.3V!)
-```
-
-**Important:** WS2812 requires **5V power**, but accepts 3.3V data signals.
+### Clearance Zone
+- **Bottom side:** 65mm × 56mm keep-out zone for Pi Zero 2 W
+- No components on bottom except GPIO header and mounting hardware
+- Ensure adequate clearance for HDMI, USB ports, and SD card access
 
 ---
 
-## Connector Specifications
+## Breakout Pad Layout
 
-### Raspberry Pi Connection
-- **Connector Type:** 2×20 pin (40-pin) female header
-- **Pitch:** 2.54mm (0.1")
-- **Placement:** Right side or bottom edge of PCB (designer's choice)
-- **Orientation:** Position for easy cable access to Pi Zero 2
+### Design Concept
+Instead of mounting components directly to the PCB, **through-hole pads** are provided at strategic board edges. The builder wires from these pads to panel-mounted components of their choice.
 
-**Alternative:** Use a 40-pin ribbon cable with IDC connectors (2×20 female)
-
-### PCM5102 DAC Connection (Optional)
-- **Connector Type:** 5-pin header (or direct solder pads)
-- **Signals:** 3.3V, GND, BCK, LRCK, DIN
-- **Placement:** Bottom or right edge of PCB
+### Pad Specifications
+- **Pad type:** Through-hole, round or oval
+- **Pad diameter:** 2.0mm hole, 3.0mm pad (for easy hand soldering)
+- **Spacing:** 2.54mm (0.1" pitch) for compatibility with headers/connectors
+- **Labeling:** Clear silkscreen labels on top side
 
 ---
 
-## GPIO Pin Mapping
+## Edge Breakout Locations
 
-### Pin Assignments Table
+### Left Edge (X = 5mm, Y varies)
+**Encoder 1 Breakout** (5 pins)
+```
+Y Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+20mm       | 1   | E1_CLK   | 17    | Encoder 1 Clock
+22.54mm    | 2   | E1_DT    | 2     | Encoder 1 Data
+25.08mm    | 3   | E1_GND   | GND   | Ground
+```
 
-| Component | Signal | GPIO # | Pi Physical Pin | Notes |
-|-----------|--------|--------|-----------------|-------|
-| **Encoder 1** | CLK | 17 | 11 | Volume / Release |
-| **Encoder 1** | DT | 2 | 3 | |
-| **Encoder 2** | CLK | 27 | 13 | Filter / Delay |
-| **Encoder 2** | DT | 22 | 15 | |
-| **Encoder 3** | CLK | 23 | 16 | Base Freq / Filter Res |
-| **Encoder 3** | DT | 24 | 18 | |
-| **Encoder 4** | CLK | 20 | 38 | Delay Feedback |
-| **Encoder 4** | DT | 26 | 37 | |
-| **Encoder 5** | CLK | 14 | 8 | Reverb |
-| **Encoder 5** | DT | 13 | 33 | |
-| **Bank Button** | Signal | 15 | 10 | Active-low |
-| **Trigger Button** | Signal | 4 | 7 | Active-low |
-| **Pitch Switch** | UP | 10 | 19 | Active-low |
-| **Pitch Switch** | DOWN | 9 | 21 | Active-low |
-| **Waveform Sw** | Pos1 (Sine) | 5 | 29 | Active-low |
-| **Waveform Sw** | Pos2 (Square) | 6 | 31 | Active-low |
-| **Waveform Sw** | Pos3 (Saw) | 7 | 26 | Active-low |
-| **Waveform Sw** | Pos4 (Triangle) | 8 | 24 | Active-low |
-| **LED** | Data | 12 | 32 | PWM0 |
+**Encoder 4 Breakout** (5 pins)
+```
+Y Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+35mm       | 1   | E4_CLK   | 20    | Encoder 4 Clock
+37.54mm    | 2   | E4_DT    | 26    | Encoder 4 Data
+40.08mm    | 3   | E4_GND   | GND   | Ground
+```
+
+**Waveform Switch Breakout** (5 pins)
+```
+Y Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+50mm       | 1   | WAVE_1   | 5     | Position 1 (Sine)
+52.54mm    | 2   | WAVE_2   | 6     | Position 2 (Square)
+55.08mm    | 3   | WAVE_3   | 7     | Position 3 (Sawtooth)
+57.62mm    | 4   | WAVE_4   | 8     | Position 4 (Triangle)
+60.16mm    | 5   | WAVE_GND | GND   | Common ground
+```
+
+### Top Edge (Y = 115mm, X varies)
+**Encoder 2 Breakout** (5 pins)
+```
+X Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+15mm       | 1   | E2_CLK   | 27    | Encoder 2 Clock
+17.54mm    | 2   | E2_DT    | 22    | Encoder 2 Data
+20.08mm    | 3   | E2_GND   | GND   | Ground
+```
+
+**Encoder 3 Breakout** (5 pins)
+```
+X Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+32.5mm     | 1   | E3_CLK   | 23    | Encoder 3 Clock
+35.04mm    | 2   | E3_DT    | 24    | Encoder 3 Data
+37.58mm    | 3   | E3_GND   | GND   | Ground
+```
+
+**Encoder 5 Breakout** (5 pins)
+```
+X Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+47.5mm     | 1   | E5_CLK   | 14    | Encoder 5 Clock
+50.04mm    | 2   | E5_DT    | 13    | Encoder 5 Data
+52.58mm    | 3   | E5_GND   | GND   | Ground
+```
+
+### Right Edge (X = 60mm, Y varies)
+**Pitch Switch Breakout** (3 pins)
+```
+Y Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+35mm       | 1   | PITCH_UP | 10    | Pitch envelope up
+37.54mm    | 2   | PITCH_DN | 9     | Pitch envelope down
+40.08mm    | 3   | PITCH_GND| GND   | Common ground
+```
+
+**Bank Button Breakout** (2 pins)
+```
+Y Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+50mm       | 1   | BANK_BTN | 15    | Bank shift button
+52.54mm    | 2   | BANK_GND | GND   | Ground
+```
+
+**Trigger Button Breakout** (2 pins)
+```
+Y Position | Pin | Label    | GPIO  | Function
+-----------|-----|----------|-------|------------------
+60mm       | 1   | TRIG_BTN | 4     | Trigger button
+62.54mm    | 2   | TRIG_GND | GND   | Ground
+```
+
+### LED Position (Top Side, Surface Mount Area)
+```
+Position   | Component | GPIO  | Notes
+-----------|-----------|-------|---------------------------
+X=32.5mm   | WS2812    | 12    | Status LED, center of board
+Y=105mm    | 5mm LED   |       | 10mm from top edge
+           |           | +5V   | Power from Pi 5V rail
+           |           | GND   | Ground
+```
+
+**LED Mounting Options:**
+1. Direct solder WS2812 to pads on PCB top
+2. Through-hole pads for external LED wiring (if LED mounts in enclosure)
+
+---
+
+## Breakout Summary Table
+
+| Breakout Group | Edge | # Pins | GPIO Pins Used | Function |
+|----------------|------|--------|----------------|----------|
+| Encoder 1 | Left | 3 | 17, 2 | Volume / Release |
+| Encoder 2 | Top | 3 | 27, 22 | Filter / Delay |
+| Encoder 3 | Top | 3 | 23, 24 | Base Freq / Filter Res |
+| Encoder 4 | Left | 3 | 20, 26 | Delay Feedback |
+| Encoder 5 | Top | 3 | 14, 13 | Reverb Mix / Size |
+| Waveform Switch | Left | 5 | 5, 6, 7, 8 | Waveform selector |
+| Pitch Switch | Right | 3 | 10, 9 | Pitch envelope |
+| Bank Button | Right | 2 | 15 | Shift button |
+| Trigger Button | Right | 2 | 4 | Main trigger |
+| LED | Top Center | 3 | 12 | Status indicator |
+
+**Total Pads:** 27 through-hole pads + LED footprint
+
+---
+
+## GPIO Pin Mapping (Complete)
+
+| Function | GPIO # | Pi Physical Pin | Breakout Label |
+|----------|--------|-----------------|----------------|
+| Encoder 1 CLK | 17 | 11 | E1_CLK |
+| Encoder 1 DT | 2 | 3 | E1_DT |
+| Encoder 2 CLK | 27 | 13 | E2_CLK |
+| Encoder 2 DT | 22 | 15 | E2_DT |
+| Encoder 3 CLK | 23 | 16 | E3_CLK |
+| Encoder 3 DT | 24 | 18 | E3_DT |
+| Encoder 4 CLK | 20 | 38 | E4_CLK |
+| Encoder 4 DT | 26 | 37 | E4_DT |
+| Encoder 5 CLK | 14 | 8 | E5_CLK |
+| Encoder 5 DT | 13 | 33 | E5_DT |
+| Bank Button | 15 | 10 | BANK_BTN |
+| Trigger Button | 4 | 7 | TRIG_BTN |
+| Pitch Switch UP | 10 | 19 | PITCH_UP |
+| Pitch Switch DOWN | 9 | 21 | PITCH_DN |
+| Waveform Pos 1 | 5 | 29 | WAVE_1 |
+| Waveform Pos 2 | 6 | 31 | WAVE_2 |
+| Waveform Pos 3 | 7 | 26 | WAVE_3 |
+| Waveform Pos 4 | 8 | 24 | WAVE_4 |
+| LED Data | 12 | 32 | LED_DIN |
 
 ### Reserved Pins (Do Not Use)
 - **GPIO 18** (Pin 12) - I2S LRCLK (PCM5102 DAC)
@@ -234,143 +226,221 @@ All measurements from **TOP-LEFT corner** of PCB (0,0).
 
 ---
 
-## Electrical Design Notes
-
-### Pull-up Resistors
-- **All encoder and switch inputs use internal pull-ups** (configured in software)
-- **No external pull-up resistors required** on GPIO inputs
-- **Active-low logic:** Pressed/selected = LOW (0V), Released/unselected = HIGH (3.3V)
-
-### Button/Switch Wiring
-- All encoders, buttons, and switches connect:
-  - One side to GPIO pin
-  - Other side to GND
-- When closed, GPIO pin is pulled to ground (reads LOW)
-
-### LED Circuit
-- **WS2812 LED requires 5V power supply**
-- Data signal is 3.3V from GPIO 12 (acceptable by WS2812)
-- Optional: Add 330Ω resistor in series with data line for protection
-- Optional: Add 100µF capacitor across VCC/GND near LED
+## Electrical Design
 
 ### Power Distribution
-- **5V rail:** LED only (max 60mA for WS2812)
-- **3.3V rail:** Not required (all GPIO inputs use internal pull-ups)
-- **GND:** Common ground for all components
+- **5V:** Available from Pi header Pin 2/4 for LED (max 60mA)
+- **3.3V:** Not required (all inputs use internal pull-ups)
+- **GND:** Multiple ground pads distributed around edges
 
-### Recommended Schematic
+### Signal Routing
+- All GPIO traces route from female header to edge breakout pads
+- **Trace width:** 0.3mm minimum for signals
+- **Ground pour:** Bottom layer, connected to all GND pads
+- **Via stitching:** Connect top/bottom ground at multiple points
+
+### Protection (Optional)
+- Consider adding:
+  - **Series resistors:** 100Ω-330Ω on GPIO lines for ESD protection
+  - **TVS diodes:** On critical GPIO pins
+  - **Ferrite bead:** On 5V LED power line
+
+### LED Circuit
 ```
-Raspberry Pi GPIO → [No resistors] → Switch/Encoder/Button → GND
-                                                 (active-low)
-
-Raspberry Pi 5V → [Optional 330Ω] → WS2812 DIN (GPIO 12)
-                → [100µF cap]     → WS2812 VCC/GND
+Pi 5V (Pin 2) → [Optional: 100µF cap] → WS2812 VCC
+Pi GPIO 12    → [Optional: 330Ω]     → WS2812 DIN
+Pi GND        →                      → WS2812 GND
 ```
 
 ---
 
 ## PCB Design Guidelines
 
-### Layer Stack
-- **2-layer PCB recommended** (cost-effective)
-- Top layer: Component pads, traces
-- Bottom layer: Ground plane, traces
+### Top Side (Component/Breakout Side)
+- All breakout pads clearly labeled with silkscreen
+- LED footprint or breakout pads at top center
+- Ground test points at convenient locations
+- Board identification: "DUB SIREN V2 HAT" silkscreen
+- Version number and date code
 
-### Traces
-- **Signal traces:** 0.3mm minimum width
-- **Power traces (5V, 3.3V):** 0.5mm minimum width
-- **Ground traces:** 0.5mm or pour ground plane
+### Bottom Side (Pi Mounting Side)
+- 40-pin female GPIO header
+- 4× Pi Zero 2 W mounting holes (M2.5)
+- Ground plane with proper clearances
+- GPIO pin numbers in silkscreen (for debugging)
+- "TOP" arrow indicator (since Pi mounts upside-down)
 
-### Mounting Holes
-- **4× mounting holes** at corners
-- **Hole diameter:** 3.2mm (M3 screws)
-- **Positions:** 5mm from corners
-- **Grounded:** Connect to GND plane
+### Routing Guidelines
+- Keep all traces as short as possible
+- Route high-speed signals (I2S) on bottom layer away from GPIO
+- Use ground vias liberally
+- Avoid routing under Pi Zero 2 W if possible
+- Star ground topology for analog/digital grounds
 
-### Silkscreen
-- Label each component with name (E1, E2, TRIG, BANK, etc.)
-- Include GPIO numbers for debugging
-- Add polarity markings for LED (+5V, GND, DIN)
-- Add "TOP" or "FRONT" indicator
-
-### Clearances
-- **Component to board edge:** 5mm minimum
-- **Component to component:** 10mm minimum (provided by 45mm spacing)
-- **Trace to trace:** 0.3mm minimum
-- **Trace to pad:** 0.2mm minimum
-
----
-
-## Mechanical Notes
-
-### Front Panel Mounting
-- Components mount **from front panel through PCB**
-- PCB sits **behind** front panel (inside enclosure)
-- Typical standoff distance: 10-15mm from panel to PCB
-- Use threaded bushings on components to secure to panel
-- PCB floats on component leads or uses standoffs for support
-
-### Panel Cutout Dimensions
-- **Encoders:** 7mm diameter holes
-- **Buttons:** 16mm diameter holes
-- **Pitch toggle:** 6mm or 12mm hole (depends on switch body)
-- **Waveform rotary:** 12mm diameter hole
-- **LED:** 5mm diameter hole
-
-### Component Orientation
-- All components face **forward** (toward front panel)
-- Encoder shafts protrude through panel (~10mm)
-- Button actuators protrude through panel (~5-8mm)
-- LED lens flush with or slightly recessed behind panel
-
-### Assembly Order
-1. Insert components through front panel cutouts
-2. Position PCB behind panel onto component pins/legs
-3. Secure components to panel with nuts (hand-tight)
-4. Solder component pins to PCB pads
-5. Connect ribbon cable to Raspberry Pi
+### Silkscreen Requirements
+```
+Top side labels (example):
+┌─────────────────────────────────┐
+│  [E2]  [E3]     [E5]  LED      │
+│  CLK   CLK      CLK    ●       │
+│  DT    DT       DT     [5V]    │
+│  GND   GND      GND    [DIN]   │
+│                        [GND]    │
+│                                 │
+│ [E1]                    [PITCH] │
+│ CLK                     UP      │
+│ DT                      DN      │
+│ GND                     GND     │
+│                                 │
+│ [E4]                    [BANK]  │
+│ CLK                     BTN     │
+│ DT                      GND     │
+│ GND                             │
+│                         [TRIG]  │
+│ [WAVE]                  BTN     │
+│ POS1                    GND     │
+│ POS2                            │
+│ POS3                            │
+│ POS4                            │
+│ GND                             │
+│                                 │
+│  ╔════════════════════════╗    │
+│  ║   DUB SIREN V2 HAT    ║    │
+│  ║   github.com/         ║    │
+│  ║   parkredding         ║    │
+│  ╚════════════════════════╝    │
+│                                 │
+│  [GPIO HEADER BELOW]            │
+└─────────────────────────────────┘
+```
 
 ---
 
 ## Bill of Materials (BOM)
 
-| Qty | Part Description | Designator | Specifications |
-|-----|------------------|------------|----------------|
-| 5 | Rotary Encoder | E1-E5 | EC11 compatible, 5-pin, panel mount |
-| 2 | Momentary Button | BANK, TRIG | 16mm SPST NO, panel mount |
-| 1 | Toggle Switch | PITCH | 3-pos ON/OFF/ON, SPDT, panel mount |
-| 1 | Rotary Switch | WAVE | SP4T 4-position, panel mount |
-| 1 | RGB LED | LED1 | WS2812D-F5, 5mm through-hole |
-| 1 | Resistor (optional) | R1 | 330Ω, 1/4W (for LED data line) |
-| 1 | Capacitor (optional) | C1 | 100µF electrolytic, 16V (for LED power) |
-| 1 | Pin Header | J1 | 2×20 female header, 2.54mm pitch |
-| 4 | Mounting Holes | - | M3 size, 3.2mm diameter |
+| Qty | Part Description | Designator | Package | Notes |
+|-----|------------------|------------|---------|-------|
+| 1 | Female GPIO Header | J1 | 2×20 pin, 2.54mm | Through-hole, 8.5mm pin |
+| 4 | Nylon Standoffs | - | M2.5 × 11mm | For Pi Zero mounting |
+| 4 | Screws | - | M2.5 × 6mm | For Pi Zero mounting |
+| 27 | Breakout Pads | - | 2.0mm hole, 3.0mm pad | Through-hole solder points |
+| 1 | RGB LED (optional) | LED1 | WS2812-5mm | Can be external via breakout |
+| 1 | Capacitor (optional) | C1 | 100µF, electrolytic | For LED power filtering |
+| 1 | Resistor (optional) | R1 | 330Ω, 1/4W | For LED data protection |
+| - | Hookup Wire | - | 22-26 AWG | For wiring to external components |
 
 ---
 
-## Design Checklist
+## Assembly Instructions
 
-- [ ] All component positions match coordinate table
-- [ ] 45mm center-to-center spacing verified for all components
-- [ ] LED positioned 15mm from top edge, 75mm from left (centered)
-- [ ] All GPIO pins correctly routed (no conflicts with I2S pins)
+### Step 1: Solder GPIO Header
+1. Place female header on **bottom side** of PCB
+2. Ensure pins point downward (away from PCB)
+3. Solder all 40 pins from top side
+4. Trim any excess if needed
+
+### Step 2: Optional LED (if PCB-mounted)
+1. Solder WS2812 LED to top side pads
+2. Add optional capacitor (C1) near LED
+3. Add optional series resistor (R1) on data line
+
+### Step 3: Mount Pi Zero 2 W
+1. Install M2.5 standoffs in mounting holes
+2. Carefully align Pi Zero GPIO with female header
+3. Press Pi Zero onto header (all 40 pins must engage)
+4. Secure with M2.5 screws
+
+### Step 4: Wire External Components
+1. Mount encoders, switches, buttons to front panel enclosure
+2. Run wires from components to corresponding breakout pads
+3. Strip wire ends and solder to pads
+4. Use heat shrink or wire management for clean install
+5. Test continuity with multimeter before powering on
+
+---
+
+## External Wiring Guide
+
+### Example: Encoder Wiring
+```
+Encoder pins → PCB Breakout Pads
+─────────────────────────────────
+CLK pin     →  E1_CLK (Left edge, 20mm)
+DT pin      →  E1_DT  (Left edge, 22.54mm)
+GND pin     →  E1_GND (Left edge, 25.08mm)
+```
+
+### Example: Button Wiring
+```
+Button pins → PCB Breakout Pads
+─────────────────────────────────
+Pin 1       →  TRIG_BTN (Right edge, 60mm)
+Pin 2       →  TRIG_GND (Right edge, 62.54mm)
+```
+
+### Wire Recommendations
+- **Wire gauge:** 22-26 AWG stranded
+- **Length:** Keep as short as practical (< 150mm ideal)
+- **Color coding:**
+  - Red: 5V (LED only)
+  - Black: GND
+  - Other colors: Signal wires
+- **Strain relief:** Use zip ties or adhesive mounts near PCB
+
+---
+
+## Testing & Verification
+
+### Continuity Tests (Before Power-On)
+1. GPIO header pins to breakout pads (use multimeter)
+2. All GND pads connected together
+3. No shorts between adjacent signal pads
+4. Pi Zero mounts correctly (all pins aligned)
+
+### Power-On Tests
+1. Connect Pi Zero to 5V power supply
+2. Boot Raspberry Pi OS
+3. Run GPIO test script (see software documentation)
+4. Verify each encoder/button responds correctly
+5. Test LED illumination (if installed)
+
+---
+
+## Design Files Checklist
+
+- [ ] Schematic shows all GPIO connections
+- [ ] PCB layout matches breakout pad positions
+- [ ] Female header footprint correct (2×20, 2.54mm pitch)
+- [ ] Pi Zero mounting holes positioned correctly
+- [ ] All breakout pads labeled on silkscreen
 - [ ] Ground plane on bottom layer
-- [ ] All pads match component footprints (verify datasheets)
-- [ ] Mounting holes positioned and grounded
-- [ ] Silkscreen labels added for all components
-- [ ] 5V and GND traces sized appropriately for LED current
-- [ ] Optional protection components (R1, C1) included
-- [ ] Connector (J1) positioned for easy cable access
-- [ ] Board dimensions allow 5mm edge clearance
+- [ ] Board dimensions: 65mm × 120mm
+- [ ] I2S pins (18, 19, 21) reserved and not used
+- [ ] Mounting holes: 2.75mm diameter, at Pi Zero positions
+- [ ] Version number and project name on silkscreen
 
 ---
 
-## Reference Documents
+## Additional Notes
 
-- **Main Documentation:** `/home/user/poor-house-dub-v2/README.md`
-- **GPIO Wiring Guide:** `/home/user/poor-house-dub-v2/GPIO_WIRING_GUIDE.md`
-- **Hardware Guide:** `/home/user/poor-house-dub-v2/HARDWARE.md`
-- **Source Code:** `/home/user/poor-house-dub-v2/cpp/`
+### Why This Design?
+1. **Flexibility:** Builder can use any encoder/switch brand or size
+2. **Easy assembly:** No SMD soldering except optional LED
+3. **Repairability:** Individual wires can be replaced if damaged
+4. **Custom enclosures:** Components mount to front panel, not PCB
+5. **HAT compatibility:** Standard Pi Zero footprint
+
+### Enclosure Recommendations
+- Front panel thickness: 2-3mm (acrylic or aluminum)
+- Pre-drill holes for encoders (7mm) and buttons (16mm)
+- Use spacers between PCB and front panel if needed
+- Leave access for SD card, HDMI, and power
+
+### Alternative LED Mounting
+Instead of soldering LED to PCB, you can:
+1. Add through-hole pads for LED at top center
+2. Wire external LED mounted in enclosure
+3. Provides more flexibility for LED placement/visibility
 
 ---
 
@@ -378,7 +448,8 @@ Raspberry Pi 5V → [Optional 330Ω] → WS2812 DIN (GPIO 12)
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0 | 2026-01-27 | Claude | Initial PCB layout specification |
+| 1.0 | 2026-01-27 | Claude | Initial panel-mount PCB specification |
+| 2.0 | 2026-01-27 | Claude | Redesigned as Pi Zero HAT with edge breakouts |
 
 ---
 
