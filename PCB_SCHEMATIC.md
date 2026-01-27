@@ -1,4 +1,5 @@
 # Dub Siren V2 - PCB HAT Schematic (Mermaid Diagrams)
+## Hybrid Design: Panel-Mount Encoders + Edge Breakouts
 
 ## Board Architecture Overview
 
@@ -8,41 +9,32 @@ graph TB
         PI[Raspberry Pi Zero 2 W<br/>40-pin GPIO]
     end
 
-    subgraph "PCB HAT - 65mm x 120mm"
+    subgraph "PCB HAT - 150mm x 120mm"
         GPIO_HDR[40-pin Female Header<br/>Bottom Side]
 
-        subgraph "Top Edge Breakouts (Y=115mm)"
-            E2[E2 Breakout<br/>GPIO 27, 22]
-            E3[E3 Breakout<br/>GPIO 23, 24]
-            E5[E5 Breakout<br/>GPIO 14, 13]
+        subgraph "Panel-Mounted Components (Rows 1-2)"
+            E1[E1: Encoder 1<br/>GPIO 17, 2<br/>30, 45mm]
+            E2[E2: Encoder 2<br/>GPIO 27, 22<br/>75, 45mm]
+            E3[E3: Encoder 3<br/>GPIO 23, 24<br/>120, 45mm]
+            E4[E4: Encoder 4<br/>GPIO 20, 26<br/>30, 90mm]
+            E5[E5: Encoder 5<br/>GPIO 14, 13<br/>75, 90mm]
+            PITCH[Pitch Switch<br/>GPIO 10, 9<br/>120, 90mm]
+            LED[WS2812 LED<br/>GPIO 12, 5V<br/>75, 15mm]
         end
 
-        subgraph "Left Edge Breakouts (X=5mm)"
-            E1[E1 Breakout<br/>GPIO 17, 2]
-            E4[E4 Breakout<br/>GPIO 20, 26]
-            WAVE[Waveform Switch<br/>GPIO 5,6,7,8]
+        subgraph "Bottom Edge Breakouts (Y=110mm)"
+            PCM[PCM5102 DAC<br/>GPIO 18,19,21<br/>X: 10-20mm]
+            WAVE[Waveform Switch<br/>GPIO 5,6,7,8<br/>X: 40-50mm]
+            BANK[Bank Button<br/>GPIO 15<br/>X: 80mm]
+            TRIG[Trigger Button<br/>GPIO 4<br/>X: 110mm]
         end
-
-        subgraph "Right Edge Breakouts (X=60mm)"
-            PITCH[Pitch Switch<br/>GPIO 10, 9]
-            BANK[Bank Button<br/>GPIO 15]
-            TRIG[Trigger Button<br/>GPIO 4]
-        end
-
-        LED[WS2812 LED<br/>GPIO 12, 5V<br/>Center Top]
     end
 
-    subgraph "External Components (Panel Mounted)"
-        ENC1[Rotary Encoder 1<br/>Volume/Release]
-        ENC2[Rotary Encoder 2<br/>Filter/Delay]
-        ENC3[Rotary Encoder 3<br/>Base Freq/Filter Res]
-        ENC4[Rotary Encoder 4<br/>Delay Feedback]
-        ENC5[Rotary Encoder 5<br/>Reverb Mix/Size]
+    subgraph "External Components"
+        PCM_DAC[PCM5102 Module<br/>I2S DAC]
         WAVE_SW[SP4T Rotary Switch<br/>Waveform Select]
-        PITCH_SW[3-Pos Toggle<br/>Pitch Envelope]
         BANK_BTN[Momentary Button<br/>Bank Shift]
         TRIG_BTN[Momentary Button<br/>Trigger]
-        LED_EXT[RGB Status LED]
     end
 
     PI --> GPIO_HDR
@@ -51,51 +43,53 @@ graph TB
     GPIO_HDR --> E3
     GPIO_HDR --> E4
     GPIO_HDR --> E5
-    GPIO_HDR --> WAVE
     GPIO_HDR --> PITCH
+    GPIO_HDR --> LED
+    GPIO_HDR --> PCM
+    GPIO_HDR --> WAVE
     GPIO_HDR --> BANK
     GPIO_HDR --> TRIG
-    GPIO_HDR --> LED
 
-    E1 -.Wire.-> ENC1
-    E2 -.Wire.-> ENC2
-    E3 -.Wire.-> ENC3
-    E4 -.Wire.-> ENC4
-    E5 -.Wire.-> ENC5
+    PCM -.Wire.-> PCM_DAC
     WAVE -.Wire.-> WAVE_SW
-    PITCH -.Wire.-> PITCH_SW
     BANK -.Wire.-> BANK_BTN
     TRIG -.Wire.-> TRIG_BTN
-    LED -.Wire.-> LED_EXT
 
     style PI fill:#f9f,stroke:#333,stroke-width:2px
     style GPIO_HDR fill:#bbf,stroke:#333,stroke-width:2px
     style LED fill:#ff9,stroke:#333,stroke-width:2px
+    style E1 fill:#bfb,stroke:#333,stroke-width:2px
+    style E2 fill:#bfb,stroke:#333,stroke-width:2px
+    style E3 fill:#bfb,stroke:#333,stroke-width:2px
+    style E4 fill:#bfb,stroke:#333,stroke-width:2px
+    style E5 fill:#bfb,stroke:#333,stroke-width:2px
+    style PITCH fill:#bfb,stroke:#333,stroke-width:2px
 ```
 
-## PCB Physical Layout (Top View)
+## PCB Physical Layout (Top View - 150mm × 120mm)
 
 ```mermaid
 graph TD
-    subgraph "PCB Top Side - 65mm x 120mm"
-        subgraph "Top Edge - Y=115mm"
-            T1["E2_CLK (15mm)<br/>E2_DT<br/>E2_GND"]
-            T2["E3_CLK (32.5mm)<br/>E3_DT<br/>E3_GND"]
-            T3["E5_CLK (47.5mm)<br/>E5_DT<br/>E5_GND"]
+    subgraph "PCB Top Side - 150mm x 120mm"
+        CTR["LED (75, 15mm)<br/>WS2812<br/>5V/DIN/GND"]
+
+        subgraph "Row 1 - Y=45mm (Panel Mount)"
+            R1C1["E1 (30, 45)<br/>GPIO 17/2<br/>Volume/Release"]
+            R1C2["E2 (75, 45)<br/>GPIO 27/22<br/>Filter/Delay"]
+            R1C3["E3 (120, 45)<br/>GPIO 23/24<br/>Base/Filter Res"]
         end
 
-        CTR["LED (32.5mm, 105mm)<br/>WS2812<br/>5V/DIN/GND"]
-
-        subgraph "Left Edge - X=5mm"
-            L1["E1_CLK (Y=20mm)<br/>E1_DT<br/>E1_GND"]
-            L2["E4_CLK (Y=35mm)<br/>E4_DT<br/>E4_GND"]
-            L3["WAVE_1 (Y=50mm)<br/>WAVE_2<br/>WAVE_3<br/>WAVE_4<br/>WAVE_GND"]
+        subgraph "Row 2 - Y=90mm (Panel Mount)"
+            R2C1["E4 (30, 90)<br/>GPIO 20/26<br/>Delay FB"]
+            R2C2["E5 (75, 90)<br/>GPIO 14/13<br/>Reverb Mix/Size"]
+            R2C3["PITCH (120, 90)<br/>GPIO 10/9<br/>Pitch Env"]
         end
 
-        subgraph "Right Edge - X=60mm"
-            R1["PITCH_UP (Y=35mm)<br/>PITCH_DN<br/>PITCH_GND"]
-            R2["BANK_BTN (Y=50mm)<br/>BANK_GND"]
-            R3["TRIG_BTN (Y=60mm)<br/>TRIG_GND"]
+        subgraph "Bottom Edge - Y=110mm (Breakout Pads)"
+            BP1["PCM5102<br/>10-20mm<br/>5 pads"]
+            BP2["WAVE SW<br/>40-50mm<br/>5 pads"]
+            BP3["BANK<br/>80mm<br/>2 pads"]
+            BP4["TRIG<br/>110mm<br/>2 pads"]
         end
 
         BTM["GPIO Header Below<br/>40-pin Female<br/>(Pi mounts on bottom)"]
@@ -103,6 +97,45 @@ graph TD
 
     style CTR fill:#ff9,stroke:#333,stroke-width:2px
     style BTM fill:#bbf,stroke:#333,stroke-width:2px
+    style R1C1 fill:#bfb,stroke:#333,stroke-width:2px
+    style R1C2 fill:#bfb,stroke:#333,stroke-width:2px
+    style R1C3 fill:#bfb,stroke:#333,stroke-width:2px
+    style R2C1 fill:#bfb,stroke:#333,stroke-width:2px
+    style R2C2 fill:#bfb,stroke:#333,stroke-width:2px
+    style R2C3 fill:#bfb,stroke:#333,stroke-width:2px
+    style BP1 fill:#fbb,stroke:#333,stroke-width:2px
+    style BP2 fill:#fbb,stroke:#333,stroke-width:2px
+    style BP3 fill:#fbb,stroke:#333,stroke-width:2px
+    style BP4 fill:#fbb,stroke:#333,stroke-width:2px
+```
+
+## Component Spacing Diagram
+
+```mermaid
+graph LR
+    subgraph "Horizontal Spacing (3 columns)"
+        C1["Column 1<br/>X = 30mm"]
+        C2["Column 2<br/>X = 75mm"]
+        C3["Column 3<br/>X = 120mm"]
+    end
+
+    C1 -->|45mm| C2
+    C2 -->|45mm| C3
+
+    subgraph "Vertical Spacing"
+        LED_Y["LED Y = 15mm"]
+        R1_Y["Row 1 Y = 45mm"]
+        R2_Y["Row 2 Y = 90mm"]
+        BP_Y["Breakouts Y = 110mm"]
+    end
+
+    LED_Y -->|30mm| R1_Y
+    R1_Y -->|45mm| R2_Y
+    R2_Y -->|20mm| BP_Y
+
+    style C1 fill:#bfb
+    style C2 fill:#bfb
+    style C3 fill:#bfb
 ```
 
 ## GPIO Pin Routing Schematic
@@ -115,6 +148,7 @@ graph LR
         PIN8[Pin 8<br/>GPIO 14]
         PIN10[Pin 10<br/>GPIO 15]
         PIN11[Pin 11<br/>GPIO 17]
+        PIN12[Pin 12<br/>GPIO 18]
         PIN13[Pin 13<br/>GPIO 27]
         PIN15[Pin 15<br/>GPIO 22]
         PIN16[Pin 16<br/>GPIO 23]
@@ -127,13 +161,16 @@ graph LR
         PIN31[Pin 31<br/>GPIO 6]
         PIN32[Pin 32<br/>GPIO 12]
         PIN33[Pin 33<br/>GPIO 13]
+        PIN35[Pin 35<br/>GPIO 19]
         PIN37[Pin 37<br/>GPIO 26]
         PIN38[Pin 38<br/>GPIO 20]
-        GND[GND Pins<br/>Multiple]
-        V5[5V Pins<br/>2, 4]
+        PIN40[Pin 40<br/>GPIO 21]
+        GND[GND Pins]
+        V5[5V Pin 2/4]
+        V33[3.3V Pin 1/17]
     end
 
-    subgraph "Edge Breakouts"
+    subgraph "Panel-Mounted Components"
         E1_CLK[E1_CLK]
         E1_DT[E1_DT]
         E2_CLK[E2_CLK]
@@ -144,17 +181,22 @@ graph LR
         E4_DT[E4_DT]
         E5_CLK[E5_CLK]
         E5_DT[E5_DT]
+        PITCH_U[PITCH_UP]
+        PITCH_D[PITCH_DN]
+        LED_D[LED_DIN]
+    end
+
+    subgraph "Edge Breakout Pads"
+        DAC_LCK[DAC_LCK]
+        DAC_BCK[DAC_BCK]
+        DAC_DIN[DAC_DIN]
         WAVE1[WAVE_1]
         WAVE2[WAVE_2]
         WAVE3[WAVE_3]
         WAVE4[WAVE_4]
-        PITCH_U[PITCH_UP]
-        PITCH_D[PITCH_DN]
         BANK_B[BANK_BTN]
         TRIG_B[TRIG_BTN]
-        LED_D[LED_DIN]
-        LED_V[LED_5V]
-        PAD_GND[GND Pads x15]
+        DAC_V[DAC_3V3]
     end
 
     PIN11 --> E1_CLK
@@ -167,96 +209,145 @@ graph LR
     PIN37 --> E4_DT
     PIN8 --> E5_CLK
     PIN33 --> E5_DT
+    PIN19 --> PITCH_U
+    PIN21 --> PITCH_D
+    PIN32 --> LED_D
+
+    PIN12 --> DAC_LCK
+    PIN35 --> DAC_BCK
+    PIN40 --> DAC_DIN
     PIN29 --> WAVE1
     PIN31 --> WAVE2
     PIN26 --> WAVE3
     PIN24 --> WAVE4
-    PIN19 --> PITCH_U
-    PIN21 --> PITCH_D
     PIN10 --> BANK_B
     PIN7 --> TRIG_B
-    PIN32 --> LED_D
-    V5 --> LED_V
-    GND --> PAD_GND
 
-    style GND fill:#ccc
-    style V5 fill:#fcc
-    style PAD_GND fill:#ccc
-    style LED_V fill:#fcc
+    V5 --> LED_D
+    V33 --> DAC_V
+
+    style E1_CLK fill:#bfb
+    style E2_CLK fill:#bfb
+    style E3_CLK fill:#bfb
+    style E4_CLK fill:#bfb
+    style E5_CLK fill:#bfb
+    style PITCH_U fill:#bfb
+    style DAC_LCK fill:#fbb
+    style DAC_BCK fill:#fbb
+    style DAC_DIN fill:#fbb
+    style WAVE1 fill:#fbb
+    style BANK_B fill:#fbb
+    style TRIG_B fill:#fbb
 ```
 
-## Electrical Connections Detail
+## Electrical Connections: Panel-Mounted Encoder
 
 ```mermaid
 graph TB
-    subgraph "Encoder Connection (Example: E1)"
-        E1_PAD_CLK[PCB: E1_CLK<br/>GPIO 17]
-        E1_PAD_DT[PCB: E1_DT<br/>GPIO 2]
-        E1_PAD_GND[PCB: E1_GND<br/>Ground]
+    subgraph "Panel-Mounted Encoder Example (E1)"
+        PANEL[Front Panel<br/>7mm hole]
 
-        E1_ENC_CLK[Encoder 1: CLK Pin]
-        E1_ENC_DT[Encoder 1: DT Pin]
-        E1_ENC_GND[Encoder 1: GND Pin]
+        ENC[Rotary Encoder<br/>Threaded bushing<br/>Secured with nut]
 
-        E1_PAD_CLK -.22-26 AWG Wire.-> E1_ENC_CLK
-        E1_PAD_DT -.22-26 AWG Wire.-> E1_ENC_DT
-        E1_PAD_GND -.22-26 AWG Wire.-> E1_ENC_GND
+        PCB_E1_CLK[PCB: E1 CLK Pad<br/>GPIO 17]
+        PCB_E1_DT[PCB: E1 DT Pad<br/>GPIO 2]
+        PCB_E1_GND[PCB: E1 GND Pad]
+
+        GPIO17[Pi GPIO 17]
+        GPIO2[Pi GPIO 2]
+        PI_GND[Pi GND]
     end
 
-    subgraph "Button Connection (Example: Trigger)"
-        BTN_PAD_SIG[PCB: TRIG_BTN<br/>GPIO 4]
-        BTN_PAD_GND[PCB: TRIG_GND<br/>Ground]
+    PANEL -->|Encoder shaft through| ENC
+    ENC -->|Pins solder to| PCB_E1_CLK
+    ENC -->|Pins solder to| PCB_E1_DT
+    ENC -->|Pins solder to| PCB_E1_GND
 
-        BTN_PIN1[Button: Pin 1]
-        BTN_PIN2[Button: Pin 2]
+    PCB_E1_CLK -->|Trace on PCB| GPIO17
+    PCB_E1_DT -->|Trace on PCB| GPIO2
+    PCB_E1_GND -->|Trace on PCB| PI_GND
 
-        BTN_PAD_SIG -.Wire.-> BTN_PIN1
-        BTN_PAD_GND -.Wire.-> BTN_PIN2
+    style PANEL fill:#ddd
+    style ENC fill:#bfb
+    style PCB_E1_CLK fill:#bbf
+    style PCB_E1_DT fill:#bbf
+    style PCB_E1_GND fill:#ccc
+```
+
+## Electrical Connections: Edge Breakout Pads
+
+```mermaid
+graph TB
+    subgraph "PCM5102 DAC Breakout"
+        PAD_3V3[PCB Pad: DAC_3V3<br/>3.3V]
+        PAD_GND1[PCB Pad: DAC_GND<br/>GND]
+        PAD_LCK[PCB Pad: DAC_LCK<br/>GPIO 18]
+        PAD_BCK[PCB Pad: DAC_BCK<br/>GPIO 19]
+        PAD_DIN[PCB Pad: DAC_DIN<br/>GPIO 21]
+
+        DAC_3V3[PCM5102: VCC]
+        DAC_GND[PCM5102: GND]
+        DAC_LCK[PCM5102: LCK]
+        DAC_BCK[PCM5102: BCK]
+        DAC_DIN_PIN[PCM5102: DIN]
+
+        PAD_3V3 -.22-26 AWG Wire.-> DAC_3V3
+        PAD_GND1 -.Wire.-> DAC_GND
+        PAD_LCK -.Wire.-> DAC_LCK
+        PAD_BCK -.Wire.-> DAC_BCK
+        PAD_DIN -.Wire.-> DAC_DIN_PIN
     end
 
-    subgraph "Waveform Switch Connection"
-        WAVE_PAD1[PCB: WAVE_1<br/>GPIO 5]
-        WAVE_PAD2[PCB: WAVE_2<br/>GPIO 6]
-        WAVE_PAD3[PCB: WAVE_3<br/>GPIO 7]
-        WAVE_PAD4[PCB: WAVE_4<br/>GPIO 8]
-        WAVE_PAD_GND[PCB: WAVE_GND<br/>Ground]
+    subgraph "Waveform Switch Breakout"
+        WPAD1[PCB: WAVE_1<br/>GPIO 5]
+        WPAD2[PCB: WAVE_2<br/>GPIO 6]
+        WPAD3[PCB: WAVE_3<br/>GPIO 7]
+        WPAD4[PCB: WAVE_4<br/>GPIO 8]
+        WPAD_GND[PCB: WAVE_GND<br/>GND]
 
-        SW_POS1[Switch: Position 1]
-        SW_POS2[Switch: Position 2]
-        SW_POS3[Switch: Position 3]
-        SW_POS4[Switch: Position 4]
-        SW_COM[Switch: Common]
+        SW_POS1[SP4T Switch<br/>Position 1]
+        SW_POS2[SP4T Switch<br/>Position 2]
+        SW_POS3[SP4T Switch<br/>Position 3]
+        SW_POS4[SP4T Switch<br/>Position 4]
+        SW_COM[SP4T Switch<br/>Common]
 
-        WAVE_PAD1 -.Wire.-> SW_POS1
-        WAVE_PAD2 -.Wire.-> SW_POS2
-        WAVE_PAD3 -.Wire.-> SW_POS3
-        WAVE_PAD4 -.Wire.-> SW_POS4
-        WAVE_PAD_GND -.Wire.-> SW_COM
+        WPAD1 -.Wire.-> SW_POS1
+        WPAD2 -.Wire.-> SW_POS2
+        WPAD3 -.Wire.-> SW_POS3
+        WPAD4 -.Wire.-> SW_POS4
+        WPAD_GND -.Wire.-> SW_COM
     end
 
-    subgraph "LED Connection"
-        LED_PAD_5V[PCB: LED_5V<br/>+5V]
-        LED_PAD_DIN[PCB: LED_DIN<br/>GPIO 12]
-        LED_PAD_GND[PCB: LED_GND<br/>Ground]
+    subgraph "Button Breakouts"
+        BPAD_BTN[PCB: BANK_BTN<br/>GPIO 15]
+        BPAD_GND[PCB: BANK_GND<br/>GND]
 
-        LED_VCC[WS2812: VCC]
-        LED_DIN[WS2812: DIN]
-        LED_GND_PIN[WS2812: GND]
+        TPAD_BTN[PCB: TRIG_BTN<br/>GPIO 4]
+        TPAD_GND[PCB: TRIG_GND<br/>GND]
 
-        LED_PAD_5V -->|Optional 100µF cap| LED_VCC
-        LED_PAD_DIN -->|Optional 330Ω| LED_DIN
-        LED_PAD_GND --> LED_GND_PIN
+        BANK_PIN1[Bank Button<br/>Pin 1]
+        BANK_PIN2[Bank Button<br/>Pin 2]
+
+        TRIG_PIN1[Trigger Button<br/>Pin 1]
+        TRIG_PIN2[Trigger Button<br/>Pin 2]
+
+        BPAD_BTN -.Wire.-> BANK_PIN1
+        BPAD_GND -.Wire.-> BANK_PIN2
+
+        TPAD_BTN -.Wire.-> TRIG_PIN1
+        TPAD_GND -.Wire.-> TRIG_PIN2
     end
 
-    style E1_PAD_CLK fill:#bbf
-    style E1_PAD_DT fill:#bbf
-    style BTN_PAD_SIG fill:#bbf
-    style WAVE_PAD1 fill:#bbf
-    style WAVE_PAD2 fill:#bbf
-    style WAVE_PAD3 fill:#bbf
-    style WAVE_PAD4 fill:#bbf
-    style LED_PAD_DIN fill:#bbf
-    style LED_PAD_5V fill:#fcc
+    style PAD_3V3 fill:#fcc
+    style PAD_LCK fill:#fbb
+    style PAD_BCK fill:#fbb
+    style PAD_DIN fill:#fbb
+    style WPAD1 fill:#fbb
+    style WPAD2 fill:#fbb
+    style WPAD3 fill:#fbb
+    style WPAD4 fill:#fbb
+    style BPAD_BTN fill:#fbb
+    style TPAD_BTN fill:#fbb
 ```
 
 ## Power Distribution
@@ -264,113 +355,95 @@ graph TB
 ```mermaid
 graph TD
     subgraph "Raspberry Pi Zero 2 W"
-        PI_5V_IN[5V Power Input<br/>USB-C or GPIO Pin]
+        PI_5V_IN[5V Power Input<br/>USB-C]
         PI_5V_OUT[5V Output<br/>Pin 2, Pin 4]
+        PI_3V3_OUT[3.3V Output<br/>Pin 1, Pin 17]
         PI_GND[GND Pins<br/>Multiple pins]
     end
 
-    subgraph "PCB HAT"
+    subgraph "PCB HAT Power Rails"
         HAT_5V[5V Rail]
+        HAT_3V3[3.3V Rail]
         HAT_GND[Ground Plane<br/>Bottom Layer]
     end
 
     subgraph "Loads"
-        LED_LOAD[WS2812 LED<br/>~60mA max]
-        ENC_PASSIVE[Encoders<br/>Passive - No power]
-        BTN_PASSIVE[Buttons/Switches<br/>Passive - No power]
+        LED_LOAD[WS2812 LED<br/>~60mA @ 5V]
+        DAC_LOAD[PCM5102 DAC<br/>~10mA @ 3.3V]
+        ENC_PASSIVE[5× Encoders<br/>Passive - No power]
+        SW_PASSIVE[Pitch Switch<br/>Passive - No power]
+        BTN_PASSIVE[2× Buttons<br/>Passive - No power]
+        WAVE_PASSIVE[Waveform Switch<br/>Passive - No power]
     end
 
     PI_5V_IN --> PI_5V_OUT
     PI_5V_OUT --> HAT_5V
     HAT_5V --> LED_LOAD
 
+    PI_3V3_OUT --> HAT_3V3
+    HAT_3V3 --> DAC_LOAD
+
     PI_GND --> HAT_GND
     HAT_GND --> LED_LOAD
+    HAT_GND --> DAC_LOAD
     HAT_GND --> ENC_PASSIVE
+    HAT_GND --> SW_PASSIVE
     HAT_GND --> BTN_PASSIVE
+    HAT_GND --> WAVE_PASSIVE
 
     style PI_5V_IN fill:#fcc
     style PI_5V_OUT fill:#fcc
+    style PI_3V3_OUT fill:#fcf
     style HAT_5V fill:#fcc
+    style HAT_3V3 fill:#fcf
     style PI_GND fill:#ccc
     style HAT_GND fill:#ccc
 ```
 
-## Signal Flow: Encoder Example
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Encoder as Rotary Encoder
-    participant Wire as Wire Connection
-    participant PCB as PCB Breakout Pad
-    participant GPIO as Pi GPIO Pin
-    participant SW as Software (libgpiod)
-    participant App as Dub Siren App
-
-    User->>Encoder: Rotates knob
-    Encoder->>Wire: CLK/DT pulse sequence
-    Wire->>PCB: Signal at breakout pad
-    PCB->>GPIO: Routed via PCB trace
-    GPIO->>SW: libgpiod polls GPIO
-    SW->>App: Rotation detected
-    App->>App: Update parameter
-    Note over App: Audio engine applies<br/>new parameter value
-```
-
-## PCB Layer Stack
+## PCB Assembly Cross-Section
 
 ```mermaid
 graph TB
-    subgraph "2-Layer PCB Construction"
-        subgraph "Top Layer (Component Side)"
-            TOP_PADS[Through-hole Breakout Pads<br/>27 pads @ 2.54mm pitch]
-            TOP_SILK[Silkscreen Labels<br/>Component names, GPIO #s]
-            TOP_LED[Optional LED Footprint<br/>WS2812]
-            TOP_TRACES[Signal Traces<br/>0.3mm width min]
-        end
-
-        subgraph "Core"
-            FR4[FR4 Substrate<br/>1.6mm thickness]
-        end
-
-        subgraph "Bottom Layer (Pi Side)"
-            BOT_HEADER[40-pin Female Header<br/>Through-hole]
-            BOT_GND[Ground Plane<br/>Copper pour]
-            BOT_TRACES[Signal Traces<br/>0.3mm width min]
-            BOT_HOLES[Mounting Holes<br/>4× M2.5]
-            BOT_SILK[Silkscreen<br/>GPIO pin numbers]
-        end
+    subgraph "Assembly Stack (Side View)"
+        PANEL[Front Panel<br/>2-3mm acrylic/aluminum]
+        NUT[Encoder Nut<br/>M7 thread]
+        ENCODER[Rotary Encoder<br/>Threaded bushing]
+        PCB[PCB HAT<br/>1.6mm FR4]
+        STANDOFF[Standoff<br/>M2.5 × 11mm]
+        PI[Pi Zero 2 W<br/>GPIO pins engage header]
     end
 
-    TOP_PADS --> FR4
-    FR4 --> BOT_HEADER
+    PANEL -->|7mm hole| ENCODER
+    NUT -->|Secures to panel| ENCODER
+    ENCODER -->|Pins solder through| PCB
+    PCB -->|Female header| PI
+    STANDOFF -->|Mechanical support| PI
 
-    style TOP_PADS fill:#bbf
-    style BOT_HEADER fill:#bbf
-    style BOT_GND fill:#ccc
-    style FR4 fill:#efe
+    style PANEL fill:#ddd
+    style ENCODER fill:#bfb
+    style PCB fill:#bbf
+    style PI fill:#f9f
 ```
 
-## I2S Audio Reserved Pins (Do Not Use)
+## I2S Reserved Pins Warning
 
 ```mermaid
 graph LR
-    subgraph "Reserved for PCM5102 DAC"
-        I2S_LRCLK[GPIO 18<br/>Pin 12<br/>I2S LRCLK<br/>⚠️ RESERVED]
-        I2S_BCLK[GPIO 19<br/>Pin 35<br/>I2S BCLK<br/>⚠️ RESERVED]
-        I2S_DOUT[GPIO 21<br/>Pin 40<br/>I2S DOUT<br/>⚠️ RESERVED]
+    subgraph "⚠️ RESERVED FOR PCM5102 DAC ⚠️"
+        I2S_LRCLK[GPIO 18<br/>Pin 12<br/>I2S LRCLK<br/>⛔ DO NOT USE]
+        I2S_BCLK[GPIO 19<br/>Pin 35<br/>I2S BCLK<br/>⛔ DO NOT USE]
+        I2S_DOUT[GPIO 21<br/>Pin 40<br/>I2S DOUT<br/>⛔ DO NOT USE]
     end
 
-    subgraph "PCM5102 DAC Module"
+    subgraph "PCM5102 DAC Module (Edge Breakout)"
         DAC_LCK[PCM5102: LCK]
         DAC_BCK[PCM5102: BCK]
         DAC_DIN[PCM5102: DIN]
     end
 
-    I2S_LRCLK -->|Direct connection| DAC_LCK
-    I2S_BCLK -->|Direct connection| DAC_BCK
-    I2S_DOUT -->|Direct connection| DAC_DIN
+    I2S_LRCLK -->|Via edge pad| DAC_LCK
+    I2S_BCLK -->|Via edge pad| DAC_BCK
+    I2S_DOUT -->|Via edge pad| DAC_DIN
 
     style I2S_LRCLK fill:#fcc,stroke:#f00,stroke-width:3px
     style I2S_BCLK fill:#fcc,stroke:#f00,stroke-width:3px
@@ -381,83 +454,108 @@ graph LR
 
 ```mermaid
 graph TB
-    subgraph "GPIO Allocation Summary"
-        subgraph "Used by Control Surface (16 pins)"
-            C1[GPIO 2 - E1_DT]
-            C2[GPIO 4 - TRIG_BTN]
-            C3[GPIO 9 - PITCH_DN]
-            C4[GPIO 10 - PITCH_UP]
-            C5[GPIO 13 - E5_DT]
-            C6[GPIO 14 - E5_CLK]
-            C7[GPIO 15 - BANK_BTN]
-            C8[GPIO 17 - E1_CLK]
-            C9[GPIO 20 - E4_CLK]
-            C10[GPIO 22 - E2_DT]
-            C11[GPIO 23 - E3_CLK]
-            C12[GPIO 24 - E3_DT]
-            C13[GPIO 26 - E4_DT]
-            C14[GPIO 27 - E2_CLK]
-            C15[GPIO 12 - LED_DIN]
+    subgraph "GPIO Allocation (150mm × 120mm HAT)"
+        subgraph "Panel-Mounted (13 pins)"
+            PM1[GPIO 2 - E1_DT]
+            PM2[GPIO 9 - PITCH_DN]
+            PM3[GPIO 10 - PITCH_UP]
+            PM4[GPIO 12 - LED_DIN]
+            PM5[GPIO 13 - E5_DT]
+            PM6[GPIO 14 - E5_CLK]
+            PM7[GPIO 17 - E1_CLK]
+            PM8[GPIO 20 - E4_CLK]
+            PM9[GPIO 22 - E2_DT]
+            PM10[GPIO 23 - E3_CLK]
+            PM11[GPIO 24 - E3_DT]
+            PM12[GPIO 26 - E4_DT]
+            PM13[GPIO 27 - E2_CLK]
         end
 
-        subgraph "Optional (4 pins)"
-            O1[GPIO 5 - WAVE_1]
-            O2[GPIO 6 - WAVE_2]
-            O3[GPIO 7 - WAVE_3]
-            O4[GPIO 8 - WAVE_4]
+        subgraph "Edge Breakouts (6 pins)"
+            EB1[GPIO 4 - TRIG_BTN]
+            EB2[GPIO 5 - WAVE_1 opt]
+            EB3[GPIO 6 - WAVE_2 opt]
+            EB4[GPIO 7 - WAVE_3 opt]
+            EB5[GPIO 8 - WAVE_4 opt]
+            EB6[GPIO 15 - BANK_BTN]
         end
 
-        subgraph "Reserved for I2S (3 pins)"
-            R1[GPIO 18 - I2S LRCLK]
-            R2[GPIO 19 - I2S BCLK]
-            R3[GPIO 21 - I2S DOUT]
+        subgraph "I2S DAC Reserved (3 pins)"
+            I2S1[GPIO 18 - I2S LRCLK]
+            I2S2[GPIO 19 - I2S BCLK]
+            I2S3[GPIO 21 - I2S DOUT]
         end
 
-        subgraph "Available (7 pins)"
-            A1[GPIO 0, 1, 11, 16, 25]
-            A2[GPIO 3 - Shutdown removed]
+        subgraph "Available (6 pins)"
+            AV[GPIO 0, 1, 11, 16, 25]
+            AV2[GPIO 3 - Shutdown removed]
         end
     end
 
-    style C1 fill:#bfb
-    style C2 fill:#bfb
-    style C3 fill:#bfb
-    style C4 fill:#bfb
-    style C5 fill:#bfb
-    style C6 fill:#bfb
-    style C7 fill:#bfb
-    style C8 fill:#bfb
-    style C9 fill:#bfb
-    style C10 fill:#bfb
-    style C11 fill:#bfb
-    style C12 fill:#bfb
-    style C13 fill:#bfb
-    style C14 fill:#bfb
-    style C15 fill:#bfb
-    style O1 fill:#ffb
-    style O2 fill:#ffb
-    style O3 fill:#ffb
-    style O4 fill:#ffb
-    style R1 fill:#fcc
-    style R2 fill:#fcc
-    style R3 fill:#fcc
-    style A1 fill:#eee
-    style A2 fill:#eee
+    style PM1 fill:#bfb
+    style PM2 fill:#bfb
+    style PM3 fill:#bfb
+    style PM4 fill:#ff9
+    style PM5 fill:#bfb
+    style PM6 fill:#bfb
+    style PM7 fill:#bfb
+    style PM8 fill:#bfb
+    style PM9 fill:#bfb
+    style PM10 fill:#bfb
+    style PM11 fill:#bfb
+    style PM12 fill:#bfb
+    style PM13 fill:#bfb
+    style EB1 fill:#fbb
+    style EB2 fill:#fbb
+    style EB3 fill:#fbb
+    style EB4 fill:#fbb
+    style EB5 fill:#fbb
+    style EB6 fill:#fbb
+    style I2S1 fill:#fcc
+    style I2S2 fill:#fcc
+    style I2S3 fill:#fcc
+    style AV fill:#eee
+    style AV2 fill:#eee
+```
+
+## Board Dimensions Summary
+
+```mermaid
+graph TD
+    DIMS["PCB Dimensions<br/>150mm × 120mm<br/>1.6mm FR4"]
+
+    DIMS --> HORIZ["Horizontal Layout<br/>3 columns @ 45mm spacing<br/>30mm + 75mm + 120mm"]
+    DIMS --> VERT["Vertical Layout<br/>LED: 15mm<br/>Row 1: 45mm<br/>Row 2: 90mm<br/>Breakouts: 110mm"]
+    DIMS --> MARGINS["Margins<br/>Left/Right: 30mm<br/>Top: 15mm<br/>Bottom: 10mm"]
+
+    style DIMS fill:#bbf,stroke:#333,stroke-width:3px
 ```
 
 ---
 
-## Notes
+## Key Design Features
 
-- All encoders and buttons use **internal pull-up resistors** (configured in software)
-- **Active-low logic:** Pressed/selected = LOW (0V), Released = HIGH (3.3V)
+### Panel-Mounted Components (Green)
+- **5 Rotary Encoders** at 45mm spacing
+- **Pitch Toggle Switch** at 45mm spacing
+- **LED** at top center
+- All mount through PCB to front panel with threaded bushings
+
+### Edge Breakouts (Red)
+- **PCM5102 DAC** (5 pads) - I2S audio interface
+- **Waveform Switch** (5 pads) - Optional SP4T rotary
+- **Bank Button** (2 pads) - External momentary switch
+- **Trigger Button** (2 pads) - External momentary switch
+
+### Electrical Design
+- All encoders/switches use **internal pull-up resistors** (active-low logic)
 - No external resistors required on GPIO inputs
-- WS2812 LED requires **5V power** but accepts 3.3V data signals
-- PCB acts as simple breakout/routing board - all intelligence in Pi software
-- External components mount to front panel, wire to PCB edge pads
+- WS2812 LED requires **5V power**, accepts 3.3V data
+- PCM5102 DAC uses **3.3V power**
+- I2S pins (18, 19, 21) dedicated to audio DAC
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Date:** 2026-01-27
-**Project:** Dub Siren V2 - Raspberry Pi Zero HAT
+**Project:** Dub Siren V2 - Raspberry Pi Zero HAT (Hybrid Design)
