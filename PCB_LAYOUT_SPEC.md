@@ -222,8 +222,8 @@ Through-hole pads along bottom edge for external wiring.
 | **Bank Button** | Signal | 15 | 10 | Edge pad |
 | **Trigger Button** | Signal | 4 | 7 | Edge pad |
 
-**Total GPIO Used:** 19 pins (15 for encoders/pitch switch, 3 for I2S DAC, 1 for LED)
-**Optional GPIO:** 4 pins for waveform switch (if installed)
+**Total GPIO Used:** 18 pins (12 for encoders/pitch switch, 3 for I2S DAC, 1 for LED, 2 for buttons)
+**Optional GPIO:** 4 pins for waveform switch (GPIO 5, 6, 7, 8 if installed)
 
 ---
 
@@ -317,7 +317,7 @@ Pi GPIO 21    → PCM5102 DIN (DOUT)
 │┌───────────────────────────────────────┐   │
 ││ DAC   WAVE  WAVE  WAVE  WAVE  BANK TRIG│   │
 ││ 3V3   POS1  POS2  POS3  POS4  BTN  BTN │   │
-││ GND   POS5  (5)   (6)   (7)   (8)      │   │
+││ GND   (5)   (6)   (7)   (8)   (15) (4) │   │
 ││ LCK   GND   GND   GND   GND   GND  GND │   │
 ││ BCK                                     │   │
 ││ DIN                                     │   │
