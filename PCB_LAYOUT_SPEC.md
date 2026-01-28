@@ -40,11 +40,11 @@ This PCB is a **Raspberry Pi Zero 2 W HAT** with a hybrid component mounting app
 ## Raspberry Pi Zero 2 W Integration
 
 ### GPIO Header (Bottom Side)
-- **Type:** 2×20 pin (40-pin) female header
-- **Pitch:** 2.54mm (0.1" standard)
+- **Type:** 2×20 pin (40-pin) female header, through-hole mount
+- **PCB Footprint:** 40 plated through-holes (2×20 array at 2.54mm pitch)
 - **Position:** Centered on board width, starting 10mm from bottom edge
-- **Height:** Standard through-hole female header (8.5mm pin length)
-- **Orientation:** Pins face DOWN (Pi Zero mounts underneath)
+- **Assembly:** Solder female header to bottom side through-holes
+- **Orientation:** Female header accepts Pi's male GPIO pins from below
 
 ### Mounting Holes
 - **4× mounting holes** matching Pi Zero 2 W footprint
@@ -338,7 +338,7 @@ Pi GPIO 21    → PCM5102 DIN (DOUT)
 
 | Qty | Part Description | Designator | Package | Mounts To |
 |-----|------------------|------------|---------|-----------|
-| 1 | Female GPIO Header | J1 | 2×20 pin, 2.54mm | Bottom side |
+| 1 | Female GPIO Header | J1 | 2×20 pin, 2.54mm, through-hole | Bottom side (solder to PCB) |
 | 5 | Rotary Encoders | E1-E5 | EC11, panel mount | Front panel |
 | 1 | 3-Pos Toggle Switch | SW1 | ON/OFF/ON, panel mount | Front panel |
 | 1 | RGB LED | LED1 | WS2812-5mm | Top side or panel |
@@ -353,11 +353,12 @@ Pi GPIO 21    → PCM5102 DIN (DOUT)
 
 ## Assembly Instructions
 
-### Step 1: Solder GPIO Header (Bottom Side)
-1. Place female header on **bottom side** of PCB
-2. Ensure pins point downward (away from PCB)
-3. Solder all 40 pins from top side
-4. Trim any excess if needed
+### Step 1: Solder Female GPIO Header (Bottom Side)
+1. PCB has 40 through-holes (2×20) for the GPIO header on bottom side
+2. Insert 2×20 female header into through-holes from **bottom side**
+3. Female header socket should face downward (to accept Pi's male pins)
+4. Solder all 40 pins from **top side** of PCB
+5. Ensure header is flush and perpendicular to PCB before soldering
 
 ### Step 2: Optional LED and Protection Components (Top Side)
 1. Solder WS2812 LED to top side pads (or prep for panel mounting)
@@ -365,10 +366,11 @@ Pi GPIO 21    → PCM5102 DIN (DOUT)
 3. Add optional series resistor (R1) on data line
 
 ### Step 3: Mount Pi Zero 2 W (Bottom Side)
-1. Install M2.5 standoffs in mounting holes
-2. Carefully align Pi Zero GPIO with female header
-3. Press Pi Zero onto header (all 40 pins must engage)
-4. Secure with M2.5 screws
+1. Install M2.5 standoffs in PCB mounting holes (11mm height recommended)
+2. Carefully align Pi Zero 2 W's **male GPIO pins** with PCB's female header socket
+3. Gently press Pi Zero down - all 40 male pins must fully insert into female header
+4. Secure Pi Zero to standoffs with M2.5 screws
+5. Verify all GPIO pins are properly seated (no gaps between Pi and header)
 
 ### Step 4: Mount Encoders and Switches (Front Panel)
 1. Pre-drill front panel: 7mm holes for encoders, 6mm for pitch switch
@@ -442,8 +444,8 @@ TRIG_GND    → Pin 2
 
 - [ ] Schematic shows all GPIO connections
 - [ ] PCB layout matches component positions (45mm spacing)
-- [ ] Female header footprint correct (2×20, 2.54mm pitch)
-- [ ] Pi Zero mounting holes positioned correctly
+- [ ] GPIO header footprint: 40 through-holes (2×20, 2.54mm pitch) for female header
+- [ ] Pi Zero mounting holes positioned correctly (M2.5, standard Pi Zero footprint)
 - [ ] All encoder footprints positioned at (X, Y) coordinates
 - [ ] Pitch switch footprint at (120, 90)
 - [ ] LED footprint at (75, 15)
