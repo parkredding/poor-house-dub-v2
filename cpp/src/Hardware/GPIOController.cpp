@@ -550,7 +550,13 @@ void GPIOController::start() {
     // Start LED controller and show ready color
     if (ledController) {
         ledController->start();
-        ledController->showReadyColor();  // Show lime green when ready
+        ledController->showReadyColor();  // Show lime green when ready, then transitions to LFOSync
+
+        // Initialize LED LFO sync mode with current parameters
+        // LED color is based on oscillator waveform, brightness modulates with LFO
+        ledController->setLFOWaveform(params.oscWaveform);  // Match oscillator waveform for color
+        ledController->setLFORate(params.lfoRate);
+        ledController->setLFODepth(params.lfoDepth);
     }
     
     std::cout << "\n";
@@ -608,6 +614,9 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         step = 0.042f * direction;
         params.lfoDepth = clamp(params.lfoDepth + step, 0.0f, 1.0f);
         engine.setLfoDepth(params.lfoDepth);  // Filter modulation depth
+        if (ledController) {
+            ledController->setLFODepth(params.lfoDepth);  // Sync to LED brightness modulation
+        }
         newValue = params.lfoDepth;
     }
     else if (strcmp(paramName, "filter_freq") == 0) {
@@ -657,6 +666,9 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
         float multiplier = (direction > 0) ? 1.15f : (1.0f / 1.15f);
         params.lfoRate = clamp(params.lfoRate * multiplier, 0.1f, 20.0f);
         engine.setLfoRate(params.lfoRate);
+        if (ledController) {
+            ledController->setLFORate(params.lfoRate);  // Sync to LED brightness modulation rate
+        }
         newValue = params.lfoRate;
     }
     else if (strcmp(paramName, "delay_time") == 0) {
@@ -674,6 +686,9 @@ void GPIOController::handleEncoder(int encoderIndex, int direction) {
     else if (strcmp(paramName, "osc_waveform") == 0) {
         params.oscWaveform = (params.oscWaveform + direction + 4) % 4;
         engine.setWaveform(params.oscWaveform);
+        if (ledController) {
+            ledController->setLFOWaveform(params.oscWaveform);  // Sync LED color to oscillator waveform
+        }
         newValue = static_cast<float>(params.oscWaveform);
     }
     else {
@@ -863,8 +878,8 @@ void GPIOController::activateSecretMode(SecretMode mode) {
         } else if (mode == SecretMode::UFO) {
             ledController->setMode(LEDMode::UFO);
         } else if (mode == SecretMode::PitchDelay) {
-            // Use a different LED color for PitchDelay mode (could use NJD or UFO, or Normal)
-            ledController->setMode(LEDMode::Normal);
+            // Keep LFO sync mode for PitchDelay (just behavioral change, not a preset)
+            ledController->setMode(LEDMode::LFOSync);
         }
     }
 
@@ -921,9 +936,13 @@ void GPIOController::exitSecretMode() {
     secretMode.store(SecretMode::None);
     secretModePreset.store(0);
 
-    // Return LED to normal mode
+    // Return LED to LFO sync mode
     if (ledController) {
-        ledController->setMode(LEDMode::Normal);
+        ledController->setMode(LEDMode::LFOSync);
+        // Restore LED LFO parameters
+        ledController->setLFOWaveform(params.oscWaveform);
+        ledController->setLFORate(params.lfoRate);
+        ledController->setLFODepth(params.lfoDepth);
     }
 
     // Only restore default parameters when exiting NJD or UFO modes

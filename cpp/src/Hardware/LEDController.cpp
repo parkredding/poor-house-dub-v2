@@ -23,6 +23,10 @@ LEDController::LEDController(int pin)
     , audioLevel(0.0f)
     , brightness(0.8f)
     , cycleSpeed(1.0f)
+    , lfoWaveform(0)
+    , lfoRate(2.0f)
+    , lfoDepth(0.5f)
+    , lfoPhase(0.0f)
     , currentPath(ColorPath::SunsetToOcean)
     , cyclePosition(0.0f)
     , colorOverride(false)
@@ -184,6 +188,7 @@ void LEDController::setMode(LEDMode mode) {
             case LEDMode::Normal: modeName = "Normal"; break;
             case LEDMode::NJD: modeName = "NJD (Rasta)"; break;
             case LEDMode::UFO: modeName = "UFO (Alien)"; break;
+            case LEDMode::LFOSync: modeName = "LFO Sync"; break;
         }
         std::cout << "LED: Mode changed to " << modeName << std::endl;
     }
@@ -191,6 +196,18 @@ void LEDController::setMode(LEDMode mode) {
 
 void LEDController::setAudioLevel(float level) {
     audioLevel.store(std::clamp(level, 0.0f, 1.0f));
+}
+
+void LEDController::setLFOWaveform(int waveform) {
+    lfoWaveform.store(std::clamp(waveform, 0, 3));
+}
+
+void LEDController::setLFORate(float rate) {
+    lfoRate.store(std::clamp(rate, 0.1f, 20.0f));
+}
+
+void LEDController::setLFODepth(float depth) {
+    lfoDepth.store(std::clamp(depth, 0.0f, 1.0f));
 }
 
 void LEDController::showStartupColor() {
@@ -244,9 +261,9 @@ void LEDController::updateLoop() {
         // Check for pending ready transition (from showReadyColor)
         if (pendingReadyTransition.load() && now >= readyTransitionTime) {
             colorOverride.store(false);
-            currentMode.store(LEDMode::Normal);
+            currentMode.store(LEDMode::LFOSync);
             pendingReadyTransition.store(false);
-            std::cout << "LED: Transition to normal mode complete" << std::endl;
+            std::cout << "LED: Transition to LFO sync mode complete" << std::endl;
         }
         
         // Calculate and apply color
@@ -276,13 +293,22 @@ void LEDController::updateLoop() {
         // Handle cycle wrap and path changes
         if (cyclePosition >= 1.0f) {
             cyclePosition = std::fmod(cyclePosition, 1.0f);
-            
+
             // In normal mode, potentially change to a new color path
             if (mode == LEDMode::Normal) {
                 std::uniform_real_distribution<float> dist(0.0f, 1.0f);
                 if (dist(rng) < PATH_CHANGE_PROBABILITY) {
                     selectRandomPath();
                 }
+            }
+        }
+
+        // Advance LFO phase for LFOSync mode
+        if (mode == LEDMode::LFOSync) {
+            float rate = lfoRate.load();
+            lfoPhase += deltaTime * rate;
+            if (lfoPhase >= 1.0f) {
+                lfoPhase -= 1.0f;
             }
         }
         
@@ -308,9 +334,9 @@ Color LEDController::calculateColor() {
     if (colorOverride.load()) {
         return applyAudioPulse(overrideColor);
     }
-    
+
     Color baseColor;
-    
+
     switch (currentMode.load()) {
         case LEDMode::Startup:
             baseColor = Color::Amber();
@@ -324,8 +350,10 @@ Color LEDController::calculateColor() {
         case LEDMode::UFO:
             baseColor = getUFOModeColor();
             break;
+        case LEDMode::LFOSync:
+            return getLFOSyncModeColor();  // LFO sync handles its own brightness
     }
-    
+
     return applyAudioPulse(baseColor);
 }
 
@@ -357,9 +385,9 @@ Color LEDController::getNJDModeColor() {
 Color LEDController::getUFOModeColor() {
     // UFO theme: Neon Green → Purple → Cyan → Purple → Green
     // Alien, sci-fi feel
-    
+
     float pos = cyclePosition;
-    
+
     if (pos < 0.2f) {
         // Green to Purple
         return Color::lerp(Color::UFOGreen(), Color::UFOPurple(), pos * 5.0f);
@@ -378,6 +406,64 @@ Color LEDController::getUFOModeColor() {
         Color blueGreen(0, 200, 150);
         return Color::lerp(blueGreen, Color::UFOGreen(), (pos - 0.8f) * 5.0f);
     }
+}
+
+Color LEDController::getLFOSyncModeColor() {
+    // Get solid color based on waveform type
+    int waveform = lfoWaveform.load();
+    Color baseColor;
+    switch (waveform) {
+        case 0:  // Sine
+            baseColor = Color::LFOSine();
+            break;
+        case 1:  // Square
+            baseColor = Color::LFOSquare();
+            break;
+        case 2:  // Saw
+            baseColor = Color::LFOSaw();
+            break;
+        case 3:  // Triangle
+            baseColor = Color::LFOTriangle();
+            break;
+        default:
+            baseColor = Color::LFOSine();
+            break;
+    }
+
+    // Calculate LFO value based on phase and waveform (same formulas as audio LFO)
+    float lfoRawValue = 0.0f;
+    float phase = lfoPhase;
+
+    switch (waveform) {
+        case 0:  // Sine
+            lfoRawValue = std::sin(2.0f * 3.14159265f * phase);
+            break;
+        case 1:  // Square
+            lfoRawValue = (phase < 0.5f) ? 1.0f : -1.0f;
+            break;
+        case 2:  // Saw
+            lfoRawValue = 2.0f * phase - 1.0f;
+            break;
+        case 3:  // Triangle
+            if (phase < 0.5f) {
+                lfoRawValue = 4.0f * phase - 1.0f;
+            } else {
+                lfoRawValue = 3.0f - 4.0f * phase;
+            }
+            break;
+    }
+
+    // Apply depth to get the final LFO value (-depth to +depth)
+    float depth = lfoDepth.load();
+    float lfoValue = lfoRawValue * depth;
+
+    // Modulate brightness based on LFO value
+    // Map -depth..+depth to 0.15 (min visible) to 1.0 (full brightness)
+    // When depth is 0, brightness is constant at ~0.6
+    float lfoBrightness = 0.15f + (lfoValue + depth) * (0.85f / (2.0f * std::max(depth, 0.01f)));
+    lfoBrightness = std::clamp(lfoBrightness, 0.15f, 1.0f);
+
+    return baseColor.scaled(lfoBrightness);
 }
 
 Color LEDController::applyAudioPulse(const Color& baseColor) {

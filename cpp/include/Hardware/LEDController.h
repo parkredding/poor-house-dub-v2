@@ -43,6 +43,12 @@ struct Color {
     static Color UFOGreen()  { return Color(57, 255, 20); }   // Neon green
     static Color UFOPurple() { return Color(138, 43, 226); }  // Blue violet
     static Color UFOCyan()   { return Color(0, 255, 255); }   // Alien cyan
+
+    // LFO waveform colors (solid colors for each waveform type)
+    static Color LFOSine()     { return Color(0, 150, 255); }   // Blue - smooth sine
+    static Color LFOSquare()   { return Color(255, 50, 50); }   // Red - sharp square
+    static Color LFOSaw()      { return Color(255, 165, 0); }   // Orange - edgy saw
+    static Color LFOTriangle() { return Color(50, 255, 100); }  // Green - balanced triangle
     
     // Linear interpolation between colors
     static Color lerp(const Color& a, const Color& b, float t) {
@@ -72,7 +78,8 @@ enum class LEDMode {
     Startup,        // Amber during boot, lime green when ready
     Normal,         // Slow color cycling over minutes
     NJD,            // Rasta colors, faster cycling
-    UFO             // Green/purple alien theme
+    UFO,            // Green/purple alien theme
+    LFOSync         // Solid color based on waveform, brightness modulates with LFO
 };
 
 /**
@@ -122,6 +129,11 @@ public:
     
     // Sound reactivity - call this with audio level (0.0 - 1.0)
     void setAudioLevel(float level);
+
+    // LFO sync mode - LED calculates its own brightness based on these settings
+    void setLFOWaveform(int waveform);  // 0=Sine, 1=Square, 2=Saw, 3=Triangle
+    void setLFORate(float rate);         // LFO rate in Hz (0.1 - 20.0)
+    void setLFODepth(float depth);       // Modulation depth (0.0 - 1.0)
     
     // Startup sequence
     void showStartupColor();   // Amber - call when Pi boots
@@ -149,6 +161,12 @@ private:
     std::atomic<float> audioLevel;
     std::atomic<float> brightness;
     std::atomic<float> cycleSpeed;
+
+    // LFO sync mode state
+    std::atomic<int> lfoWaveform;     // 0=Sine, 1=Square, 2=Saw, 3=Triangle
+    std::atomic<float> lfoRate;       // LFO rate in Hz (0.1 - 20.0)
+    std::atomic<float> lfoDepth;      // Modulation depth (0.0 - 1.0)
+    float lfoPhase;                   // Internal phase accumulator for LED LFO
     
     // Platform-specific LED handle (must be before rng for initialization order)
     void* ledHandle;  // ws2811_t* on Pi, nullptr on other platforms
@@ -175,6 +193,7 @@ private:
     Color getNormalModeColor();
     Color getNJDModeColor();
     Color getUFOModeColor();
+    Color getLFOSyncModeColor();
     
     // Apply audio pulse to color
     Color applyAudioPulse(const Color& baseColor);
