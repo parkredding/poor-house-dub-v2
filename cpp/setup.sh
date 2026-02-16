@@ -228,10 +228,16 @@ if [ "$IS_PI" = true ]; then
                 echo "dtoverlay=hifiberry-dac" | sudo tee -a "$CONFIG_FILE" >/dev/null
             fi
             
-            # Disable onboard audio
+            # Disable onboard audio (required - onboard PWM audio interferes with I2S)
             if grep -q "dtparam=audio=on" "$CONFIG_FILE"; then
                 echo "Disabling onboard audio..."
                 sudo sed -i 's/dtparam=audio=on/dtparam=audio=off/' "$CONFIG_FILE"
+            elif ! grep -q "dtparam=audio=off" "$CONFIG_FILE"; then
+                # On newer Pi OS, dtparam=audio=on may not be explicit but audio is still
+                # enabled by default. We must explicitly disable it to prevent the onboard
+                # BCM2835 PWM audio from bleeding signal through the ground plane.
+                echo "Explicitly disabling onboard audio..."
+                echo "dtparam=audio=off" | sudo tee -a "$CONFIG_FILE" >/dev/null
             fi
             
             echo -e "${GREEN}✓ I2S configured${NC}"
