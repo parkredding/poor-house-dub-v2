@@ -122,7 +122,7 @@ BCK        ->  GPIO 19 (Pin 35)
 DIN        ->  GPIO 21 (Pin 40)
 SCK        ->  GND (for 48kHz)
 FMT        ->  GND (I2S format)
-XSMT       ->  GND (soft mute OFF)
+XSMT       ->  3.3V (soft mute OFF = unmuted)
 ```
 
 ### Running the Siren

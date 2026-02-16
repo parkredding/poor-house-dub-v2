@@ -81,21 +81,21 @@ The PCM5102 has several configuration pins that **must** be set correctly. Many 
 
 | PCM5102 Pin | Must Connect To | Purpose | **If Wrong** |
 |-------------|-----------------|---------|--------------|
-| **XMT** | **GND** | **Soft mute control** | **⚠️ If HIGH = NO AUDIO!** |
+| **XMT** | **3.3V** | **Soft mute control** | **⚠️ If LOW/GND = NO AUDIO!** |
 | **SCK** | GND | Sets sample rate mode (GND = 48kHz) | Wrong sample rate |
 | **FLT** | GND | Filter select (GND = normal latency) | Audio quality issues |
 | **FMT** | GND | Format select (GND = I2S standard) | No audio/wrong format |
 
 ### ⚠️ XMT Pin is the Most Common Cause of "No Audio"!
 
-**XMT (Soft Mute) behavior:**
-- **XMT = HIGH (3.3V)** → DAC is **MUTED** → **NO AUDIO OUTPUT**
-- **XMT = LOW (GND)** → DAC is **UNMUTED** → Normal operation
-- **XMT = Floating** → Usually unmuted, but not guaranteed
+**XMT/XSMT (Soft Mute) behavior per the [TI PCM5102A datasheet](https://www.mouser.com/datasheet/2/405/pcm5102a-445759.pdf):**
+- **XMT = HIGH (3.3V)** → DAC is **UNMUTED** → Normal operation
+- **XMT = LOW (GND)** → DAC is **MUTED** → **NO AUDIO OUTPUT**
+- **XMT = Floating** → Unreliable, may randomly mute/unmute
 
-**IMPORTANT:** If XMT is connected to 3.3V or pulled high by a jumper, speaker-test will run successfully but you'll hear no audio because the DAC is muted!
+**IMPORTANT:** If XMT is connected to GND or pulled low, speaker-test will run successfully but you'll hear no audio because the DAC is hardware-muted!
 
-**Fix:** Connect XMT to GND to guarantee unmuted operation.
+**Fix:** Connect XMT to 3.3V (Pi Pin 17) to guarantee unmuted operation.
 
 ### How to check:
 1. Look at your PCM5102 module
@@ -159,8 +159,8 @@ sudo reboot
 ### Issue: "No sound but speaker-test runs successfully" ⚠️ MOST COMMON
 **Possible Causes (in order of likelihood):**
 
-1. **XMT pin is HIGH (muted)** ← **CHECK THIS FIRST!**
-   - Solution: Connect XMT to GND, or check for jumpers pulling it high
+1. **XMT pin is LOW/GND (muted)** ← **CHECK THIS FIRST!**
+   - Solution: Connect XMT to 3.3V (Pi Pin 17), or check for jumpers pulling it low
 
 2. **Headphones on wrong output**
    - Solution: Connect to PCM5102 OUT L/R pins, NOT Pi's built-in jack
@@ -208,7 +208,7 @@ sudo reboot
 Follow this order to isolate the problem:
 
 1. ✓ Software working (speaker-test completes) ← **You are here**
-2. ⚠ **Check XMT pin → Must be GND (not 3.3V or floating)** ← **CHECK FIRST!**
+2. ⚠ **Check XMT pin → Must be 3.3V (not GND or floating)** ← **CHECK FIRST!**
 3. ⚠ Check headphones connected to DAC output (not Pi's jack)
 4. ⚠ Check other config pins (SCK, FLT, FMT → GND)
 5. ⚠ Verify I2S data pins (LCK→Pin 12, BCK→Pin 35, DIN→Pin 40)

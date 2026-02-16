@@ -33,7 +33,7 @@ The PCM5102 connects to the Raspberry Pi via I2S (Inter-IC Sound).
 | SCK         | -                | GND           | Tie to GND for 48kHz |
 | FLT         | -                | GND           | Normal filter latency |
 | FMT         | -                | GND           | I2S format |
-| **XMT**     | -                | **GND**       | **⚠️ Soft mute: GND=audio ON, 3.3V=MUTED** |
+| **XMT**     | Pin 17           | **3.3V**      | **⚠️ Soft mute: 3.3V=audio ON, GND=MUTED** |
 
 **Note:** Some PCM5102 boards have these configuration pins already set via solder jumpers.
 

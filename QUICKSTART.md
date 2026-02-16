@@ -21,7 +21,7 @@ Additional PCM5102 configuration pins (if available):
 - SCK → GND
 - FLT → GND
 - FMT → GND
-- XSMT → GND (soft mute OFF)
+- XSMT → 3.3V (soft mute OFF = unmuted)
 
 ## Step 2: Software Installation (5 minutes)
 
