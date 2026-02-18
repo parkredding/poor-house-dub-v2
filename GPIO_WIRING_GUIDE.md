@@ -26,8 +26,8 @@ The Dub Siren V2 uses **5 rotary encoders** with a **shift button** to control 1
 ## Critical: I2S Pin Avoidance
 
 ⚠️ **DO NOT USE** these GPIO pins - they are reserved for PCM5102 DAC audio:
-- **GPIO 18** (Pin 12) - I2S LRCLK
-- **GPIO 19** (Pin 35) - I2S BCLK
+- **GPIO 18** (Pin 12) - I2S BCLK
+- **GPIO 19** (Pin 35) - I2S LRCLK
 - **GPIO 21** (Pin 40) - I2S DOUT
 
 The pin assignments below carefully avoid these pins.

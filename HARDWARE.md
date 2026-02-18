@@ -27,8 +27,8 @@ The PCM5102 connects to the Raspberry Pi via I2S (Inter-IC Sound).
 |-------------|------------------|---------------|-------|
 | VIN         | Pin 1            | 3.3V          | Power |
 | GND         | Pin 6            | Ground        | Ground |
-| LCK         | Pin 12           | GPIO 18       | I2S LRCLK (Word Clock) |
-| BCK         | Pin 35           | GPIO 19       | I2S BCLK (Bit Clock) |
+| BCK         | Pin 12           | GPIO 18       | I2S BCLK (Bit Clock) |
+| LCK         | Pin 35           | GPIO 19       | I2S LRCLK (Word Clock) |
 | DIN         | Pin 40           | GPIO 21       | I2S DOUT (Data) |
 | SCK         | -                | GND           | Tie to GND for 48kHz |
 | FLT         | -                | GND           | Normal filter latency |
@@ -46,7 +46,7 @@ Raspberry Pi Zero 2 (Top View)
    GPIO3  [5]  [6]  GND  <--- PCM5102 GND
    GPIO4  [7]  [8]  GPIO14
      GND  [9]  [10] GPIO15
-  GPIO17  [11] [12] GPIO18 <--- PCM5102 LCK
+  GPIO17  [11] [12] GPIO18 <--- PCM5102 BCK
   GPIO27  [13] [14] GND
   GPIO22  [15] [16] GPIO23
     3.3V  [17] [18] GPIO24
@@ -58,7 +58,7 @@ Raspberry Pi Zero 2 (Top View)
    GPIO5  [29] [30] GND
    GPIO6  [31] [32] GPIO12
   GPIO13  [33] [34] GND
-  GPIO19  [35] [36] GPIO16 <--- PCM5102 BCK
+  GPIO19  [35] [36] GPIO16      (Pin 35: PCM5102 LCK)
   GPIO26  [37] [38] GPIO20
      GND  [39] [40] GPIO21 <--- PCM5102 DIN
 ```
@@ -174,8 +174,8 @@ Switch Wiring:
 ### I2S Audio Pin Protection
 
 ✅ **No GPIO conflicts:** This design carefully avoids GPIO 18, 19, and 21 which are used by the PCM5102 DAC for I2S audio:
-- **GPIO 18** - I2S LRCLK (Word Clock)
-- **GPIO 19** - I2S BCLK (Bit Clock)
+- **GPIO 18** - I2S BCLK (Bit Clock)
+- **GPIO 19** - I2S LRCLK (Word Clock)
 - **GPIO 21** - I2S DOUT (Data)
 
 The 15-16 GPIO pins used by the control surface (GPIO 2, 3, 4, 9, 10, 12, 13, 14, 15, 17, 20, 22, 23, 24, 26, 27) are all safe to use alongside I2S.

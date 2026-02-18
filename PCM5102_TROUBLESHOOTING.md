@@ -21,8 +21,8 @@ Verify these connections are secure and correct:
 
 | PCM5102 Pin | Raspberry Pi Physical Pin | GPIO Number | Function |
 |-------------|---------------------------|-------------|----------|
-| **LCK** (LRCLK) | Pin 12 | GPIO 18 | Word clock (left/right) |
-| **BCK** (BCLK) | Pin 35 | GPIO 19 | Bit clock |
+| **BCK** (BCLK) | Pin 12 | GPIO 18 | Bit clock |
+| **LCK** (LRCLK) | Pin 35 | GPIO 19 | Word clock (left/right) |
 | **DIN** (DATA) | Pin 40 | GPIO 21 | Data input |
 
 ### Common Wiring Mistakes:
@@ -43,7 +43,7 @@ Left Side (Odd Numbers):          Right Side (Even Numbers):
  5  GPIO3 ●●  6  GND  ← PCM5102 GND
  7  GPIO4 ●●  8  GPIO14
  9  GND   ●●  10 GPIO15
-11  GPIO17●●  12 GPIO18 ← PCM5102 LCK (LRCLK)
+11  GPIO17●●  12 GPIO18 ← PCM5102 BCK (BCLK)
 13  GPIO27●●  14 GND
 15  GPIO22●●  16 GPIO23
 17  3.3V  ●●  18 GPIO24
@@ -55,7 +55,7 @@ Left Side (Odd Numbers):          Right Side (Even Numbers):
 29  GPIO5 ●●  30 GND
 31  GPIO6 ●●  32 GPIO12
 33  GPIO13●●  34 GND
-35  GPIO19●●  36 GPIO16 ← PCM5102 BCK (BCLK) goes to pin 35, not 36!
+35  GPIO19●●  36 GPIO16 ← PCM5102 LCK (LRCLK) goes to pin 35, not 36!
 37  GPIO26●●  38 GPIO20
 39  GND   ●●  40 GPIO21 ← PCM5102 DIN (DATA)
 ```
@@ -166,7 +166,7 @@ sudo reboot
    - Solution: Connect to PCM5102 OUT L/R pins, NOT Pi's built-in jack
 
 3. **I2S pins not connected properly**
-   - Solution: Verify LCK→Pin 12, BCK→Pin 35, DIN→Pin 40
+   - Solution: Verify BCK→Pin 12, LCK→Pin 35, DIN→Pin 40
 
 ### Issue: "Hearing audio on ground wire" or "Audio without PCM5102 powered"
 **Cause:** Pi's onboard audio is still enabled and bleeding signal through ground
@@ -194,7 +194,7 @@ sudo reboot
 
 ### Issue: "Audio only in one channel"
 **Cause:** LCK (word clock) not connected
-**Solution:** Verify LCK connection to GPIO 18 (Pin 12)
+**Solution:** Verify LCK connection to GPIO 19 (Pin 35)
 
 ### Issue: "No audio at all"
 **Causes:**
@@ -211,7 +211,7 @@ Follow this order to isolate the problem:
 2. ⚠ **Check XMT pin → Must be 3.3V (not GND or floating)** ← **CHECK FIRST!**
 3. ⚠ Check headphones connected to DAC output (not Pi's jack)
 4. ⚠ Check other config pins (SCK, FLT, FMT → GND)
-5. ⚠ Verify I2S data pins (LCK→Pin 12, BCK→Pin 35, DIN→Pin 40)
+5. ⚠ Verify I2S data pins (BCK→Pin 12, LCK→Pin 35, DIN→Pin 40)
 6. ⚠ Verify power connections (VIN → 3.3V, GND → GND)
 7. ⚠ Test with different headphones/speakers
 8. ⚠ Try different PCM5102 module
