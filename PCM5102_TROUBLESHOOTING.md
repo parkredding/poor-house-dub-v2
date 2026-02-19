@@ -4,6 +4,102 @@
 
 If `speaker-test -t wav -c 2 -D hw:0,0 -l 1` completes without errors but you hear no audio in your headphones/speakers, the issue is almost certainly with the PCM5102 DAC hardware setup.
 
+## PCB Schematic Review - Known Issues to Check
+
+If you're using the custom PCB designed for this project, the following issues were identified
+from the schematic review. **Check these first** before proceeding to the general
+troubleshooting steps below.
+
+### Issue #1: BCK routed to Pin 36 instead of Pin 35 (MOST LIKELY)
+
+Pin 35 (GPIO 19) and Pin 36 (GPIO 16) are in the **same row** but on **opposite sides** of
+the 40-pin header. This is the single most common PCB design mistake with the PCM5102:
+
+```
+              Pin 35                  Pin 36
+              (GPIO 19)               (GPIO 16)
+                LEFT                    RIGHT
+  Row 18:  [35  GPIO19] ●  ● [GPIO16  36]
+                 ↑ CORRECT              ↑ WRONG
+                 BCK must               NOT an I2S pin!
+                 go HERE
+```
+
+**BCK (Bit Clock) MUST connect to Pin 35 (LEFT side), NOT Pin 36 (RIGHT side).**
+
+If BCK is on Pin 36, the bit clock signal goes to GPIO 16 which is not an I2S pin.
+The DAC receives no clock and produces zero audio output. `speaker-test` will still
+complete without errors because the I2S peripheral is running fine on the Pi side - the
+data just never reaches the DAC.
+
+**How to verify with a multimeter (continuity mode):**
+1. Power off the Pi
+2. Put multimeter in continuity/beep mode
+3. Touch one probe to the PCM5102 BCK pad
+4. Touch other probe to Pin 35 on the Pi header (LEFT side, 3rd from bottom)
+5. You MUST get continuity. If not, check Pin 36 (RIGHT side, same row) - if that beeps,
+   the trace is on the wrong pin
+
+**Fix:** If the PCB trace goes to Pin 36, you need to cut the trace and run a bodge wire
+from the PCM5102 BCK pad to Pin 35 (GPIO 19) on the Pi header.
+
+### Issue #2: DIN routed to Pin 38 instead of Pin 40
+
+Pin 38 (GPIO 20) and Pin 40 (GPIO 21) are adjacent on the RIGHT side of the header.
+Pin 38 is also used by **Encoder 4 CLK** in this design, so a misroute here causes
+both no audio AND an encoder conflict:
+
+```
+  Row 19:  [37  GPIO26] ●  ● [GPIO20  38]  ← Encoder 4 CLK (NOT I2S!)
+  Row 20:  [39  GND   ] ●  ● [GPIO21  40]  ← DIN MUST go HERE
+```
+
+**How to verify:** Continuity test between PCM5102 DIN pad and Pin 40 (bottom-right pin).
+
+### Issue #3: XMT pin not managed on PCB
+
+The PCB schematic shows only 6 pins broken out from the purple board module:
+SCK, BCK, DIN, LCK, GND, VIN. The **XMT (soft mute) pin is not routed on the PCB**.
+
+This means you're relying entirely on the purple board's internal configuration. Many
+cheap purple PCM5102 boards do NOT tie XMT to GND - it's left floating or pulled HIGH.
+
+**If XMT = HIGH, the DAC is silently MUTED.** `speaker-test` succeeds, no errors anywhere,
+but zero audio comes out of the headphone jack.
+
+**Fix:** Check the back of your purple PCM5102 board for solder jumpers. Look for a pad
+labeled "H/L" or "XMT" near the edge. If there's a jumper, make sure it bridges to the
+"L" (LOW/GND) side. If there's no jumper, solder a wire from the XMT pad directly to GND.
+
+### Issue #4: FMT pin configuration
+
+If FMT is not tied to GND (I2S standard format), the DAC expects a different data format
+(Left-Justified) and will either produce no audio or garbage noise. Most purple boards tie
+this to GND by default, but verify by checking the solder jumpers on the back of the module.
+
+### PCB Verification Checklist
+
+Run through this with a multimeter before powering on:
+
+```
+[ ] BCK pad  → Pin 35 (GPIO 19, LEFT side)  — NOT Pin 36!
+[ ] DIN pad  → Pin 40 (GPIO 21, RIGHT side) — NOT Pin 38!
+[ ] LCK pad  → Pin 12 (GPIO 18, RIGHT side)
+[ ] VIN pad  → Pin 1  (3.3V)
+[ ] GND pad  → Pin 6  (GND)
+[ ] SCK pad  → GND (on the PCM5102 board or via trace)
+[ ] XMT      → GND (solder jumper on back of purple board)
+[ ] FMT      → GND (solder jumper on back of purple board)
+[ ] FLT      → GND (solder jumper on back of purple board)
+[ ] No shorts between adjacent pins (especially 35/36 and 38/40)
+```
+
+---
+
+## General Troubleshooting Steps
+
+The steps below apply whether you're using the custom PCB or hand-wiring with jumper cables.
+
 ## Step 1: Verify Headphones/Speakers Connection
 
 **CRITICAL:** Make sure your headphones or speakers are connected to the **PCM5102 DAC output**, NOT the Raspberry Pi's onboard 3.5mm jack (which is disabled).
